@@ -78,6 +78,9 @@ const DEFAULT_AGG_BATCH_MAX_MS = 120;
 const DEFAULT_PROGRESS_INTERVAL_MS = 120;
 const DEFAULT_CONCURRENCY_MIN = 16;
 const DEFAULT_CONCURRENCY_MAX = 64;
+const DEEP_SKIP_PACKAGE_MANAGERS_DEFAULT = process.env.SCAN_DEEP_SKIP_PACKAGE_MANAGERS !== "0";
+const DEEP_SKIP_CACHE_PREFIXES_DEFAULT = process.env.SCAN_DEEP_SKIP_CACHE_PREFIXES !== "0";
+const DEEP_SKIP_BUNDLE_DIRS_DEFAULT = process.env.SCAN_DEEP_SKIP_BUNDLE_DIRS !== "0";
 const HEAVY_DIRECTORY_BASENAMES = new Set([
   "node_modules",
   ".pnpm",
@@ -137,6 +140,17 @@ const HEAVY_DIRECTORY_BASENAMES = new Set([
   ".PKInstallSandboxManager-SystemSoftware",
   ".Trashes",
 ]);
+const DEEP_PACKAGE_SKIP_BASENAMES = new Set(["node_modules", ".pnpm", ".pnpm-store", ".yarn", ".npm"]);
+const PACKAGE_DIRECTORY_SUFFIXES = new Set([
+  ".app",
+  ".framework",
+  ".bundle",
+  ".plugin",
+  ".kext",
+  ".prefpane",
+  ".xpc",
+  ".appex",
+]);
 
 type ScanStage = Exclude<ScanProgress["scanStage"], undefined>;
 
@@ -157,6 +171,11 @@ interface ResolvedScanOptions {
   };
   concurrencyPolicy: Required<ScanConcurrencyPolicy>;
   allowNodeFallback: boolean;
+  deepSkipPackageManagers: boolean;
+  deepSkipCachePrefixes: boolean;
+  deepSkipBundleDirs: boolean;
+  deepSoftSkipPrefixes: string[];
+  deepSkipDirSuffixes: string[];
   quickBudgetMs: number;
   statConcurrency: number;
 }
@@ -194,6 +213,7 @@ interface ScanJob {
   diagnosticsLastEmitAt: number;
   estimatedDirectories: Set<string>;
   skippedHeavyDirectories: Set<string>;
+  deepSkippedByPolicy: boolean;
   options: ResolvedScanOptions;
   engine: ScanEngine;
   fallbackReason?: string;
@@ -292,6 +312,7 @@ export class DiskScanService {
       diagnosticsLastEmitAt: startedAt,
       estimatedDirectories: new Set<string>(),
       skippedHeavyDirectories: new Set<string>(),
+      deepSkippedByPolicy: false,
       options,
       engine: options.scanMode === "native_rust" ? "native" : "node",
       aggregator: new ScanAggregator(
@@ -559,7 +580,7 @@ export class DiskScanService {
 
     watcher?.close();
 
-    if (!job.cancelled && !deepBudgetExceeded) {
+    if (!job.cancelled && !deepBudgetExceeded && !job.deepSkippedByPolicy) {
       job.estimatedResult = false;
     }
 
@@ -690,14 +711,16 @@ export class DiskScanService {
         elevationPolicy: job.options.elevationPolicy,
         emitPolicy: job.options.emitPolicy,
         concurrencyPolicy: job.options.concurrencyPolicy,
-        skipBasenames:
-          input.mode === "quick" ? [...HEAVY_DIRECTORY_BASENAMES] : [],
+        skipBasenames: resolveNativeSkipBasenames(job.options, input.mode),
+        softSkipPrefixes: resolveNativeSoftSkipPrefixes(job.options, input.mode),
+        skipDirSuffixes: resolveNativeSkipDirSuffixes(job.options, input.mode),
         blockedPrefixes: buildNativeBlockedPrefixes(job, input.mode),
       },
       {
         onMessage: (message) => {
           switch (message.type) {
             case "agg": {
+              job.currentPath = message.path;
               if (message.countDelta > 0) {
                 job.totalBytes += message.sizeDelta;
                 const deltas = job.aggregator.addFile(message.path, message.sizeDelta);
@@ -710,10 +733,13 @@ export class DiskScanService {
                 this.appendDeltas(job, deltas);
                 job.estimatedDirectories.add(message.path);
               }
+              this.emitProgressBatch(job, "walking", false);
               return;
             }
             case "agg_batch": {
+              let lastPath: string | null = null;
               for (const item of message.items) {
+                lastPath = item.path;
                 if (item.countDelta > 0) {
                   job.totalBytes += item.sizeDelta;
                   const deltas = job.aggregator.addFile(item.path, item.sizeDelta);
@@ -730,6 +756,10 @@ export class DiskScanService {
                   job.estimatedDirectories.add(item.path);
                 }
               }
+              if (lastPath) {
+                job.currentPath = lastPath;
+              }
+              this.emitProgressBatch(job, "walking", false);
               return;
             }
             case "progress":
@@ -755,6 +785,9 @@ export class DiskScanService {
               this.emitCoverageUpdate(job, true);
               return;
             case "diagnostics":
+              if (message.hotPath) {
+                job.currentPath = message.hotPath;
+              }
               this.emitPerfSample(job, {
                 filesPerSec: message.filesPerSec,
                 stageElapsedMs: message.stageElapsedMs,
@@ -861,6 +894,11 @@ export class DiskScanService {
 
       if (entry.isDirectory()) {
         this.ensureDirectoryInAggregation(job, fullPath, current.dirPath);
+
+        if (quickQueue === null && this.shouldSkipDeepPackageTraversal(job, fullPath)) {
+          this.scheduleDeepPackageDirectoryEstimate(job, fullPath);
+          continue;
+        }
 
         if (quickQueue !== null && this.shouldSkipHeavyTraversal(job, fullPath)) {
           this.scheduleHeavyDirectoryEstimate(job, fullPath);
@@ -1347,6 +1385,66 @@ export class DiskScanService {
     return job.options.scanMode === "portable_plus_os_accel";
   }
 
+  private shouldSkipDeepPackageTraversal(job: ScanJob, dirPath: string): boolean {
+    const platform = os.platform();
+    const normalizedPath = normalizeForCompare(path.resolve(dirPath), platform);
+    const normalizedRoot = normalizeForCompare(path.resolve(job.rootPath), platform);
+    if (normalizedPath === normalizedRoot) {
+      return false;
+    }
+    if (job.skippedHeavyDirectories.has(dirPath)) {
+      return false;
+    }
+
+    if (job.options.deepSkipPackageManagers && isDeepPackageSkipDirectory(dirPath)) {
+      return true;
+    }
+
+    if (
+      job.options.deepSkipBundleDirs &&
+      hasSkippedDirectorySuffix(dirPath, job.options.deepSkipDirSuffixes)
+    ) {
+      return true;
+    }
+
+    if (
+      job.options.deepSkipCachePrefixes &&
+      pathMatchesAnyPrefix(normalizedPath, job.options.deepSoftSkipPrefixes)
+    ) {
+      return true;
+    }
+
+    return false;
+  }
+
+  private scheduleDeepPackageDirectoryEstimate(job: ScanJob, dirPath: string): void {
+    if (job.skippedHeavyDirectories.has(dirPath)) {
+      return;
+    }
+
+    job.skippedHeavyDirectories.add(dirPath);
+    job.deepSkippedByPolicy = true;
+    job.estimatedResult = true;
+
+    void this.scheduleStatTask(job, async () => {
+      if (job.cancelled) {
+        return;
+      }
+
+      const estimatedSize =
+        (await estimateDirectorySizeFast(
+          dirPath,
+          job.options.scanMode,
+          HEAVY_BACKGROUND_ESTIMATE_TIMEOUT_MS,
+        )) ?? HEAVY_FALLBACK_ESTIMATE_BYTES;
+
+      const deltas = job.aggregator.addDirectoryEstimate(dirPath, estimatedSize);
+      this.appendDeltas(job, deltas);
+      job.estimatedDirectories.add(dirPath);
+      this.emitProgressBatch(job, "walking", false);
+    });
+  }
+
   private shouldSkipHeavyTraversal(job: ScanJob, dirPath: string): boolean {
     if (job.options.performanceProfile !== "preview-first") {
       return false;
@@ -1438,9 +1536,6 @@ function buildNativeBlockedPrefixes(
   if (!job.optInProtected) {
     blocked.push(...policy.optInRequired);
   }
-  if (mode === "quick") {
-    blocked.push(...getPerformanceSkipPrefixes(job));
-  }
 
   const unique = new Set<string>();
   for (const raw of blocked) {
@@ -1452,31 +1547,6 @@ function buildNativeBlockedPrefixes(
   }
 
   return [...unique].sort((left, right) => right.length - left.length);
-}
-
-function getPerformanceSkipPrefixes(job: ScanJob): string[] {
-  if (job.options.performanceProfile !== "preview-first") {
-    return [];
-  }
-
-  const home = os.homedir();
-  const prefixes = [
-    `${home}/.cargo`,
-    `${home}/.rustup`,
-    `${home}/.nvm`,
-    `${home}/.pyenv`,
-    `${home}/.asdf`,
-    `${home}/Library/Developer`,
-    "/Library/Developer/CommandLineTools",
-    "/Library/Developer/CoreSimulator",
-  ];
-
-  if (os.platform() === "win32") {
-    prefixes.push("C:/ProgramData/chocolatey");
-    prefixes.push("C:/Users/Public/.cache");
-  }
-
-  return prefixes;
 }
 
 function normalizeForNativePrefix(rawPath: string, platform: NodeJS.Platform): string {
@@ -1584,6 +1654,15 @@ function resolveScanOptions(
   const concurrencyPolicy = resolveConcurrencyPolicy(input.concurrencyPolicy);
   const allowNodeFallback =
     Boolean(input.allowNodeFallback) || process.env.SCAN_ALLOW_NODE_FALLBACK === "1";
+  const deepSkipPackageManagers = DEEP_SKIP_PACKAGE_MANAGERS_DEFAULT;
+  const deepSkipCachePrefixes = DEEP_SKIP_CACHE_PREFIXES_DEFAULT;
+  const deepSkipBundleDirs = DEEP_SKIP_BUNDLE_DIRS_DEFAULT;
+  const deepSoftSkipPrefixes = resolveDeepSoftSkipPrefixes(
+    os.platform(),
+    os.homedir(),
+    deepSkipCachePrefixes,
+  );
+  const deepSkipDirSuffixes = resolveDeepSkipDirSuffixes(deepSkipBundleDirs);
 
   const defaultBudget = isRoot
     ? ROOT_QUICK_PASS_TIME_BUDGET_MS
@@ -1603,6 +1682,11 @@ function resolveScanOptions(
     emitPolicy,
     concurrencyPolicy,
     allowNodeFallback,
+    deepSkipPackageManagers,
+    deepSkipCachePrefixes,
+    deepSkipBundleDirs,
+    deepSoftSkipPrefixes,
+    deepSkipDirSuffixes,
     quickBudgetMs: input.quickBudgetMs ?? profileBudget,
     statConcurrency: resolveStatConcurrency(
       performanceProfile,
@@ -1702,6 +1786,101 @@ function resolveConcurrencyPolicy(
   const adaptive = input?.adaptive ?? true;
 
   return { min, max, adaptive };
+}
+
+function resolveNativeSkipBasenames(
+  options: ResolvedScanOptions,
+  mode: NativeScanPhaseMode,
+): string[] {
+  if (mode === "quick") {
+    return [...HEAVY_DIRECTORY_BASENAMES];
+  }
+  if (options.deepSkipPackageManagers) {
+    return [...DEEP_PACKAGE_SKIP_BASENAMES];
+  }
+  return [];
+}
+
+function resolveNativeSoftSkipPrefixes(
+  options: ResolvedScanOptions,
+  mode: NativeScanPhaseMode,
+): string[] {
+  if (mode !== "deep" || !options.deepSkipCachePrefixes) {
+    return [];
+  }
+
+  const unique = new Set<string>();
+  for (const normalized of options.deepSoftSkipPrefixes) {
+    const nativeNormalized = normalizeForNativePrefix(normalized, os.platform());
+    unique.add(nativeNormalized);
+  }
+
+  return [...unique].sort((left, right) => right.length - left.length);
+}
+
+function resolveNativeSkipDirSuffixes(
+  options: ResolvedScanOptions,
+  mode: NativeScanPhaseMode,
+): string[] {
+  if (mode !== "deep" || !options.deepSkipBundleDirs) {
+    return [];
+  }
+
+  return [...options.deepSkipDirSuffixes];
+}
+
+function resolveDeepSoftSkipPrefixes(
+  platform: NodeJS.Platform,
+  homeDirectory: string,
+  enabled: boolean,
+): string[] {
+  if (!enabled) {
+    return [];
+  }
+
+  const raw = [
+    path.join(homeDirectory, "Library", "Caches"),
+    "/Library/Caches",
+    "/private/var/folders",
+  ];
+  const unique = new Set<string>();
+  for (const item of raw) {
+    unique.add(normalizeForCompare(path.resolve(item), platform));
+  }
+  return [...unique].sort((left, right) => right.length - left.length);
+}
+
+function resolveDeepSkipDirSuffixes(enabled: boolean): string[] {
+  if (!enabled) {
+    return [];
+  }
+  return [...PACKAGE_DIRECTORY_SUFFIXES];
+}
+
+function isDeepPackageSkipDirectory(dirPath: string): boolean {
+  return DEEP_PACKAGE_SKIP_BASENAMES.has(path.basename(dirPath).toLowerCase());
+}
+
+function hasSkippedDirectorySuffix(dirPath: string, suffixes: string[]): boolean {
+  if (suffixes.length === 0) {
+    return false;
+  }
+  const basename = path.basename(dirPath).toLowerCase();
+  for (const suffix of suffixes) {
+    if (basename.endsWith(suffix)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function pathMatchesAnyPrefix(candidate: string, prefixes: string[]): boolean {
+  for (const prefix of prefixes) {
+    if (candidate === prefix || candidate.startsWith(`${prefix}/`)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 function isHeavyTraversalDirectory(dirPath: string): boolean {

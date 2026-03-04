@@ -35,6 +35,8 @@ export interface NativeScannerStartRequest {
   emitPolicy: NativeEmitPolicy;
   concurrencyPolicy: NativeConcurrencyPolicy;
   skipBasenames: string[];
+  softSkipPrefixes: string[];
+  skipDirSuffixes: string[];
   blockedPrefixes: string[];
 }
 
@@ -304,6 +306,8 @@ export function createNativeScannerSession(): NativeScannerSession {
         emitPolicy: request.emitPolicy,
         concurrencyPolicy: request.concurrencyPolicy,
         skipBasenames: request.skipBasenames,
+        softSkipPrefixes: request.softSkipPrefixes,
+        skipDirSuffixes: request.skipDirSuffixes,
         blockedPrefixes: request.blockedPrefixes,
       };
 

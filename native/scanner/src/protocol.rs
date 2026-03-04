@@ -15,6 +15,8 @@ pub struct StartRequest {
     pub emit_policy: EmitPolicy,
     pub concurrency_policy: ConcurrencyPolicy,
     pub skip_basenames: Vec<String>,
+    pub soft_skip_prefixes: Vec<String>,
+    pub skip_dir_suffixes: Vec<String>,
     pub blocked_prefixes: Vec<String>,
 }
 
@@ -150,6 +152,12 @@ pub enum IncomingMessage {
         concurrency_policy: ConcurrencyPolicy,
         #[serde(rename = "skipBasenames")]
         skip_basenames: Vec<String>,
+        #[serde(rename = "softSkipPrefixes")]
+        #[serde(default)]
+        soft_skip_prefixes: Vec<String>,
+        #[serde(rename = "skipDirSuffixes")]
+        #[serde(default)]
+        skip_dir_suffixes: Vec<String>,
         #[serde(rename = "blockedPrefixes")]
         #[serde(default)]
         blocked_prefixes: Vec<String>,
@@ -179,6 +187,8 @@ impl IncomingMessage {
                 emit_policy,
                 concurrency_policy,
                 skip_basenames,
+                soft_skip_prefixes,
+                skip_dir_suffixes,
                 blocked_prefixes,
             } => Some(StartRequest {
                 scan_id,
@@ -194,6 +204,8 @@ impl IncomingMessage {
                 emit_policy,
                 concurrency_policy,
                 skip_basenames,
+                soft_skip_prefixes,
+                skip_dir_suffixes,
                 blocked_prefixes,
             }),
             _ => None,

@@ -9,6 +9,7 @@ interface LandingViewProps {
     rootPath: string;
     setRootPath: (path: string) => void;
     oneClickScan: () => void;
+    onResolveElevation?: (targetPath: string) => void | Promise<void>;
     error?: { message: string } | null;
     elevationRequired?: ScanElevationRequired | null;
     isScanning?: boolean;
@@ -20,6 +21,7 @@ export function LandingView({
     rootPath,
     setRootPath,
     oneClickScan,
+    onResolveElevation,
     error,
     elevationRequired,
     isScanning,
@@ -115,7 +117,16 @@ export function LandingView({
                 {!error && elevationRequired ? (
                     <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-amber-500/90 backdrop-blur text-black px-5 py-3 rounded-2xl text-sm max-w-xl text-center shadow-[0_10px_40px_rgba(245,158,11,0.35)] border border-amber-300 animate-in slide-in-from-bottom">
                         <strong className="block mb-1 text-base">권한 상승 필요</strong>
-                        {elevationRequired.targetPath}
+                        <div className="mb-2">{elevationRequired.targetPath}</div>
+                        <button
+                            type="button"
+                            onClick={() => {
+                                void onResolveElevation?.(elevationRequired.targetPath);
+                            }}
+                            className="px-3 py-1 rounded-lg bg-black/70 text-amber-100 text-xs font-semibold border border-amber-200/50 hover:bg-black/80 transition-colors"
+                        >
+                            권한 설정 열기
+                        </button>
                     </div>
                 ) : null}
             </div>

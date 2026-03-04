@@ -9,6 +9,7 @@ import { registerIpcHandlers } from "./handler/registerIpcHandlers";
 import { registerAppLifecycle } from "./lifecycle/appLifecycle";
 import { ScanManager } from "./manager/scanManager";
 import { DiskScanService } from "./services/diskScanService";
+import { requestElevation } from "./services/security/macosPrivilegeHelper";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -38,6 +39,7 @@ if (gotSingleInstanceLock) {
 
     const mainWindow = windowManager.createMainWindow();
     registerSecurityGuards(mainWindow);
+    void promptLibraryPermissionOnStartup(windowManager);
 
     windowManager.onStateChanged((state) => {
       windowManager
@@ -97,6 +99,44 @@ if (gotSingleInstanceLock) {
       return nextWindow;
     });
   });
+}
+
+async function promptLibraryPermissionOnStartup(windowManager: WindowManager): Promise<void> {
+  if (process.platform !== "darwin") {
+    return;
+  }
+  if (process.env.SCAN_PROMPT_LIBRARY_PERMISSION_ON_STARTUP === "0") {
+    return;
+  }
+
+  const targetPath = path.join(app.getPath("home"), "Library");
+  const runPrompt = async (): Promise<void> => {
+    const result = await requestElevation(targetPath).catch(() => ({ granted: false }));
+    if (result.granted) {
+      return;
+    }
+
+    windowManager.getMainWindow()?.webContents.send(IPC_CHANNELS.SCAN_ELEVATION_REQUIRED, {
+      scanId: "startup-permission-check",
+      targetPath,
+      reason: "macOS Full Disk Access 권한이 필요합니다. 설정에서 이 앱을 허용해 주세요.",
+      policy: "manual" as const,
+    });
+  };
+
+  const window = windowManager.getMainWindow();
+  if (!window) {
+    return;
+  }
+
+  if (window.webContents.isLoading()) {
+    window.webContents.once("did-finish-load", () => {
+      void runPrompt();
+    });
+    return;
+  }
+
+  await runPrompt();
 }
 
 function resolvePreloadPath(currentDir: string): string {

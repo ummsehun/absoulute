@@ -38,6 +38,8 @@ fn main() -> Result<()> {
                         emit_policy,
                         concurrency_policy,
                         skip_basenames,
+                        soft_skip_prefixes,
+                        skip_dir_suffixes,
                         blocked_prefixes,
                     } => {
                         let request = StartRequest {
@@ -54,6 +56,8 @@ fn main() -> Result<()> {
                             emit_policy,
                             concurrency_policy,
                             skip_basenames,
+                            soft_skip_prefixes,
+                            skip_dir_suffixes,
                             blocked_prefixes,
                         };
                         if start_tx.send(request).is_err() {

@@ -26,7 +26,7 @@ export function useScanLogic() {
     const electronAPI = getElectronAPI();
     const [rootPath, setRootPath] = useState<string>(".");
     const [scanId, setScanId] = useState<string>("");
-    const [allowProtectedOptIn, setAllowProtectedOptIn] = useState<boolean>(false);
+    const [allowProtectedOptIn, setAllowProtectedOptIn] = useState<boolean>(true);
     const [systemInfo, setSystemInfo] = useState<SystemInfo | null>(null);
     const [windowState, setWindowState] = useState<WindowState | null>(null);
     const [progress, setProgress] = useState<ScanProgressBatch | null>(null);
@@ -216,7 +216,7 @@ export function useScanLogic() {
             performanceProfile: "accuracy-first",
             scanMode: "native_rust",
             accuracyMode: "full",
-            elevationPolicy: "manual",
+            elevationPolicy: "auto",
             emitPolicy: {
                 aggBatchMaxItems: 512,
                 aggBatchMaxMs: 120,
@@ -317,6 +317,31 @@ export function useScanLogic() {
         if (!result.ok) setError(result.error);
     };
 
+    const resolveElevation = async (targetPath: string) => {
+        if (!electronAPI) return;
+        const normalized = normalizeFsPath(targetPath);
+        if (!normalized) return;
+
+        const result = await electronAPI.requestElevation(normalized);
+        if (!result.ok) {
+            setError(result.error);
+            return;
+        }
+
+        if (result.data.granted) {
+            setAllowProtectedOptIn(true);
+            setElevationRequired(null);
+            return;
+        }
+
+        setError({
+            code: "E_PERMISSION",
+            message: "권한이 아직 허용되지 않았습니다. 시스템 설정에서 Full Disk Access를 허용해 주세요.",
+            recoverable: true,
+            details: { targetPath: normalized },
+        });
+    };
+
     const visualizationRoot = activeRootPath || scanBasePath || normalizeFsPath(rootPath);
 
     const breadcrumbPaths = useMemo(() => {
@@ -358,6 +383,7 @@ export function useScanLogic() {
         cancelScan,
         pauseScan,
         resumeScan,
+        resolveElevation,
         minimizeWindow,
         toggleMaximizeWindow,
         closeWindow,

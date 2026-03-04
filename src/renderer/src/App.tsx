@@ -22,6 +22,7 @@ function App() {
 
     // Actions
     oneClickScan,
+    resolveElevation,
   } = useScanLogic();
 
   const isCompleted = !scanId && Object.keys(aggregateSizes).length > 0;
@@ -35,6 +36,7 @@ function App() {
           rootPath={rootPath}
           setRootPath={setRootPath}
           oneClickScan={oneClickScan}
+          onResolveElevation={resolveElevation}
           error={error}
           elevationRequired={elevationRequired}
           isScanning={isScanning}

@@ -100,6 +100,19 @@ pub fn run_bfs_scan<W: Write>(
         .iter()
         .map(|p| normalize_for_compare(p, is_windows))
         .collect();
+    let soft_skip_prefixes: Vec<String> = runtime
+        .request
+        .soft_skip_prefixes
+        .iter()
+        .map(|p| normalize_for_compare(p, is_windows))
+        .collect();
+    let skip_dir_suffixes: Vec<String> = runtime
+        .request
+        .skip_dir_suffixes
+        .iter()
+        .map(|suffix| suffix.to_ascii_lowercase())
+        .collect();
+    let root_normalized = normalize_for_compare(&runtime.request.root, is_windows);
     let root_device = if runtime.request.same_device_only {
         device_id_for_path(&root)
     } else {
@@ -127,7 +140,31 @@ pub fn run_bfs_scan<W: Write>(
 
         if is_blocked_path(&dir_path, &blocked_prefixes, is_windows) {
             policy_skipped = true;
-            on_policy_block(runtime, &mut accum, &dir_path, "Path blocked by policy")?;
+            on_policy_block(
+                runtime,
+                &mut accum,
+                &dir_path,
+                "Path blocked by policy",
+                true,
+            )?;
+            continue;
+        }
+
+        if is_soft_skipped_dir(
+            &dir_path,
+            &soft_skip_prefixes,
+            &skip_dir_suffixes,
+            &root_normalized,
+            is_windows,
+        ) {
+            policy_skipped = true;
+            on_policy_block(
+                runtime,
+                &mut accum,
+                &dir_path,
+                "Path skipped by performance policy",
+                false,
+            )?;
             continue;
         }
 
@@ -178,7 +215,26 @@ pub fn run_bfs_scan<W: Write>(
             runtime.scanned_count += 1;
             if is_blocked_path(&path, &blocked_prefixes, is_windows) {
                 policy_skipped = true;
-                on_policy_block(runtime, &mut accum, &path, "Path blocked by policy")?;
+                on_policy_block(
+                    runtime,
+                    &mut accum,
+                    &path,
+                    "Path blocked by policy",
+                    true,
+                )?;
+                continue;
+            }
+
+            if is_soft_skipped_by_prefix(&path, &soft_skip_prefixes, &root_normalized, is_windows)
+            {
+                policy_skipped = true;
+                on_policy_block(
+                    runtime,
+                    &mut accum,
+                    &path,
+                    "Path skipped by performance policy",
+                    false,
+                )?;
                 continue;
             }
 
@@ -189,7 +245,13 @@ pub fn run_bfs_scan<W: Write>(
                 .to_ascii_lowercase();
             if skip_set.contains(&basename) {
                 policy_skipped = true;
-                on_policy_block(runtime, &mut accum, &path, "Path skipped in preview policy")?;
+                on_policy_block(
+                    runtime,
+                    &mut accum,
+                    &path,
+                    "Path skipped by performance policy",
+                    false,
+                )?;
                 continue;
             }
 
@@ -232,9 +294,27 @@ pub fn run_bfs_scan<W: Write>(
                     }
                 }
             } else if file_type.is_dir() {
+                if is_soft_skipped_by_suffix(&path, &skip_dir_suffixes, &root_normalized, is_windows)
+                {
+                    policy_skipped = true;
+                    on_policy_block(
+                        runtime,
+                        &mut accum,
+                        &path,
+                        "Path skipped by performance policy",
+                        false,
+                    )?;
+                    continue;
+                }
                 if runtime.request.same_device_only && !same_device(&path, root_device) {
                     policy_skipped = true;
-                    on_policy_block(runtime, &mut accum, &path, "Directory is on a different device")?;
+                    on_policy_block(
+                        runtime,
+                        &mut accum,
+                        &path,
+                        "Directory is on a different device",
+                        false,
+                    )?;
                     continue;
                 }
                 if depth < options.max_depth {
@@ -432,10 +512,13 @@ fn on_policy_block<W: Write>(
     accum: &mut EmitAccumulator,
     blocked_path: &Path,
     reason: &str,
+    requires_elevation: bool,
 ) -> Result<()> {
     runtime.blocked_by_policy += 1;
-    runtime.elevation_required = true;
-    maybe_emit_elevation_required(runtime, blocked_path, reason)?;
+    if requires_elevation {
+        runtime.elevation_required = true;
+        maybe_emit_elevation_required(runtime, blocked_path, reason)?;
+    }
     maybe_emit_coverage(runtime, accum, false)
 }
 
@@ -606,6 +689,61 @@ fn is_blocked_path(path: &Path, blocked_prefixes: &[String], is_windows: bool) -
     blocked_prefixes
         .iter()
         .any(|base| is_same_or_child_path(&candidate, base))
+}
+
+fn is_soft_skipped_dir(
+    path: &Path,
+    soft_skip_prefixes: &[String],
+    skip_dir_suffixes: &[String],
+    root_normalized: &str,
+    is_windows: bool,
+) -> bool {
+    is_soft_skipped_by_prefix(path, soft_skip_prefixes, root_normalized, is_windows)
+        || is_soft_skipped_by_suffix(path, skip_dir_suffixes, root_normalized, is_windows)
+}
+
+fn is_soft_skipped_by_prefix(
+    path: &Path,
+    soft_skip_prefixes: &[String],
+    root_normalized: &str,
+    is_windows: bool,
+) -> bool {
+    if soft_skip_prefixes.is_empty() {
+        return false;
+    }
+    let candidate = normalize_for_compare(&path.to_string_lossy(), is_windows);
+    if candidate == root_normalized {
+        return false;
+    }
+    soft_skip_prefixes
+        .iter()
+        .any(|base| is_same_or_child_path(&candidate, base))
+}
+
+fn is_soft_skipped_by_suffix(
+    path: &Path,
+    skip_dir_suffixes: &[String],
+    root_normalized: &str,
+    is_windows: bool,
+) -> bool {
+    if skip_dir_suffixes.is_empty() {
+        return false;
+    }
+    let candidate = normalize_for_compare(&path.to_string_lossy(), is_windows);
+    if candidate == root_normalized {
+        return false;
+    }
+    let basename = path
+        .file_name()
+        .and_then(|segment| segment.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase();
+    if basename.is_empty() {
+        return false;
+    }
+    skip_dir_suffixes
+        .iter()
+        .any(|suffix| basename.ends_with(suffix))
 }
 
 fn normalize_for_compare(raw: &str, is_windows: bool) -> String {
