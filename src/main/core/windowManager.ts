@@ -12,7 +12,7 @@ export class WindowManager {
   private mainWindow: BrowserWindow | null = null;
   private readonly stateListeners = new Set<(state: WindowState) => void>();
 
-  constructor(private readonly options: WindowManagerOptions) {}
+  constructor(private readonly options: WindowManagerOptions) { }
 
   createMainWindow(): BrowserWindow {
     const window = new BrowserWindow({
@@ -21,8 +21,13 @@ export class WindowManager {
       minWidth: 1000,
       minHeight: 700,
       show: false,
-      backgroundColor: "#f2f7fb",
-      title: "Disk Visualizer",
+      backgroundColor: "#00000000",
+      transparent: true,
+      titleBarStyle: "hidden",
+      trafficLightPosition: { x: 20, y: 20 },
+      vibrancy: "under-window",
+      visualEffectState: "active",
+      title: "Space Lens",
       webPreferences: {
         preload: this.options.preloadPath,
         contextIsolation: true,

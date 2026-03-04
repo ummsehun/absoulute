@@ -25,20 +25,12 @@ function App() {
     startScan,
     cancelScan,
     pauseScan,
-    minimizeWindow,
-    toggleMaximizeWindow,
-    closeWindow,
   } = useScanLogic();
 
   const isStarted = Boolean(scanId) || Object.keys(aggregateSizes).length > 0;
 
   return (
-    <Layout
-      apiReady={apiReady}
-      onMinimize={minimizeWindow}
-      onMaximize={toggleMaximizeWindow}
-      onClose={closeWindow}
-    >
+    <Layout>
       {!isStarted ? (
         <LandingView
           apiReady={apiReady}

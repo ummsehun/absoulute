@@ -67,11 +67,13 @@ export function useScanLogic() {
 
     useEffect(() => {
         if (!electronAPI) {
-            setError({
-                code: "E_IO",
-                message: "preload bridge is unavailable",
-                recoverable: false,
-            });
+            setTimeout(() => {
+                setError({
+                    code: "E_IO",
+                    message: "preload bridge is unavailable",
+                    recoverable: false,
+                });
+            }, 0);
             return;
         }
 

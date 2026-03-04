@@ -132,11 +132,17 @@ export function VisualizationView({
     }, [aggregateSizes, layoutMode, visualizationRoot]);
 
     return (
-        <div className="flex-1 flex flex-col p-6 w-full max-w-7xl mx-auto h-full relative z-10">
-            <header className="flex justify-between items-center mb-6 pl-2 pr-6">
+        <div className="flex-1 flex flex-col p-6 pt-10 w-full max-w-7xl mx-auto h-full relative z-10">
+            <header
+                className="flex justify-between items-center mb-6 pl-20 pr-6"
+                style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
+            >
                 <div>
                     <h2 className="text-2xl font-semibold drop-shadow-sm">Space Lens</h2>
-                    <div className="text-sm text-white/50 mt-1.5 flex flex-wrap gap-2 items-center">
+                    <div
+                        className="text-sm text-white/50 mt-1.5 flex flex-wrap gap-2 items-center"
+                        style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+                    >
                         {breadcrumbPaths.length === 0 ? (
                             <span>-</span>
                         ) : (
@@ -161,7 +167,10 @@ export function VisualizationView({
                     </div>
                 </div>
 
-                <div className="flex gap-2 bg-white/5 rounded-lg p-1.5 border border-white/10 shadow-lg">
+                <div
+                    className="flex gap-2 bg-white/5 rounded-lg p-1.5 border border-white/10 shadow-lg"
+                    style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+                >
                     <button
                         type="button"
                         className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${layoutMode === "circle_pack" ? "bg-purple-600 text-white shadow-md" : "text-white/60 hover:text-white hover:bg-white/10"}`}

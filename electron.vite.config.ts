@@ -7,6 +7,11 @@ export default defineConfig({
     plugins: [externalizeDepsPlugin()],
   },
   preload: {
+    plugins: [
+      externalizeDepsPlugin({
+        exclude: ["zod"],
+      }),
+    ],
     build: {
       rollupOptions: {
         output: {
