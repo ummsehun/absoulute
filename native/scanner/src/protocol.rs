@@ -11,6 +11,7 @@ pub struct StartRequest {
     pub same_device_only: bool,
     pub concurrency: usize,
     pub skip_basenames: Vec<String>,
+    pub blocked_prefixes: Vec<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -39,6 +40,9 @@ pub enum IncomingMessage {
         concurrency: usize,
         #[serde(rename = "skipBasenames")]
         skip_basenames: Vec<String>,
+        #[serde(rename = "blockedPrefixes")]
+        #[serde(default)]
+        blocked_prefixes: Vec<String>,
     },
     #[serde(rename = "pause")]
     Pause,
@@ -61,6 +65,7 @@ impl IncomingMessage {
                 same_device_only,
                 concurrency,
                 skip_basenames,
+                blocked_prefixes,
             } => Some(StartRequest {
                 scan_id,
                 root,
@@ -71,6 +76,7 @@ impl IncomingMessage {
                 same_device_only,
                 concurrency,
                 skip_basenames,
+                blocked_prefixes,
             }),
             _ => None,
         }

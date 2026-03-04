@@ -15,7 +15,9 @@
       "filter": [
         "scanner-macos",
         "scanner-win.exe",
-        "scanner-linux"
+        "scanner-linux",
+        "diskviz-scanner",
+        "diskviz-scanner.exe"
       ]
     }
   ],

@@ -136,6 +136,11 @@ export function useScanLogic() {
         });
 
         const unsubscribeError = electronAPI.onScanError((err) => {
+            if (err.code === "E_NATIVE_FAILURE") {
+                setError(err);
+                return;
+            }
+
             if (err.recoverable) {
                 const lastPath = getErrorTargetPath(err);
                 setWarningSummary((prev) => ({

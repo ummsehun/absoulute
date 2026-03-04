@@ -132,21 +132,24 @@ function coerceScanStartInput(input) {
     throw new TypeError("scanStart.rootPath must be a non-empty string");
   }
 
+  const performanceProfile =
+    input.performanceProfile === "balanced" ||
+    input.performanceProfile === "preview-first" ||
+    input.performanceProfile === "accuracy-first"
+      ? input.performanceProfile
+      : undefined;
+  const scanMode =
+    input.scanMode === "portable" ||
+    input.scanMode === "portable_plus_os_accel" ||
+    input.scanMode === "native_rust"
+      ? input.scanMode
+      : undefined;
+
   return {
     rootPath,
     optInProtected: Boolean(input.optInProtected),
-    performanceProfile:
-      input.performanceProfile === "balanced" ||
-      input.performanceProfile === "preview-first" ||
-      input.performanceProfile === "accuracy-first"
-        ? input.performanceProfile
-        : "balanced",
-    scanMode:
-      input.scanMode === "portable" ||
-      input.scanMode === "portable_plus_os_accel" ||
-      input.scanMode === "native_rust"
-        ? input.scanMode
-        : "portable",
+    performanceProfile,
+    scanMode,
     quickBudgetMs:
       typeof input.quickBudgetMs === "number" &&
       Number.isInteger(input.quickBudgetMs) &&

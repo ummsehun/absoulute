@@ -17,6 +17,7 @@ export interface NativeScannerStartRequest {
   sameDeviceOnly: boolean;
   concurrency: number;
   skipBasenames: string[];
+  blockedPrefixes: string[];
 }
 
 export interface NativeAggMessage {
@@ -81,25 +82,32 @@ export function resolveNativeScannerBinary(): string | null {
     return envPath;
   }
 
-  const platformBinaryName = getPlatformBinaryName();
-  const devCandidate = path.resolve(
-    process.cwd(),
-    "native",
-    "scanner",
-    "target",
-    "release",
-    platformBinaryName,
-  );
-  if (fs.existsSync(devCandidate)) {
-    return devCandidate;
+  const binaryNames = getPlatformBinaryNames();
+  const buildModes = ["release", "debug"] as const;
+  for (const mode of buildModes) {
+    for (const binaryName of binaryNames) {
+      const devCandidate = path.resolve(
+        process.cwd(),
+        "native",
+        "scanner",
+        "target",
+        mode,
+        binaryName,
+      );
+      if (fs.existsSync(devCandidate)) {
+        return devCandidate;
+      }
+    }
   }
 
   const resourcesPath =
     typeof process.resourcesPath === "string" ? process.resourcesPath : null;
   if (resourcesPath) {
-    const bundledCandidate = path.resolve(resourcesPath, "bin", platformBinaryName);
-    if (fs.existsSync(bundledCandidate)) {
-      return bundledCandidate;
+    for (const binaryName of binaryNames) {
+      const bundledCandidate = path.resolve(resourcesPath, "bin", binaryName);
+      if (fs.existsSync(bundledCandidate)) {
+        return bundledCandidate;
+      }
     }
   }
 
@@ -137,6 +145,7 @@ export function startNativeScannerSession(
     sameDeviceOnly: request.sameDeviceOnly,
     concurrency: request.concurrency,
     skipBasenames: request.skipBasenames,
+    blockedPrefixes: request.blockedPrefixes,
   };
   writeJsonLine(startPayload);
 
@@ -288,16 +297,16 @@ function parseNativeScannerLine(line: string): NativeScannerMessage | null {
   }
 }
 
-function getPlatformBinaryName(): string {
+function getPlatformBinaryNames(): string[] {
   if (process.platform === "darwin") {
-    return "scanner-macos";
+    return ["scanner-macos", "diskviz-scanner"];
   }
 
   if (process.platform === "win32") {
-    return "scanner-win.exe";
+    return ["scanner-win.exe", "diskviz-scanner.exe"];
   }
 
-  return "scanner-linux";
+  return ["scanner-linux", "diskviz-scanner"];
 }
 
 function terminateChild(child: ChildProcessWithoutNullStreams): void {

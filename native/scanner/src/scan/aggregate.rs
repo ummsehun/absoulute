@@ -6,9 +6,12 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use anyhow::Result;
+use rayon::prelude::*;
 
 use crate::platform::{device_id_for_path, same_device};
 use crate::protocol::{Confidence, OutgoingMessage, StartRequest};
+
+const FILE_METADATA_CHUNK_SIZE: usize = 64;
 
 pub struct ControlState {
     pub paused: AtomicBool,
@@ -61,16 +64,25 @@ pub fn run_bfs_scan<W: Write>(
         .iter()
         .map(|s| s.to_ascii_lowercase())
         .collect();
+    let is_windows = runtime.request.platform == "win32";
+    let blocked_prefixes: Vec<String> = runtime
+        .request
+        .blocked_prefixes
+        .iter()
+        .map(|p| normalize_for_compare(p, is_windows))
+        .collect();
     let root_device = if runtime.request.same_device_only {
         device_id_for_path(&root)
     } else {
         None
     };
+    let _ = (&runtime.request.scan_id, runtime.request.concurrency);
 
     let mut estimated = options.default_estimated;
+    let mut policy_skipped = false;
     let mut last_progress_emit = Instant::now();
 
-    while let Some((dir_path, depth)) = queue.pop_front() {
+    'scan_loop: while let Some((dir_path, depth)) = queue.pop_front() {
         if runtime.controls.cancelled.load(Ordering::Relaxed) {
             break;
         }
@@ -81,6 +93,11 @@ pub fn run_bfs_scan<W: Write>(
         {
             estimated = true;
             break;
+        }
+
+        if is_blocked_path(&dir_path, &blocked_prefixes, is_windows) {
+            policy_skipped = true;
+            continue;
         }
 
         let read_dir = match std::fs::read_dir(&dir_path) {
@@ -96,7 +113,16 @@ pub fn run_bfs_scan<W: Write>(
             }
         };
 
+        let mut file_candidates: Vec<PathBuf> = Vec::new();
+
         for entry_res in read_dir {
+            if options.time_budget_ms > 0
+                && runtime.started_at.elapsed() >= Duration::from_millis(options.time_budget_ms)
+            {
+                estimated = true;
+                break 'scan_loop;
+            }
+
             if runtime.controls.cancelled.load(Ordering::Relaxed) {
                 break;
             }
@@ -117,6 +143,10 @@ pub fn run_bfs_scan<W: Write>(
 
             let path = entry.path();
             runtime.scanned_count += 1;
+            if is_blocked_path(&path, &blocked_prefixes, is_windows) {
+                policy_skipped = true;
+                continue;
+            }
 
             let basename = path
                 .file_name()
@@ -124,6 +154,7 @@ pub fn run_bfs_scan<W: Write>(
                 .unwrap_or("")
                 .to_ascii_lowercase();
             if skip_set.contains(&basename) {
+                policy_skipped = true;
                 continue;
             }
 
@@ -145,30 +176,25 @@ pub fn run_bfs_scan<W: Write>(
             }
 
             if file_type.is_file() {
-                let metadata = match entry.metadata() {
-                    Ok(v) => v,
-                    Err(error) => {
-                        emit_warning(
-                            runtime,
-                            map_error_code(&error),
-                            "Failed to read file metadata",
-                            Some(path_to_string(&path)),
-                        )?;
-                        continue;
+                file_candidates.push(path.clone());
+                if file_candidates.len() >= FILE_METADATA_CHUNK_SIZE {
+                    match process_file_metadata_batch(
+                        runtime,
+                        &mut file_candidates,
+                        &options,
+                        queue.len(),
+                    )? {
+                        BatchControl::Continue => {}
+                        BatchControl::TimedOut => {
+                            estimated = true;
+                            break 'scan_loop;
+                        }
+                        BatchControl::Cancelled => break 'scan_loop,
                     }
-                };
-
-                emit_message(
-                    runtime.writer,
-                    &OutgoingMessage::Agg {
-                        path: path_to_string(&path),
-                        size_delta: metadata.len(),
-                        count_delta: 1,
-                        estimated: false,
-                    },
-                )?;
+                }
             } else if file_type.is_dir() {
                 if runtime.request.same_device_only && !same_device(&path, root_device) {
+                    policy_skipped = true;
                     continue;
                 }
                 if depth < options.max_depth {
@@ -181,6 +207,19 @@ pub fn run_bfs_scan<W: Write>(
                 last_progress_emit = Instant::now();
             }
         }
+
+        match process_file_metadata_batch(runtime, &mut file_candidates, &options, queue.len())? {
+            BatchControl::Continue => {}
+            BatchControl::TimedOut => {
+                estimated = true;
+                break 'scan_loop;
+            }
+            BatchControl::Cancelled => break 'scan_loop,
+        }
+    }
+
+    if policy_skipped {
+        estimated = true;
     }
 
     if options.emit_quick_ready {
@@ -291,4 +330,98 @@ fn infer_confidence(scanned_count: u64, permission_errors: u64, io_errors: u64) 
 
 fn path_to_string(path: &Path) -> String {
     path.to_string_lossy().to_string()
+}
+
+enum BatchControl {
+    Continue,
+    TimedOut,
+    Cancelled,
+}
+
+fn process_file_metadata_batch<W: Write>(
+    runtime: &mut ScanRuntime<'_, W>,
+    file_candidates: &mut Vec<PathBuf>,
+    options: &ScanExecutionOptions,
+    queue_len: usize,
+) -> Result<BatchControl> {
+    if file_candidates.is_empty() {
+        return Ok(BatchControl::Continue);
+    }
+
+    let batch = std::mem::take(file_candidates);
+    let file_metadata_results: Vec<(PathBuf, std::io::Result<u64>)> = batch
+        .par_iter()
+        .map(|file_path| {
+            let size_result = std::fs::metadata(file_path).map(|meta| meta.len());
+            (file_path.clone(), size_result)
+        })
+        .collect();
+
+    let mut last_path: Option<String> = None;
+    for (file_path, size_result) in file_metadata_results {
+        if options.time_budget_ms > 0
+            && runtime.started_at.elapsed() >= Duration::from_millis(options.time_budget_ms)
+        {
+            return Ok(BatchControl::TimedOut);
+        }
+
+        if runtime.controls.cancelled.load(Ordering::Relaxed) {
+            return Ok(BatchControl::Cancelled);
+        }
+
+        let path_label = path_to_string(&file_path);
+        last_path = Some(path_label.clone());
+        match size_result {
+            Ok(size) => {
+                emit_message(
+                    runtime.writer,
+                    &OutgoingMessage::Agg {
+                        path: path_label,
+                        size_delta: size,
+                        count_delta: 1,
+                        estimated: false,
+                    },
+                )?;
+            }
+            Err(error) => {
+                emit_warning(
+                    runtime,
+                    map_error_code(&error),
+                    "Failed to read file metadata",
+                    Some(path_label),
+                )?;
+            }
+        }
+    }
+
+    emit_progress(runtime, queue_len, last_path)?;
+    Ok(BatchControl::Continue)
+}
+
+fn is_blocked_path(path: &Path, blocked_prefixes: &[String], is_windows: bool) -> bool {
+    let candidate = normalize_for_compare(&path.to_string_lossy(), is_windows);
+    blocked_prefixes
+        .iter()
+        .any(|base| is_same_or_child_path(&candidate, base))
+}
+
+fn normalize_for_compare(raw: &str, is_windows: bool) -> String {
+    let normalized = raw.replace('\\', "/");
+    let trimmed = normalized.trim_end_matches('/');
+    let root_safe = if trimmed.is_empty() { "/" } else { trimmed };
+    if is_windows {
+        root_safe.to_ascii_lowercase()
+    } else {
+        root_safe.to_string()
+    }
+}
+
+fn is_same_or_child_path(candidate: &str, base: &str) -> bool {
+    if candidate == base {
+        return true;
+    }
+    let mut prefix = String::with_capacity(base.len() + 1);
+    prefix.push_str(base);
+    prefix.push('/');
+    candidate.starts_with(&prefix)
 }

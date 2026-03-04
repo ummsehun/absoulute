@@ -3,6 +3,7 @@ import { spawn } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
 import crypto from "node:crypto";
+import { getProtectedPaths } from "../../shared/platform/protectedPaths";
 import type {
   AggDelta,
   AppError,
@@ -35,6 +36,7 @@ import {
   inferQuickConfidence,
 } from "./diagnostics/scanDiagnostics";
 import { ScanAggregator } from "./scanAggregator";
+import { ScanHistoryStore } from "./cache/scanHistoryStore";
 import {
   detectCpuHintFromPlatform,
   startNativeScannerSession,
@@ -58,7 +60,6 @@ const DEFAULT_NON_ROOT_QUICK_BUDGET_MS = 3000;
 const DIAGNOSTICS_INTERVAL_MS = 700;
 const DEEP_START_GRACE_MS = 500;
 const INCREMENTAL_IDLE_GRACE_MS = 1000;
-const PREVIEW_DEEP_BUDGET_ROOT_MS = 5_000;
 const FAST_DIRECTORY_ESTIMATE_TIMEOUT_MS = 1_500;
 const HEAVY_BACKGROUND_ESTIMATE_TIMEOUT_MS = 4_000;
 const HEAVY_FALLBACK_ESTIMATE_BYTES = 32 * 1024 * 1024;
@@ -72,6 +73,11 @@ const HEAVY_DIRECTORY_BASENAMES = new Set([
   ".yarn",
   ".cache",
   ".npm",
+  ".rustup",
+  ".nvm",
+  ".rbenv",
+  ".pyenv",
+  ".asdf",
   ".pnpm-store",
   ".turbo",
   ".nx",
@@ -92,6 +98,11 @@ const HEAVY_DIRECTORY_BASENAMES = new Set([
   "dist",
   "out",
   "target",
+  "SDKs",
+  "CommandLineTools",
+  "CoreSimulator",
+  "gems",
+  "site-packages",
   ".git",
   "DerivedData",
   "Caches",
@@ -100,6 +111,20 @@ const HEAVY_DIRECTORY_BASENAMES = new Set([
   ".fseventsd",
   "Trash",
   ".Trash",
+  "Applications",
+  "Library",
+  "System",
+  "private",
+  "cores",
+  ".DocumentRevisions-V100",
+  ".TemporaryItems",
+  ".VolumeIcon.icns",
+  ".apdisk",
+  ".AppleDouble",
+  ".LSOverride",
+  ".PKInstallSandboxManager",
+  ".PKInstallSandboxManager-SystemSoftware",
+  ".Trashes",
 ]);
 
 type ScanStage = Exclude<ScanProgress["scanStage"], undefined>;
@@ -154,6 +179,7 @@ interface ScanJob {
 export class DiskScanService {
   private readonly jobs = new Map<string, ScanJob>();
   private readonly nativeSessions = new Map<string, NativeScannerSession>();
+  private readonly scanHistoryStore = new ScanHistoryStore();
   private readonly progressListeners = new Set<(batch: ScanProgressBatch) => void>();
   private readonly quickReadyListeners = new Set<(event: ScanQuickReady) => void>();
   private readonly diagnosticsListeners = new Set<(event: ScanDiagnostics) => void>();
@@ -226,6 +252,7 @@ export class DiskScanService {
     };
 
     this.jobs.set(scanId, job);
+    this.applyCachedPreview(job);
 
     void this.runScan(job).finally(() => {
       this.jobs.delete(scanId);
@@ -340,13 +367,17 @@ export class DiskScanService {
 
       try {
         quickProcessed.add(current.dirPath);
-        await this.processDirectory(
+        const result = await this.processDirectory(
           job,
           current,
           quickQueue,
           enqueueDeep,
           quickConfig.depthLimit,
+          quickStartedAt + quickConfig.timeBudgetMs,
         );
+        if (result.timedOut) {
+          break;
+        }
       } catch (error) {
         this.emitRecoverableError(
           job,
@@ -371,6 +402,7 @@ export class DiskScanService {
 
     let lastIncrementalChangeAt = 0;
     const deepStartedAt = Date.now();
+    const deepDeadlineAt: number | null = null;
     let deepBudgetExceeded = false;
     const watcher: IncrementalWatcherHandle | null = createMacOSIncrementalWatcher(
       job.rootPath,
@@ -388,18 +420,6 @@ export class DiskScanService {
     while (!job.cancelled) {
       await this.waitWhilePaused(job);
       if (job.cancelled) {
-        break;
-      }
-
-      if (
-        shouldStopDeepPassForPreview(
-          job.options.performanceProfile,
-          job.rootPath,
-          os.platform(),
-          Date.now() - deepStartedAt,
-        )
-      ) {
-        deepBudgetExceeded = true;
         break;
       }
 
@@ -444,7 +464,18 @@ export class DiskScanService {
       }
 
       try {
-        await this.processDirectory(job, { dirPath: nextDir, depth: 0 }, null, enqueueDeep, 0);
+        const result = await this.processDirectory(
+          job,
+          { dirPath: nextDir, depth: 0 },
+          null,
+          enqueueDeep,
+          0,
+          deepDeadlineAt ?? undefined,
+        );
+        if (result.timedOut) {
+          deepBudgetExceeded = true;
+          break;
+        }
       } catch (error) {
         this.emitRecoverableError(
           job,
@@ -512,15 +543,7 @@ export class DiskScanService {
       this.emitProgressBatch(job, "walking", true);
       this.emitDiagnostics(job, "walking", 0, true);
 
-      const deepBudgetMs =
-        shouldStopDeepPassForPreview(
-          job.options.performanceProfile,
-          job.rootPath,
-          os.platform(),
-          0,
-        )
-          ? PREVIEW_DEEP_BUDGET_ROOT_MS
-          : 0;
+      const deepBudgetMs = 0;
 
       const deepResult = await this.runNativeStage(job, {
         mode: "deep",
@@ -575,7 +598,9 @@ export class DiskScanService {
         maxDepth: input.maxDepth,
         sameDeviceOnly: true,
         concurrency: job.options.statConcurrency,
-        skipBasenames: [...HEAVY_DIRECTORY_BASENAMES],
+        skipBasenames:
+          input.mode === "quick" ? [...HEAVY_DIRECTORY_BASENAMES] : [],
+        blockedPrefixes: buildNativeBlockedPrefixes(job, input.mode),
       },
       {
         onMessage: (message) => {
@@ -678,11 +703,16 @@ export class DiskScanService {
     quickQueue: QueueItem[] | null,
     enqueueDeep: (dirPath: string) => void,
     quickDepthLimit: number,
-  ): Promise<void> {
+    deadlineAtMs?: number,
+  ): Promise<{ timedOut: boolean }> {
     const dir = await fs.opendir(current.dirPath, { bufferSize: 256 });
     let entryCounter = 0;
 
     for await (const entry of dir) {
+      if (deadlineAtMs !== undefined && Date.now() >= deadlineAtMs) {
+        return { timedOut: true };
+      }
+
       if (job.cancelled) {
         break;
       }
@@ -698,6 +728,9 @@ export class DiskScanService {
       entryCounter += 1;
       if (entryCounter % ENTRY_YIELD_INTERVAL === 0) {
         await sleep(0);
+        if (deadlineAtMs !== undefined && Date.now() >= deadlineAtMs) {
+          return { timedOut: true };
+        }
       }
 
       if (!this.classifyPathOrEmit(job, fullPath)) {
@@ -707,13 +740,13 @@ export class DiskScanService {
       if (entry.isDirectory()) {
         this.ensureDirectoryInAggregation(job, fullPath, current.dirPath);
 
-        if (this.shouldSkipHeavyTraversal(job, fullPath)) {
+        if (quickQueue !== null && this.shouldSkipHeavyTraversal(job, fullPath)) {
           this.scheduleHeavyDirectoryEstimate(job, fullPath);
           continue;
         }
 
         if (
-          quickQueue === null &&
+          quickQueue !== null &&
           this.shouldEstimateDirectory(job, fullPath) &&
           !job.cancelled
         ) {
@@ -772,6 +805,12 @@ export class DiskScanService {
         this.emitProgressBatch(job, "walking", false);
       });
     }
+
+    if (deadlineAtMs !== undefined && Date.now() >= deadlineAtMs) {
+      return { timedOut: true };
+    }
+
+    return { timedOut: false };
   }
 
   private ensureDirectoryInAggregation(
@@ -1041,15 +1080,7 @@ export class DiskScanService {
       return false;
     }
 
-    if (!isFilesystemRoot(job.rootPath, os.platform())) {
-      return false;
-    }
-
     if (!isHeavyTraversalDirectory(dirPath)) {
-      return false;
-    }
-
-    if (job.options.scanMode !== "portable_plus_os_accel") {
       return false;
     }
 
@@ -1126,6 +1157,66 @@ function toFilesystemError(
   });
 }
 
+function buildNativeBlockedPrefixes(
+  job: ScanJob,
+  mode: NativeScanPhaseMode,
+): string[] {
+  const policy = getProtectedPaths(os.platform(), os.homedir());
+  const blocked = [...policy.absoluteBlock];
+  if (!job.optInProtected) {
+    blocked.push(...policy.optInRequired);
+  }
+  if (mode === "quick") {
+    blocked.push(...getPerformanceSkipPrefixes(job));
+  }
+
+  const unique = new Set<string>();
+  for (const raw of blocked) {
+    const resolved = path.resolve(raw);
+    const normalized = normalizeForNativePrefix(resolved, os.platform());
+    if (normalized) {
+      unique.add(normalized);
+    }
+  }
+
+  return [...unique].sort((left, right) => right.length - left.length);
+}
+
+function getPerformanceSkipPrefixes(job: ScanJob): string[] {
+  if (job.options.performanceProfile !== "preview-first") {
+    return [];
+  }
+
+  const home = os.homedir();
+  const prefixes = [
+    `${home}/.cargo`,
+    `${home}/.rustup`,
+    `${home}/.nvm`,
+    `${home}/.pyenv`,
+    `${home}/.asdf`,
+    `${home}/Library/Developer`,
+    "/Library/Developer/CommandLineTools",
+    "/Library/Developer/CoreSimulator",
+  ];
+
+  if (os.platform() === "win32") {
+    prefixes.push("C:/ProgramData/chocolatey");
+    prefixes.push("C:/Users/Public/.cache");
+  }
+
+  return prefixes;
+}
+
+function normalizeForNativePrefix(rawPath: string, platform: NodeJS.Platform): string {
+  const normalized = rawPath.replace(/\\/g, "/").replace(/\/+$/, "");
+  const rootSafe = normalized === "" ? "/" : normalized;
+  if (platform === "win32") {
+    return rootSafe.toLowerCase();
+  }
+
+  return rootSafe;
+}
+
 function toNativeScannerError(
   scanId: string,
   message: {
@@ -1196,12 +1287,9 @@ function resolveScanOptions(
   normalizedRootPath: string,
 ): ResolvedScanOptions {
   const isRoot = normalizedRootPath === path.parse(normalizedRootPath).root;
-  const performanceProfile = input.performanceProfile ?? "balanced";
+  const performanceProfile = input.performanceProfile ?? "preview-first";
   const scanMode: ScanMode =
-    input.scanMode ??
-    (isRoot && process.platform === "darwin"
-      ? "native_rust"
-      : "portable");
+    input.scanMode ?? (process.platform === "darwin" ? "native_rust" : "portable");
 
   const defaultBudget = isRoot
     ? ROOT_QUICK_PASS_TIME_BUDGET_MS
@@ -1282,23 +1370,6 @@ function normalizeIncrementalTarget(changedPath: string): string | null {
 
   const resolved = path.resolve(changedPath);
   return path.extname(resolved) ? path.dirname(resolved) : resolved;
-}
-
-function shouldStopDeepPassForPreview(
-  performanceProfile: ResolvedScanOptions["performanceProfile"],
-  rootPath: string,
-  platform: NodeJS.Platform,
-  deepElapsedMs: number,
-): boolean {
-  if (performanceProfile !== "preview-first") {
-    return false;
-  }
-
-  if (!isFilesystemRoot(rootPath, platform)) {
-    return false;
-  }
-
-  return deepElapsedMs >= PREVIEW_DEEP_BUDGET_ROOT_MS;
 }
 
 function resolveStatConcurrency(

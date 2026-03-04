@@ -36,6 +36,9 @@ fn main() -> Result<()> {
             break start;
         }
     };
+    let _ = rayon::ThreadPoolBuilder::new()
+        .num_threads(request.concurrency.max(1))
+        .build_global();
 
     let stdout = std::io::stdout();
     let mut writer = BufWriter::new(stdout.lock());

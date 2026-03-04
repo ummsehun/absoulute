@@ -9,6 +9,12 @@ interface DirectoryStat {
   count: number;
 }
 
+export interface DirectorySnapshot {
+  path: string;
+  size: number;
+  count: number;
+}
+
 export class ScanAggregator {
   private readonly directoryStats = new Map<string, DirectoryStat>();
   private readonly topChildren = new Map<string, Map<string, number>>();
@@ -141,6 +147,18 @@ export class ScanAggregator {
 
   getDirectorySize(dirPath: string): number {
     return this.directoryStats.get(dirPath)?.size ?? 0;
+  }
+
+  getLargestDirectories(limit: number): DirectorySnapshot[] {
+    return [...this.directoryStats.entries()]
+      .map(([nodePath, stat]) => ({
+        path: nodePath,
+        size: stat.size,
+        count: stat.count,
+      }))
+      .filter((item) => item.size > 0)
+      .sort((left, right) => right.size - left.size)
+      .slice(0, Math.max(1, limit));
   }
 
   private getAncestorDirectories(filePath: string): string[] {
