@@ -102,6 +102,10 @@ export class ScanAggregator {
     return patch;
   }
 
+  getDirectorySize(dirPath: string): number {
+    return this.directoryStats.get(dirPath)?.size ?? 0;
+  }
+
   private getAncestorDirectories(filePath: string): string[] {
     const ancestors: string[] = [];
     let current = path.dirname(filePath);

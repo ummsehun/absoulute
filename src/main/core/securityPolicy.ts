@@ -131,13 +131,7 @@ async function normalizeAndResolvePath(
 ): Promise<string> {
   const absolute = path.resolve(inputPath);
 
-  let resolved = absolute;
-  try {
-    resolved = await fs.realpath(absolute);
-  } catch {
-    resolved = absolute;
-  }
-
+  const resolved = await fs.realpath(absolute).catch(() => absolute);
   return normalizeForComparison(resolved, platform);
 }
 

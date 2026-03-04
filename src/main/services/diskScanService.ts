@@ -22,9 +22,22 @@ import { ScanAggregator } from "./scanAggregator";
 
 const EMIT_INTERVAL_MS = 250;
 const DELTA_BATCH_LIMIT = 1024;
-const STAT_CONCURRENCY = 48;
+const STAT_CONCURRENCY = 64;
 const TOP_LIMIT_PER_DIRECTORY = 200;
 const MAX_RECOVERABLE_ERRORS = 100;
+const ENTRY_YIELD_INTERVAL = 1024;
+const DEEP_PRIORITY_SAMPLE_SIZE = 64;
+const QUICK_PASS_DEPTH = 2;
+const QUICK_PASS_TIME_BUDGET_MS = 5000;
+const ROOT_QUICK_PASS_DEPTH = 1;
+const ROOT_QUICK_PASS_TIME_BUDGET_MS = 3000;
+
+type ScanStage = Exclude<ScanProgress["scanStage"], undefined>;
+
+interface QuickPassConfig {
+  depthLimit: number;
+  timeBudgetMs: number;
+}
 
 interface QueueItem {
   dirPath: string;
@@ -48,6 +61,7 @@ interface ScanJob {
   emittedErrorCount: number;
   aggregator: ScanAggregator;
   pathClassifier: PathPolicyClassifier;
+  scanStage: ScanStage;
 }
 
 export class DiskScanService {
@@ -97,6 +111,7 @@ export class DiskScanService {
         os.platform(),
       ),
       pathClassifier: createPathPolicyClassifier(),
+      scanStage: "quick",
     };
 
     this.jobs.set(scanId, job);
@@ -147,34 +162,49 @@ export class DiskScanService {
   }
 
   private async runScan(job: ScanJob): Promise<void> {
-    const queue: QueueItem[] = [{ dirPath: job.rootPath, depth: 0 }];
+    const quickConfig = resolveQuickPassConfig(job.rootPath, os.platform());
+    const quickQueue: QueueItem[] = [{ dirPath: job.rootPath, depth: 0 }];
+    const deepQueue: string[] = [];
+    const deepQueued = new Set<string>();
+    const quickProcessed = new Set<string>();
+    const quickStartedAt = Date.now();
 
-    while (queue.length > 0 && !job.cancelled) {
-      if (job.paused) {
-        await sleep(60);
-        this.emitProgressBatch(job, "paused", false);
-        continue;
+    const enqueueDeep = (dirPath: string): void => {
+      enqueueUniquePath(deepQueue, deepQueued, dirPath);
+    };
+
+    job.scanStage = "quick";
+
+    while (quickQueue.length > 0 && !job.cancelled) {
+      await this.waitWhilePaused(job);
+      if (job.cancelled) {
+        break;
       }
 
-      const current = queue.shift();
+      const budgetElapsed = Date.now() - quickStartedAt >= quickConfig.timeBudgetMs;
+      if (budgetElapsed && quickProcessed.size > 0) {
+        break;
+      }
+
+      const current = quickQueue.shift();
       if (!current) {
         break;
       }
 
       job.currentPath = current.dirPath;
-
-      const dirDecision = job.pathClassifier(current.dirPath, job.optInProtected, {
-        isResolved: true,
-      });
-      if (!dirDecision.allowed) {
-        if (dirDecision.error) {
-          this.emitRecoverableError(job, dirDecision.error);
-        }
+      if (!this.classifyPathOrEmit(job, current.dirPath)) {
         continue;
       }
 
       try {
-        await this.processDirectory(job, current, queue);
+        quickProcessed.add(current.dirPath);
+        await this.processDirectory(
+          job,
+          current,
+          quickQueue,
+          enqueueDeep,
+          quickConfig.depthLimit,
+        );
       } catch (error) {
         this.emitRecoverableError(
           job,
@@ -184,6 +214,53 @@ export class DiskScanService {
 
       this.emitProgressBatch(job, "walking", false);
     }
+
+    for (const queued of quickQueue) {
+      enqueueDeep(queued.dirPath);
+    }
+
+    job.scanStage = "deep";
+    this.emitProgressBatch(job, "walking", true);
+
+    while (deepQueue.length > 0 && !job.cancelled) {
+      await this.waitWhilePaused(job);
+      if (job.cancelled) {
+        break;
+      }
+
+      const nextDir = popPriorityDirectory(
+        deepQueue,
+        DEEP_PRIORITY_SAMPLE_SIZE,
+        (candidate) => job.aggregator.getDirectorySize(candidate),
+      );
+      if (!nextDir) {
+        break;
+      }
+
+      deepQueued.delete(nextDir);
+
+      if (quickProcessed.has(nextDir)) {
+        continue;
+      }
+
+      job.currentPath = nextDir;
+      if (!this.classifyPathOrEmit(job, nextDir)) {
+        continue;
+      }
+
+      try {
+        await this.processDirectory(job, { dirPath: nextDir, depth: 0 }, null, enqueueDeep, 0);
+      } catch (error) {
+        this.emitRecoverableError(
+          job,
+          toFilesystemError(error, nextDir, "Failed to process directory"),
+        );
+      }
+
+      this.emitProgressBatch(job, "walking", false);
+    }
+
+    await this.flushStatTasks(job);
 
     if (job.cancelled) {
       this.emitRecoverableError(
@@ -204,9 +281,12 @@ export class DiskScanService {
   private async processDirectory(
     job: ScanJob,
     current: QueueItem,
-    queue: QueueItem[],
+    quickQueue: QueueItem[] | null,
+    enqueueDeep: (dirPath: string) => void,
+    quickDepthLimit: number,
   ): Promise<void> {
     const dir = await fs.opendir(current.dirPath, { bufferSize: 256 });
+    let entryCounter = 0;
 
     for await (const entry of dir) {
       if (job.cancelled) {
@@ -221,20 +301,21 @@ export class DiskScanService {
       const fullPath = path.join(current.dirPath, entry.name);
       job.currentPath = fullPath;
       job.scannedCount += 1;
+      entryCounter += 1;
+      if (entryCounter % ENTRY_YIELD_INTERVAL === 0) {
+        await sleep(0);
+      }
 
-      const entryDecision = job.pathClassifier(fullPath, job.optInProtected, {
-        isResolved: true,
-      });
-      if (!entryDecision.allowed) {
-        if (entryDecision.error) {
-          this.emitRecoverableError(job, entryDecision.error);
-        }
+      if (!this.classifyPathOrEmit(job, fullPath)) {
         continue;
       }
 
       if (entry.isDirectory()) {
         this.ensureDirectoryInAggregation(job, fullPath, current.dirPath);
-        queue.push({ dirPath: fullPath, depth: current.depth + 1 });
+        enqueueDeep(fullPath);
+        if (quickQueue && current.depth < quickDepthLimit) {
+          quickQueue.push({ dirPath: fullPath, depth: current.depth + 1 });
+        }
         continue;
       }
 
@@ -247,8 +328,16 @@ export class DiskScanService {
       }
 
       await this.scheduleStatTask(job, async () => {
+        if (job.cancelled) {
+          return;
+        }
+
         try {
           const stat = await fs.stat(fullPath);
+          if (job.cancelled) {
+            return;
+          }
+
           job.totalBytes += stat.size;
 
           const deltas = job.aggregator.addFile(fullPath, stat.size);
@@ -263,8 +352,6 @@ export class DiskScanService {
         this.emitProgressBatch(job, "walking", false);
       });
     }
-
-    await this.flushStatTasks(job);
   }
 
   private ensureDirectoryInAggregation(
@@ -273,6 +360,22 @@ export class DiskScanService {
     parentPath: string,
   ): void {
     job.aggregator.ensureDirectory(dirPath, parentPath);
+  }
+
+  private classifyPathOrEmit(job: ScanJob, targetPath: string): boolean {
+    const decision = job.pathClassifier(targetPath, job.optInProtected, {
+      isResolved: true,
+    });
+
+    if (decision.allowed) {
+      return true;
+    }
+
+    if (decision.error) {
+      this.emitRecoverableError(job, decision.error);
+    }
+
+    return false;
   }
 
   private emitRecoverableError(job: ScanJob, error: AppError): void {
@@ -309,6 +412,8 @@ export class DiskScanService {
       progress: {
         scanId: job.scanId,
         phase,
+        scanStage:
+          phase === "walking" || phase === "paused" ? job.scanStage : undefined,
         scannedCount: job.scannedCount,
         totalBytes: job.totalBytes,
         currentPath: job.currentPath,
@@ -430,4 +535,72 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => {
     setTimeout(resolve, ms);
   });
+}
+
+function resolveQuickPassConfig(
+  rootPath: string,
+  platform: NodeJS.Platform,
+): QuickPassConfig {
+  if (isFilesystemRoot(rootPath, platform)) {
+    return {
+      depthLimit: ROOT_QUICK_PASS_DEPTH,
+      timeBudgetMs: ROOT_QUICK_PASS_TIME_BUDGET_MS,
+    };
+  }
+
+  return {
+    depthLimit: QUICK_PASS_DEPTH,
+    timeBudgetMs: QUICK_PASS_TIME_BUDGET_MS,
+  };
+}
+
+function isFilesystemRoot(inputPath: string, platform: NodeJS.Platform): boolean {
+  const resolved = path.resolve(inputPath);
+  const normalized = normalizeForCompare(resolved, platform);
+  const root = normalizeForCompare(path.parse(resolved).root, platform);
+  return normalized === root;
+}
+
+function normalizeForCompare(rawPath: string, platform: NodeJS.Platform): string {
+  const normalized = rawPath.replace(/\\/g, "/").replace(/\/+$/, "");
+  const rootSafe = normalized === "" ? "/" : normalized;
+  if (platform === "win32") {
+    return rootSafe.toLowerCase();
+  }
+
+  return rootSafe;
+}
+
+function enqueueUniquePath(queue: string[], queued: Set<string>, target: string): void {
+  if (queued.has(target)) {
+    return;
+  }
+
+  queued.add(target);
+  queue.push(target);
+}
+
+function popPriorityDirectory(
+  queue: string[],
+  sampleSize: number,
+  score: (candidate: string) => number,
+): string | undefined {
+  if (queue.length === 0) {
+    return undefined;
+  }
+
+  const maxInspect = Math.min(sampleSize, queue.length);
+  let bestIndex = 0;
+  let bestScore = score(queue[0]);
+
+  for (let index = 1; index < maxInspect; index += 1) {
+    const currentScore = score(queue[index]);
+    if (currentScore > bestScore) {
+      bestScore = currentScore;
+      bestIndex = index;
+    }
+  }
+
+  const [selected] = queue.splice(bestIndex, 1);
+  return selected;
 }

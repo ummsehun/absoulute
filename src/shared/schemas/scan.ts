@@ -30,9 +30,12 @@ export const CompressedTreePatchSchema = z.object({
   nodesPruned: z.array(z.string()),
 });
 
+export const ScanStageSchema = z.enum(["quick", "deep"]);
+
 export const ScanProgressSchema = z.object({
   scanId: z.string().min(1),
   phase: z.enum(["walking", "paused", "aggregating", "compressing", "finalizing"]),
+  scanStage: ScanStageSchema.optional(),
   scannedCount: z.number().int().nonnegative(),
   totalBytes: z.number().nonnegative(),
   currentPath: z.string().optional(),

@@ -14,7 +14,7 @@ export const AppErrorSchema = z.object({
   code: ErrorCodeSchema,
   message: z.string().min(1),
   recoverable: z.boolean(),
-  details: z.record(z.unknown()).optional(),
+  details: z.record(z.string(), z.unknown()).optional(),
 });
 
 export const SuccessResultSchema = <T extends z.ZodTypeAny>(data: T) =>

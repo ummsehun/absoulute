@@ -144,8 +144,8 @@ function App() {
           aggregateRef.current,
           scanBasePathRef.current || normalizeFsPath(rootPathRef.current),
           activeRootPathRef.current ||
-            scanBasePathRef.current ||
-            normalizeFsPath(rootPathRef.current),
+          scanBasePathRef.current ||
+          normalizeFsPath(rootPathRef.current),
         );
         pendingDeltasRef.current.length = 0;
         setAggregateSizes({ ...aggregateRef.current });
@@ -199,10 +199,10 @@ function App() {
     const packed = pack<VizTreeNode>()
       .size([MAP_WIDTH, MAP_HEIGHT])
       .padding(4)(
-      hierarchy(tree)
-        .sum((node) => node.selfSize)
-        .sort((a, b) => (b.value ?? 0) - (a.value ?? 0)),
-    );
+        hierarchy(tree)
+          .sum((node) => node.selfSize)
+          .sort((a, b) => (b.value ?? 0) - (a.value ?? 0)),
+      );
 
     return packed
       .descendants()
@@ -235,10 +235,10 @@ function App() {
       .paddingOuter(4)
       .paddingInner(2)
       .round(true)(
-      hierarchy(tree)
-        .sum((node) => node.selfSize)
-        .sort((a, b) => (b.value ?? 0) - (a.value ?? 0)),
-    );
+        hierarchy(tree)
+          .sum((node) => node.selfSize)
+          .sort((a, b) => (b.value ?? 0) - (a.value ?? 0)),
+      );
 
     return mapped
       .descendants()
