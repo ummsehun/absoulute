@@ -7,11 +7,18 @@ import { getProtectedPaths } from "../../shared/platform/protectedPaths";
 import type {
   AggDelta,
   AppError,
+  ScanAccuracyMode,
   ScanConfidence,
+  ScanConcurrencyPolicy,
+  ScanCoverage,
+  ScanCoverageUpdate,
   ScanDiagnostics,
   ScanEngine,
+  ScanElevationPolicy,
+  ScanElevationRequired,
   ScanMode,
   ScanPauseResponse,
+  ScanPerfSample,
   ScanProgress,
   ScanProgressBatch,
   ScanQuickReady,
@@ -38,16 +45,15 @@ import {
 import { ScanAggregator } from "./scanAggregator";
 import { ScanHistoryStore } from "./cache/scanHistoryStore";
 import {
+  createNativeScannerSession,
   detectCpuHintFromPlatform,
-  startNativeScannerSession,
   type NativeScanPhaseMode,
   type NativeScannerSession,
 } from "./native/nativeRustScannerClient";
+import { requestElevation as requestElevationByHelper } from "./security/macosPrivilegeHelper";
 
-const EMIT_INTERVAL_MS = 250;
 const DELTA_BATCH_LIMIT = 1024;
-const BASE_STAT_CONCURRENCY = 64;
-const PREVIEW_ROOT_STAT_CONCURRENCY = 128;
+const BASE_STAT_CONCURRENCY = 32;
 const TOP_LIMIT_PER_DIRECTORY = 200;
 const MAX_RECOVERABLE_ERRORS = 100;
 const ENTRY_YIELD_INTERVAL = 1024;
@@ -67,6 +73,11 @@ const HEAVY_DIRECTORY_SCORE_PENALTY = 10_000_000_000_000;
 const NATIVE_DEEP_MAX_DEPTH = 128;
 const NATIVE_QUICK_ROOT_MAX_DEPTH = 2;
 const NATIVE_QUICK_DEFAULT_MAX_DEPTH = 3;
+const DEFAULT_AGG_BATCH_MAX_ITEMS = 512;
+const DEFAULT_AGG_BATCH_MAX_MS = 120;
+const DEFAULT_PROGRESS_INTERVAL_MS = 120;
+const DEFAULT_CONCURRENCY_MIN = 16;
+const DEFAULT_CONCURRENCY_MAX = 64;
 const HEAVY_DIRECTORY_BASENAMES = new Set([
   "node_modules",
   ".pnpm",
@@ -137,6 +148,15 @@ interface QuickPassConfig {
 interface ResolvedScanOptions {
   performanceProfile: NonNullable<ScanStartRequest["performanceProfile"]>;
   scanMode: ScanMode;
+  accuracyMode: ScanAccuracyMode;
+  elevationPolicy: ScanElevationPolicy;
+  emitPolicy: {
+    aggBatchMaxItems: number;
+    aggBatchMaxMs: number;
+    progressIntervalMs: number;
+  };
+  concurrencyPolicy: Required<ScanConcurrencyPolicy>;
+  allowNodeFallback: boolean;
   quickBudgetMs: number;
   statConcurrency: number;
 }
@@ -160,6 +180,12 @@ interface ScanJob {
   lastEmitAt: number;
   pendingDeltaMap: Map<string, AggDelta>;
   pendingDeltaEventCount: number;
+  blockedByPolicyCount: number;
+  blockedByPermissionCount: number;
+  elevationRequired: boolean;
+  elevationAttempted: boolean;
+  lastCoverageEmitAt: number;
+  stageStartedAt: number;
   emittedErrorCount: number;
   permissionErrorCount: number;
   ioErrorCount: number;
@@ -183,6 +209,11 @@ export class DiskScanService {
   private readonly progressListeners = new Set<(batch: ScanProgressBatch) => void>();
   private readonly quickReadyListeners = new Set<(event: ScanQuickReady) => void>();
   private readonly diagnosticsListeners = new Set<(event: ScanDiagnostics) => void>();
+  private readonly coverageListeners = new Set<(event: ScanCoverageUpdate) => void>();
+  private readonly perfSampleListeners = new Set<(event: ScanPerfSample) => void>();
+  private readonly elevationRequiredListeners = new Set<
+    (event: ScanElevationRequired) => void
+  >();
   private readonly errorListeners = new Set<(error: AppError) => void>();
 
   onProgress(listener: (batch: ScanProgressBatch) => void): () => void {
@@ -203,6 +234,21 @@ export class DiskScanService {
   onDiagnostics(listener: (event: ScanDiagnostics) => void): () => void {
     this.diagnosticsListeners.add(listener);
     return () => this.diagnosticsListeners.delete(listener);
+  }
+
+  onCoverage(listener: (event: ScanCoverageUpdate) => void): () => void {
+    this.coverageListeners.add(listener);
+    return () => this.coverageListeners.delete(listener);
+  }
+
+  onPerfSample(listener: (event: ScanPerfSample) => void): () => void {
+    this.perfSampleListeners.add(listener);
+    return () => this.perfSampleListeners.delete(listener);
+  }
+
+  onElevationRequired(listener: (event: ScanElevationRequired) => void): () => void {
+    this.elevationRequiredListeners.add(listener);
+    return () => this.elevationRequiredListeners.delete(listener);
   }
 
   async startScan(input: ScanStartRequest): Promise<ScanStartResponse> {
@@ -232,6 +278,12 @@ export class DiskScanService {
       lastEmitAt: Date.now(),
       pendingDeltaMap: new Map<string, AggDelta>(),
       pendingDeltaEventCount: 0,
+      blockedByPolicyCount: 0,
+      blockedByPermissionCount: 0,
+      elevationRequired: false,
+      elevationAttempted: false,
+      lastCoverageEmitAt: startedAt,
+      stageStartedAt: startedAt,
       emittedErrorCount: 0,
       permissionErrorCount: 0,
       ioErrorCount: 0,
@@ -302,6 +354,17 @@ export class DiskScanService {
     }
   }
 
+  private getOrCreateNativeSession(scanId: string): NativeScannerSession {
+    const existing = this.nativeSessions.get(scanId);
+    if (existing) {
+      return existing;
+    }
+
+    const created = createNativeScannerSession();
+    this.nativeSessions.set(scanId, created);
+    return created;
+  }
+
   private async runScan(job: ScanJob): Promise<void> {
     if (job.options.scanMode === "native_rust") {
       try {
@@ -310,17 +373,23 @@ export class DiskScanService {
       } catch (error) {
         const nativeFailure = makeAppError(
           "E_NATIVE_FAILURE",
-          "Native scanner failed, falling back to portable scanner",
-          true,
+          "Native scanner failed",
+          false,
           {
             scanId: job.scanId,
             rootPath: job.rootPath,
             raw: String(error),
           },
         );
-        this.emitRecoverableError(job, nativeFailure);
+        this.emitError(nativeFailure);
+
+        if (!job.options.allowNodeFallback) {
+          job.completed = true;
+          return;
+        }
+
         job.engine = "node";
-        job.fallbackReason = nativeFailure.message;
+        job.fallbackReason = "native-failure-fallback-enabled";
         job.options.scanMode = process.platform === "darwin"
           ? "portable_plus_os_accel"
           : "portable";
@@ -343,6 +412,7 @@ export class DiskScanService {
     };
 
     job.scanStage = "quick";
+    job.stageStartedAt = quickStartedAt;
 
     while (quickQueue.length > 0 && !job.cancelled) {
       await this.waitWhilePaused(job);
@@ -397,11 +467,11 @@ export class DiskScanService {
     await sleep(DEEP_START_GRACE_MS);
 
     job.scanStage = "deep";
+    job.stageStartedAt = Date.now();
     this.emitProgressBatch(job, "walking", true);
     this.emitDiagnostics(job, "walking", deepQueue.length, true);
 
     let lastIncrementalChangeAt = 0;
-    const deepStartedAt = Date.now();
     const deepDeadlineAt: number | null = null;
     let deepBudgetExceeded = false;
     const watcher: IncrementalWatcherHandle | null = createMacOSIncrementalWatcher(
@@ -510,6 +580,7 @@ export class DiskScanService {
     this.emitDiagnostics(job, "compressing", deepQueue.length, true);
     this.emitProgressBatch(job, "finalizing", true);
     this.emitDiagnostics(job, "finalizing", 0, true);
+    this.persistScanCache(job);
 
     job.completed = true;
   }
@@ -517,62 +588,71 @@ export class DiskScanService {
   private async runNativeScan(job: ScanJob): Promise<void> {
     job.engine = "native";
     job.scanStage = "quick";
+    const session = this.getOrCreateNativeSession(job.scanId);
 
-    const quickStartedAt = Date.now();
-    const quickMaxDepth = isFilesystemRoot(job.rootPath, os.platform())
-      ? NATIVE_QUICK_ROOT_MAX_DEPTH
-      : NATIVE_QUICK_DEFAULT_MAX_DEPTH;
+    try {
+      const quickStartedAt = Date.now();
+      job.stageStartedAt = quickStartedAt;
+      const quickMaxDepth = isFilesystemRoot(job.rootPath, os.platform())
+        ? NATIVE_QUICK_ROOT_MAX_DEPTH
+        : NATIVE_QUICK_DEFAULT_MAX_DEPTH;
 
-    await this.runNativeStage(job, {
-      mode: "quick",
-      stageStartedAt: quickStartedAt,
-      maxDepth: quickMaxDepth,
-      timeBudgetMs: Math.max(500, job.options.quickBudgetMs),
-    });
-
-    if (!job.quickReadyEmitted) {
-      this.emitQuickReady(job, quickStartedAt);
-    }
-
-    if (!job.cancelled) {
-      await sleep(DEEP_START_GRACE_MS);
-    }
-
-    if (!job.cancelled) {
-      job.scanStage = "deep";
-      this.emitProgressBatch(job, "walking", true);
-      this.emitDiagnostics(job, "walking", 0, true);
-
-      const deepBudgetMs = 0;
-
-      const deepResult = await this.runNativeStage(job, {
-        mode: "deep",
-        stageStartedAt: Date.now(),
-        maxDepth: NATIVE_DEEP_MAX_DEPTH,
-        timeBudgetMs: deepBudgetMs,
+      await this.runNativeStage(job, {
+        mode: "quick",
+        stageStartedAt: quickStartedAt,
+        maxDepth: quickMaxDepth,
+        timeBudgetMs: Math.max(500, job.options.quickBudgetMs),
       });
 
-      if (!job.cancelled) {
-        job.estimatedResult = deepResult.estimated;
+      if (!job.quickReadyEmitted) {
+        this.emitQuickReady(job, quickStartedAt);
       }
-    }
 
-    if (job.cancelled) {
-      this.emitRecoverableError(
-        job,
-        makeAppError("E_CANCELLED", "Scan was cancelled by user", true, {
-          scanId: job.scanId,
-        }),
-      );
-    }
+      if (!job.cancelled) {
+        await sleep(DEEP_START_GRACE_MS);
+      }
 
-    this.emitProgressBatch(job, "aggregating", true);
-    this.emitDiagnostics(job, "aggregating", 0, true);
-    this.emitProgressBatch(job, "compressing", true);
-    this.emitDiagnostics(job, "compressing", 0, true);
-    this.emitProgressBatch(job, "finalizing", true);
-    this.emitDiagnostics(job, "finalizing", 0, true);
-    job.completed = true;
+      if (!job.cancelled) {
+        job.scanStage = "deep";
+        job.stageStartedAt = Date.now();
+        this.emitProgressBatch(job, "walking", true);
+        this.emitDiagnostics(job, "walking", 0, true);
+
+        const deepBudgetMs = 0;
+
+        const deepResult = await this.runNativeStage(job, {
+          mode: "deep",
+          stageStartedAt: Date.now(),
+          maxDepth: NATIVE_DEEP_MAX_DEPTH,
+          timeBudgetMs: deepBudgetMs,
+        });
+
+        if (!job.cancelled) {
+          job.estimatedResult = deepResult.estimated;
+        }
+      }
+
+      if (job.cancelled) {
+        this.emitRecoverableError(
+          job,
+          makeAppError("E_CANCELLED", "Scan was cancelled by user", true, {
+            scanId: job.scanId,
+          }),
+        );
+      }
+
+      this.emitProgressBatch(job, "aggregating", true);
+      this.emitDiagnostics(job, "aggregating", 0, true);
+      this.emitProgressBatch(job, "compressing", true);
+      this.emitDiagnostics(job, "compressing", 0, true);
+      this.emitProgressBatch(job, "finalizing", true);
+      this.emitDiagnostics(job, "finalizing", 0, true);
+      this.persistScanCache(job);
+      job.completed = true;
+    } finally {
+      session.dispose();
+      this.nativeSessions.delete(job.scanId);
+    }
   }
 
   private async runNativeStage(
@@ -588,7 +668,15 @@ export class DiskScanService {
     let queueDepth = 0;
     let doneReceived = false;
 
-    const session = startNativeScannerSession(
+    const session = this.getOrCreateNativeSession(job.scanId);
+    if (job.paused) {
+      session.sendControl("pause");
+    }
+    if (job.cancelled) {
+      session.sendControl("cancel");
+    }
+
+    await session.runStage(
       {
         scanId: job.scanId,
         root: job.rootPath,
@@ -598,6 +686,10 @@ export class DiskScanService {
         maxDepth: input.maxDepth,
         sameDeviceOnly: true,
         concurrency: job.options.statConcurrency,
+        accuracyMode: job.options.accuracyMode,
+        elevationPolicy: job.options.elevationPolicy,
+        emitPolicy: job.options.emitPolicy,
+        concurrencyPolicy: job.options.concurrencyPolicy,
         skipBasenames:
           input.mode === "quick" ? [...HEAVY_DIRECTORY_BASENAMES] : [],
         blockedPrefixes: buildNativeBlockedPrefixes(job, input.mode),
@@ -620,6 +712,26 @@ export class DiskScanService {
               }
               return;
             }
+            case "agg_batch": {
+              for (const item of message.items) {
+                if (item.countDelta > 0) {
+                  job.totalBytes += item.sizeDelta;
+                  const deltas = job.aggregator.addFile(item.path, item.sizeDelta);
+                  this.appendDeltas(job, deltas);
+                  continue;
+                }
+
+                if (item.sizeDelta > 0) {
+                  const deltas = job.aggregator.addDirectoryEstimate(
+                    item.path,
+                    item.sizeDelta,
+                  );
+                  this.appendDeltas(job, deltas);
+                  job.estimatedDirectories.add(item.path);
+                }
+              }
+              return;
+            }
             case "progress":
               job.scannedCount = Math.max(job.scannedCount, message.scannedCount);
               queueDepth = message.queuedDirs;
@@ -628,6 +740,33 @@ export class DiskScanService {
               }
               this.emitProgressBatch(job, "walking", false);
               this.emitDiagnostics(job, "walking", queueDepth, false);
+              return;
+            case "coverage":
+              job.blockedByPolicyCount = Math.max(
+                job.blockedByPolicyCount,
+                message.blockedByPolicy,
+              );
+              job.blockedByPermissionCount = Math.max(
+                job.blockedByPermissionCount,
+                message.blockedByPermission,
+              );
+              job.elevationRequired =
+                job.elevationRequired || Boolean(message.elevationRequired);
+              this.emitCoverageUpdate(job, true);
+              return;
+            case "diagnostics":
+              this.emitPerfSample(job, {
+                filesPerSec: message.filesPerSec,
+                stageElapsedMs: message.stageElapsedMs,
+                ioWaitRatio: message.ioWaitRatio,
+                queueDepth: message.queueDepth,
+                hotPath: message.hotPath,
+              });
+              return;
+            case "elevation_required":
+              job.elevationRequired = true;
+              this.emitElevationRequired(job, message.targetPath, message.reason);
+              this.emitCoverageUpdate(job, true);
               return;
             case "quick_ready":
               this.emitQuickReadyFromNative(job, message, input.stageStartedAt);
@@ -647,23 +786,6 @@ export class DiskScanService {
         },
       },
     );
-
-    this.nativeSessions.set(job.scanId, session);
-    if (job.paused) {
-      session.sendControl("pause");
-    }
-    if (job.cancelled) {
-      session.sendControl("cancel");
-    }
-
-    try {
-      await session.waitForExit();
-    } finally {
-      if (this.nativeSessions.get(job.scanId) === session) {
-        this.nativeSessions.delete(job.scanId);
-      }
-      session.dispose();
-    }
 
     if (!doneReceived && !job.cancelled) {
       throw new Error(`Native stage ${input.mode} finished without done event`);
@@ -831,6 +953,16 @@ export class DiskScanService {
     }
 
     if (decision.error) {
+      job.blockedByPolicyCount += 1;
+      if (decision.requiresOptIn) {
+        job.elevationRequired = true;
+        this.emitElevationRequired(
+          job,
+          decision.normalizedPath,
+          "Protected path requires explicit elevation/opt-in",
+        );
+      }
+      this.emitCoverageUpdate(job, false);
       this.emitRecoverableError(job, decision.error);
     }
 
@@ -845,6 +977,8 @@ export class DiskScanService {
     job.emittedErrorCount += 1;
     if (error.code === "E_PERMISSION") {
       job.permissionErrorCount += 1;
+      job.blockedByPermissionCount += 1;
+      this.emitCoverageUpdate(job, false);
     } else if (error.code === "E_IO") {
       job.ioErrorCount += 1;
     }
@@ -858,7 +992,7 @@ export class DiskScanService {
   ): void {
     const now = Date.now();
     const hasEnoughDeltas = job.pendingDeltaEventCount >= DELTA_BATCH_LIMIT;
-    const timeElapsed = now - job.lastEmitAt >= EMIT_INTERVAL_MS;
+    const timeElapsed = now - job.lastEmitAt >= job.options.emitPolicy.progressIntervalMs;
 
     if (!force && !hasEnoughDeltas && !timeElapsed) {
       return;
@@ -871,6 +1005,7 @@ export class DiskScanService {
     }
 
     const deltas = [...job.pendingDeltaMap.values()];
+    const aggBatches = deltas.length > 0 ? [{ items: deltas, emittedAt: now }] : [];
 
     const batch: ScanProgressBatch = {
       progress: {
@@ -886,6 +1021,7 @@ export class DiskScanService {
         currentPath: job.currentPath,
       },
       deltas,
+      aggBatches,
       patches: patch ? [patch] : [],
     };
 
@@ -1028,10 +1164,16 @@ export class DiskScanService {
       totalBytes: job.totalBytes,
       currentPath: job.currentPath,
     };
+    const elapsedMs = now - job.startedAt;
+    const stageElapsedMs = Math.max(0, now - job.stageStartedAt);
+    const filesPerSec =
+      elapsedMs > 0 ? Number((job.scannedCount / (elapsedMs / 1000)).toFixed(2)) : 0;
+    const ioWaitRatio = job.engine === "native" ? 0.35 : 0.55;
+    const coverage = this.getCoverage(job);
 
     const diagnostics = buildScanDiagnostics(
       progress,
-      now - job.startedAt,
+      elapsedMs,
       queueDepth,
       {
         recoverableErrors: job.emittedErrorCount,
@@ -1041,6 +1183,11 @@ export class DiskScanService {
         engine: job.engine,
         fallbackReason: job.fallbackReason,
         cpuHint: job.engine === "native" ? detectCpuHintFromPlatform() : undefined,
+        filesPerSec,
+        stageElapsedMs,
+        ioWaitRatio,
+        hotPath: job.currentPath,
+        coverage,
       },
     );
 
@@ -1048,6 +1195,131 @@ export class DiskScanService {
     for (const listener of this.diagnosticsListeners) {
       listener(diagnostics);
     }
+    this.emitCoverageUpdate(job, false);
+    this.emitPerfSample(job, {
+      filesPerSec,
+      stageElapsedMs,
+      ioWaitRatio,
+      queueDepth,
+      hotPath: job.currentPath,
+    });
+  }
+
+  private getCoverage(job: ScanJob): ScanCoverage {
+    return {
+      scanned: job.scannedCount,
+      blockedByPolicy: job.blockedByPolicyCount,
+      blockedByPermission: job.blockedByPermissionCount,
+      elevationRequired: job.elevationRequired,
+    };
+  }
+
+  private emitCoverageUpdate(job: ScanJob, force: boolean): void {
+    const now = Date.now();
+    if (!force && now - job.lastCoverageEmitAt < 300) {
+      return;
+    }
+
+    const event: ScanCoverageUpdate = {
+      scanId: job.scanId,
+      coverage: this.getCoverage(job),
+    };
+    job.lastCoverageEmitAt = now;
+    for (const listener of this.coverageListeners) {
+      listener(event);
+    }
+  }
+
+  private emitPerfSample(
+    job: ScanJob,
+    input: {
+      filesPerSec: number;
+      stageElapsedMs: number;
+      ioWaitRatio: number;
+      queueDepth: number;
+      hotPath?: string;
+    },
+  ): void {
+    const sample: ScanPerfSample = {
+      scanId: job.scanId,
+      filesPerSec: input.filesPerSec,
+      stageElapsedMs: input.stageElapsedMs,
+      ioWaitRatio: input.ioWaitRatio,
+      queueDepth: input.queueDepth,
+      hotPath: input.hotPath,
+      coverage: this.getCoverage(job),
+    };
+
+    for (const listener of this.perfSampleListeners) {
+      listener(sample);
+    }
+  }
+
+  private emitElevationRequired(
+    job: ScanJob,
+    targetPath: string,
+    reason: string,
+  ): void {
+    const event: ScanElevationRequired = {
+      scanId: job.scanId,
+      targetPath,
+      reason,
+      policy: job.options.elevationPolicy,
+    };
+
+    for (const listener of this.elevationRequiredListeners) {
+      listener(event);
+    }
+
+    if (
+      process.platform === "darwin" &&
+      job.options.elevationPolicy === "auto" &&
+      !job.elevationAttempted
+    ) {
+      job.elevationAttempted = true;
+      void requestElevationByHelper(targetPath)
+        .then((result) => {
+          if (!result.granted || job.cancelled) {
+            return;
+          }
+
+          job.optInProtected = true;
+          job.elevationRequired = false;
+          this.emitCoverageUpdate(job, true);
+        })
+        .catch(() => undefined);
+    }
+  }
+
+  private applyCachedPreview(job: ScanJob): void {
+    const cacheEntry = this.scanHistoryStore.get(job.rootPath);
+    if (!cacheEntry || cacheEntry.nodes.length === 0) {
+      return;
+    }
+
+    for (const node of cacheEntry.nodes) {
+      if (!this.classifyPathOrEmit(job, node.path)) {
+        continue;
+      }
+      const deltas = job.aggregator.addDirectoryEstimate(node.path, node.size);
+      this.appendDeltas(job, deltas);
+      job.estimatedDirectories.add(node.path);
+    }
+
+    this.emitProgressBatch(job, "walking", true);
+    this.emitDiagnostics(job, "walking", 0, true);
+  }
+
+  private persistScanCache(job: ScanJob): void {
+    const nodes = job.aggregator.getLargestDirectories(300).map((item) => ({
+      path: item.path,
+      size: item.size,
+    }));
+    if (nodes.length === 0) {
+      return;
+    }
+
+    this.scanHistoryStore.set(job.rootPath, nodes);
   }
 
   private resolveConfidence(job: ScanJob): ScanConfidence {
@@ -1287,9 +1559,31 @@ function resolveScanOptions(
   normalizedRootPath: string,
 ): ResolvedScanOptions {
   const isRoot = normalizedRootPath === path.parse(normalizedRootPath).root;
-  const performanceProfile = input.performanceProfile ?? "preview-first";
+  const performanceProfile = input.performanceProfile ?? "accuracy-first";
   const scanMode: ScanMode =
     input.scanMode ?? (process.platform === "darwin" ? "native_rust" : "portable");
+  const accuracyMode: ScanAccuracyMode = input.accuracyMode ?? "full";
+  const elevationPolicy: ScanElevationPolicy = input.elevationPolicy ?? "manual";
+  const emitPolicy = {
+    aggBatchMaxItems: Math.max(
+      64,
+      Math.min(20_000, input.emitPolicy?.aggBatchMaxItems ?? DEFAULT_AGG_BATCH_MAX_ITEMS),
+    ),
+    aggBatchMaxMs: Math.max(
+      20,
+      Math.min(5_000, input.emitPolicy?.aggBatchMaxMs ?? DEFAULT_AGG_BATCH_MAX_MS),
+    ),
+    progressIntervalMs: Math.max(
+      80,
+      Math.min(
+        5_000,
+        input.emitPolicy?.progressIntervalMs ?? DEFAULT_PROGRESS_INTERVAL_MS,
+      ),
+    ),
+  };
+  const concurrencyPolicy = resolveConcurrencyPolicy(input.concurrencyPolicy);
+  const allowNodeFallback =
+    Boolean(input.allowNodeFallback) || process.env.SCAN_ALLOW_NODE_FALLBACK === "1";
 
   const defaultBudget = isRoot
     ? ROOT_QUICK_PASS_TIME_BUDGET_MS
@@ -1302,12 +1596,18 @@ function resolveScanOptions(
         : Math.min(defaultBudget, QUICK_PASS_TIME_BUDGET_MS);
 
   return {
-    performanceProfile: isRoot ? "preview-first" : performanceProfile,
+    performanceProfile,
     scanMode,
+    accuracyMode,
+    elevationPolicy,
+    emitPolicy,
+    concurrencyPolicy,
+    allowNodeFallback,
     quickBudgetMs: input.quickBudgetMs ?? profileBudget,
     statConcurrency: resolveStatConcurrency(
-      isRoot ? "preview-first" : performanceProfile,
+      performanceProfile,
       isRoot,
+      concurrencyPolicy,
     ),
   };
 }
@@ -1375,16 +1675,33 @@ function normalizeIncrementalTarget(changedPath: string): string | null {
 function resolveStatConcurrency(
   profile: ResolvedScanOptions["performanceProfile"],
   isRoot: boolean,
+  policy: Required<ScanConcurrencyPolicy>,
 ): number {
-  if (profile === "accuracy-first") {
-    return Math.max(32, Math.floor(BASE_STAT_CONCURRENCY * 0.75));
+  const min = Math.max(1, policy.min);
+  const max = Math.max(min, policy.max);
+
+  if (!policy.adaptive) {
+    return max;
   }
 
+  let desired = BASE_STAT_CONCURRENCY;
   if (profile === "preview-first" && isRoot) {
-    return PREVIEW_ROOT_STAT_CONCURRENCY;
+    desired = Math.min(max, desired + 8);
+  } else if (profile === "accuracy-first") {
+    desired = Math.max(min, desired);
   }
 
-  return BASE_STAT_CONCURRENCY;
+  return Math.max(min, Math.min(max, desired));
+}
+
+function resolveConcurrencyPolicy(
+  input: ScanStartRequest["concurrencyPolicy"],
+): Required<ScanConcurrencyPolicy> {
+  const min = Math.max(1, input?.min ?? DEFAULT_CONCURRENCY_MIN);
+  const max = Math.max(min, input?.max ?? DEFAULT_CONCURRENCY_MAX);
+  const adaptive = input?.adaptive ?? true;
+
+  return { min, max, adaptive };
 }
 
 function isHeavyTraversalDirectory(dirPath: string): boolean {

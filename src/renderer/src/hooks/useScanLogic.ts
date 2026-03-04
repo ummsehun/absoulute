@@ -2,6 +2,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type {
     AggDelta,
     AppError,
+    ScanCoverageUpdate,
+    ScanElevationRequired,
+    ScanPerfSample,
     ScanProgressBatch,
     SystemInfo,
     WindowState,
@@ -28,6 +31,9 @@ export function useScanLogic() {
     const [windowState, setWindowState] = useState<WindowState | null>(null);
     const [progress, setProgress] = useState<ScanProgressBatch | null>(null);
     const [error, setError] = useState<AppError | null>(null);
+    const [coverageUpdate, setCoverageUpdate] = useState<ScanCoverageUpdate | null>(null);
+    const [perfSample, setPerfSample] = useState<ScanPerfSample | null>(null);
+    const [elevationRequired, setElevationRequired] = useState<ScanElevationRequired | null>(null);
     const [warningSummary, setWarningSummary] = useState<{
         permission: number;
         io: number;
@@ -98,8 +104,12 @@ export function useScanLogic() {
 
         const unsubscribeProgress = electronAPI.onScanProgressBatch((batch) => {
             setProgress(batch);
+            const aggBatchItems =
+                batch.aggBatches?.flatMap((aggBatch) => aggBatch.items) ?? [];
             if (batch.deltas.length > 0) {
                 pendingDeltasRef.current.push(...batch.deltas);
+            } else if (aggBatchItems.length > 0) {
+                pendingDeltasRef.current.push(...aggBatchItems);
             }
 
             const now = Date.now();
@@ -154,10 +164,25 @@ export function useScanLogic() {
             setError(err);
         });
 
+        const unsubscribeCoverage = electronAPI.onScanCoverageUpdate((event) => {
+            setCoverageUpdate(event);
+        });
+
+        const unsubscribePerfSample = electronAPI.onScanPerfSample((event) => {
+            setPerfSample(event);
+        });
+
+        const unsubscribeElevationRequired = electronAPI.onScanElevationRequired((event) => {
+            setElevationRequired(event);
+        });
+
         return () => {
             unsubscribeWindowState();
             unsubscribeProgress();
             unsubscribeError();
+            unsubscribeCoverage();
+            unsubscribePerfSample();
+            unsubscribeElevationRequired();
         };
     }, [electronAPI]);
 
@@ -188,6 +213,21 @@ export function useScanLogic() {
         const result = await electronAPI.scanStart({
             rootPath: normalizedRoot,
             optInProtected: allowProtectedOptIn,
+            performanceProfile: "accuracy-first",
+            scanMode: "native_rust",
+            accuracyMode: "full",
+            elevationPolicy: "manual",
+            emitPolicy: {
+                aggBatchMaxItems: 512,
+                aggBatchMaxMs: 120,
+                progressIntervalMs: 120,
+            },
+            concurrencyPolicy: {
+                min: 16,
+                max: 64,
+                adaptive: true,
+            },
+            allowNodeFallback: false,
         });
 
         if (result.ok) {
@@ -203,6 +243,9 @@ export function useScanLogic() {
             setAggregateSizes({});
             setPatchStats({ added: 0, updated: 0, pruned: 0 });
             setWarningSummary({ permission: 0, io: 0, lastPath: null });
+            setCoverageUpdate(null);
+            setPerfSample(null);
+            setElevationRequired(null);
             setError(null);
         } else {
             setError(result.error);
@@ -294,6 +337,9 @@ export function useScanLogic() {
         progress,
         error,
         warningSummary,
+        coverageUpdate,
+        perfSample,
+        elevationRequired,
         aggregateSizes,
         patchStats,
         scanBasePath,

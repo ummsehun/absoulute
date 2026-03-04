@@ -2,7 +2,7 @@ import React from 'react';
 import { themeTokens } from '../theme/tokens';
 import { DriveSelector } from './DriveSelector';
 import { SpaceLens3D } from './SpaceLens3D';
-import type { ScanProgressBatch } from '../../../types/contracts';
+import type { ScanElevationRequired, ScanProgressBatch } from '../../../types/contracts';
 
 interface LandingViewProps {
     apiReady: boolean;
@@ -10,11 +10,21 @@ interface LandingViewProps {
     setRootPath: (path: string) => void;
     oneClickScan: () => void;
     error?: { message: string } | null;
+    elevationRequired?: ScanElevationRequired | null;
     isScanning?: boolean;
     progress?: ScanProgressBatch | null;
 }
 
-export function LandingView({ apiReady, rootPath, setRootPath, oneClickScan, error, isScanning, progress }: LandingViewProps) {
+export function LandingView({
+    apiReady,
+    rootPath,
+    setRootPath,
+    oneClickScan,
+    error,
+    elevationRequired,
+    isScanning,
+    progress,
+}: LandingViewProps) {
     return (
         <div className="flex-1 flex flex-col items-center justify-center w-full relative z-10 px-6 max-w-2xl mx-auto" style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}>
             <div
@@ -99,6 +109,13 @@ export function LandingView({ apiReady, rootPath, setRootPath, oneClickScan, err
                     <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-red-500/90 backdrop-blur text-white px-5 py-3 rounded-2xl text-sm max-w-md text-center shadow-[0_10px_40px_rgba(239,68,68,0.5)] border border-red-400 animate-in slide-in-from-bottom">
                         <strong className="block mb-1 text-base">Error Occurred</strong>
                         {error.message || "An unknown error occurred"}
+                    </div>
+                ) : null}
+
+                {!error && elevationRequired ? (
+                    <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-amber-500/90 backdrop-blur text-black px-5 py-3 rounded-2xl text-sm max-w-xl text-center shadow-[0_10px_40px_rgba(245,158,11,0.35)] border border-amber-300 animate-in slide-in-from-bottom">
+                        <strong className="block mb-1 text-base">권한 상승 필요</strong>
+                        {elevationRequired.targetPath}
                     </div>
                 ) : null}
             </div>

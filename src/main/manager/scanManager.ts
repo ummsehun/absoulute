@@ -1,8 +1,11 @@
 import type {
   AppError,
   ScanCancelResult,
+  ScanCoverageUpdate,
   ScanDiagnostics,
+  ScanElevationRequired,
   ScanPauseResult,
+  ScanPerfSample,
   ScanProgressBatch,
   ScanQuickReady,
   ScanResumeResult,
@@ -228,6 +231,18 @@ export class ScanManager {
 
   onDiagnostics(listener: (event: ScanDiagnostics) => void): () => void {
     return this.diskScanService.onDiagnostics(listener);
+  }
+
+  onCoverage(listener: (event: ScanCoverageUpdate) => void): () => void {
+    return this.diskScanService.onCoverage(listener);
+  }
+
+  onPerfSample(listener: (event: ScanPerfSample) => void): () => void {
+    return this.diskScanService.onPerfSample(listener);
+  }
+
+  onElevationRequired(listener: (event: ScanElevationRequired) => void): () => void {
+    return this.diskScanService.onElevationRequired(listener);
   }
 
   private hasActiveScan(): boolean {

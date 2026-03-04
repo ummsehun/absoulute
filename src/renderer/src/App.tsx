@@ -11,6 +11,9 @@ function App() {
     scanId,
     progress,
     error,
+    coverageUpdate,
+    perfSample,
+    elevationRequired,
     aggregateSizes,
     setActiveRootPath,
     apiReady,
@@ -33,6 +36,7 @@ function App() {
           setRootPath={setRootPath}
           oneClickScan={oneClickScan}
           error={error}
+          elevationRequired={elevationRequired}
           isScanning={isScanning}
           progress={progress}
         />
@@ -44,6 +48,8 @@ function App() {
           rootPath={rootPath}
           visualizationRoot={visualizationRoot}
           focusedTopItems={focusedTopItems}
+          coverageUpdate={coverageUpdate}
+          perfSample={perfSample}
           setActiveRootPath={setActiveRootPath}
         />
       )}

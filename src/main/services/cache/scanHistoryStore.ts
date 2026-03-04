@@ -21,17 +21,28 @@ const MAX_ROOT_ENTRIES = 64;
 const MAX_NODES_PER_ROOT = 400;
 
 export class ScanHistoryStore {
-  private readonly store = new Store<ScanCacheState>({
-    name: STORE_NAME,
-    clearInvalidConfig: true,
-    defaults: {
-      entries: {},
-    },
-  });
+  private readonly store: Store<ScanCacheState> | null;
+  private readonly memoryState: ScanCacheState = { entries: {} };
+
+  constructor() {
+    try {
+      this.store = new Store<ScanCacheState>({
+        name: STORE_NAME,
+        clearInvalidConfig: true,
+        defaults: {
+          entries: {},
+        },
+      });
+    } catch {
+      this.store = null;
+    }
+  }
 
   get(rootPath: string): ScanCacheEntry | null {
     const key = normalizeKey(rootPath);
-    const entry = this.store.get(`entries.${key}` as const);
+    const entry = this.store
+      ? this.store.get(`entries.${key}` as const)
+      : this.memoryState.entries[key];
     if (!entry || !Array.isArray(entry.nodes)) {
       return null;
     }
@@ -65,17 +76,23 @@ export class ScanHistoryStore {
       .sort((left, right) => right.size - left.size)
       .slice(0, MAX_NODES_PER_ROOT);
 
-    this.store.set(`entries.${key}` as const, {
+    const entry: ScanCacheEntry = {
       rootPath,
       capturedAt: Date.now(),
       nodes: normalizedNodes,
-    });
+    };
+
+    if (this.store) {
+      this.store.set(`entries.${key}` as const, entry);
+    } else {
+      this.memoryState.entries[key] = entry;
+    }
 
     this.pruneIfNeeded();
   }
 
   private pruneIfNeeded(): void {
-    const entries = this.store.get("entries");
+    const entries = this.store ? this.store.get("entries") : this.memoryState.entries;
     const records = Object.entries(entries ?? {});
     if (records.length <= MAX_ROOT_ENTRIES) {
       return;
@@ -93,7 +110,11 @@ export class ScanHistoryStore {
       nextEntries[key] = value;
     }
 
-    this.store.set("entries", nextEntries);
+    if (this.store) {
+      this.store.set("entries", nextEntries);
+    } else {
+      this.memoryState.entries = nextEntries;
+    }
   }
 }
 

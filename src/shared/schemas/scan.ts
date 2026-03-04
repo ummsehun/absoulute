@@ -24,6 +24,11 @@ export const AggDeltaSchema = z.object({
   countDelta: z.number().int(),
 });
 
+export const AggBatchSchema = z.object({
+  items: z.array(AggDeltaSchema),
+  emittedAt: z.number().int().nonnegative().optional(),
+});
+
 export const CompressedTreePatchSchema = z.object({
   nodesAdded: z.array(z.string()),
   nodesUpdated: z.array(z.string()),
@@ -43,6 +48,27 @@ export const ScanModeSchema = z.enum([
   "native_rust",
 ]);
 export const ScanEngineSchema = z.enum(["node", "native"]);
+export const ScanAccuracyModeSchema = z.enum(["preview", "full"]);
+export const ScanElevationPolicySchema = z.enum(["auto", "manual", "none"]);
+
+export const ScanEmitPolicySchema = z.object({
+  aggBatchMaxItems: z.number().int().positive().max(20_000).optional(),
+  aggBatchMaxMs: z.number().int().positive().max(5_000).optional(),
+  progressIntervalMs: z.number().int().positive().max(5_000).optional(),
+});
+
+export const ScanConcurrencyPolicySchema = z.object({
+  min: z.number().int().positive().max(256).optional(),
+  max: z.number().int().positive().max(256).optional(),
+  adaptive: z.boolean().optional(),
+});
+
+export const ScanCoverageSchema = z.object({
+  scanned: z.number().int().nonnegative(),
+  blockedByPolicy: z.number().int().nonnegative(),
+  blockedByPermission: z.number().int().nonnegative(),
+  elevationRequired: z.boolean(),
+});
 
 export const ScanProgressSchema = z.object({
   scanId: z.string().min(1),
@@ -59,6 +85,7 @@ export const ScanProgressSchema = z.object({
 export const ScanProgressBatchSchema = z.object({
   progress: ScanProgressSchema,
   deltas: z.array(AggDeltaSchema),
+  aggBatches: z.array(AggBatchSchema).optional(),
   patches: z.array(CompressedTreePatchSchema),
 });
 
@@ -68,6 +95,11 @@ export const ScanStartRequestSchema = z.object({
   performanceProfile: ScanPerformanceProfileSchema.optional(),
   scanMode: ScanModeSchema.optional(),
   quickBudgetMs: z.number().int().positive().max(30_000).optional(),
+  accuracyMode: ScanAccuracyModeSchema.optional(),
+  elevationPolicy: ScanElevationPolicySchema.optional(),
+  emitPolicy: ScanEmitPolicySchema.optional(),
+  concurrencyPolicy: ScanConcurrencyPolicySchema.optional(),
+  allowNodeFallback: z.boolean().optional(),
 });
 
 export const ScanStartResponseSchema = z.object({
@@ -99,6 +131,23 @@ export const ScanResumeResponseSchema = z.object({
   ok: z.boolean(),
 });
 
+export const ScanPrivilegeHelperStatusSchema = z.object({
+  installed: z.boolean(),
+  label: z.string().min(1),
+});
+
+export const ScanPrivilegeHelperInstallResponseSchema = z.object({
+  installed: z.boolean(),
+});
+
+export const ScanElevationRequestSchema = z.object({
+  targetPath: z.string().min(1),
+});
+
+export const ScanElevationResponseSchema = z.object({
+  granted: z.boolean(),
+});
+
 export const ScanQuickReadySchema = z.object({
   scanId: z.string().min(1),
   rootPath: z.string().min(1),
@@ -124,6 +173,33 @@ export const ScanDiagnosticsSchema = z.object({
   engine: ScanEngineSchema.optional(),
   fallbackReason: z.string().min(1).optional(),
   cpuHint: z.string().min(1).optional(),
+  filesPerSec: z.number().nonnegative().optional(),
+  stageElapsedMs: z.number().int().nonnegative().optional(),
+  ioWaitRatio: z.number().min(0).max(1).optional(),
+  hotPath: z.string().min(1).optional(),
+  coverage: ScanCoverageSchema.optional(),
+});
+
+export const ScanCoverageUpdateSchema = z.object({
+  scanId: z.string().min(1),
+  coverage: ScanCoverageSchema,
+});
+
+export const ScanPerfSampleSchema = z.object({
+  scanId: z.string().min(1),
+  filesPerSec: z.number().nonnegative(),
+  stageElapsedMs: z.number().int().nonnegative(),
+  ioWaitRatio: z.number().min(0).max(1),
+  queueDepth: z.number().int().nonnegative(),
+  hotPath: z.string().min(1).optional(),
+  coverage: ScanCoverageSchema.optional(),
+});
+
+export const ScanElevationRequiredSchema = z.object({
+  scanId: z.string().min(1),
+  targetPath: z.string().min(1),
+  reason: z.string().min(1),
+  policy: ScanElevationPolicySchema,
 });
 
 export const ScanStartResultSchema = z.union([
@@ -143,5 +219,20 @@ export const ScanPauseResultSchema = z.union([
 
 export const ScanResumeResultSchema = z.union([
   SuccessResultSchema(ScanResumeResponseSchema),
+  FailureResultSchema,
+]);
+
+export const GetScanPrivilegeHelperStatusResultSchema = z.union([
+  SuccessResultSchema(ScanPrivilegeHelperStatusSchema),
+  FailureResultSchema,
+]);
+
+export const ScanPrivilegeHelperInstallResultSchema = z.union([
+  SuccessResultSchema(ScanPrivilegeHelperInstallResponseSchema),
+  FailureResultSchema,
+]);
+
+export const ScanElevationResultSchema = z.union([
+  SuccessResultSchema(ScanElevationResponseSchema),
   FailureResultSchema,
 ]);

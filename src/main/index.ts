@@ -63,6 +63,24 @@ if (gotSingleInstanceLock) {
         ?.webContents.send(IPC_CHANNELS.SCAN_DIAGNOSTICS, diagnostics);
     });
 
+    scanManager.onCoverage((coverage) => {
+      windowManager
+        .getMainWindow()
+        ?.webContents.send(IPC_CHANNELS.SCAN_COVERAGE_UPDATE, coverage);
+    });
+
+    scanManager.onPerfSample((sample) => {
+      windowManager
+        .getMainWindow()
+        ?.webContents.send(IPC_CHANNELS.SCAN_PERF_SAMPLE, sample);
+    });
+
+    scanManager.onElevationRequired((event) => {
+      windowManager
+        .getMainWindow()
+        ?.webContents.send(IPC_CHANNELS.SCAN_ELEVATION_REQUIRED, event);
+    });
+
     scanManager.onError((error) => {
       windowManager
         .getMainWindow()

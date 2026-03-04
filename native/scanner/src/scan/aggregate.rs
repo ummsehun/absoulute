@@ -9,9 +9,15 @@ use anyhow::Result;
 use rayon::prelude::*;
 
 use crate::platform::{device_id_for_path, same_device};
-use crate::protocol::{Confidence, OutgoingMessage, StartRequest};
+use crate::protocol::{
+    AggBatchItem, Confidence, ElevationPolicy, OutgoingMessage, ScanMode, StartRequest,
+};
+use crate::scan::macos_fast;
 
 const FILE_METADATA_CHUNK_SIZE: usize = 64;
+const MIN_AGG_BATCH_ITEMS: usize = 64;
+const MIN_AGG_BATCH_MS: u64 = 20;
+const MIN_PROGRESS_INTERVAL_MS: u64 = 80;
 
 pub struct ControlState {
     pub paused: AtomicBool,
@@ -32,9 +38,14 @@ pub struct ScanRuntime<'a, W: Write> {
     pub controls: &'a ControlState,
     pub writer: &'a mut W,
     pub started_at: Instant,
+    pub stage_started_at: Instant,
     pub scanned_count: u64,
     pub permission_errors: u64,
     pub io_errors: u64,
+    pub blocked_by_policy: u64,
+    pub blocked_by_permission: u64,
+    pub elevation_required: bool,
+    pub elevation_signal_emitted: bool,
 }
 
 #[derive(Clone, Copy)]
@@ -48,6 +59,24 @@ pub struct ScanExecutionOptions {
 pub struct ScanSummary {
     pub elapsed_ms: u64,
     pub estimated: bool,
+}
+
+struct EmitAccumulator {
+    pending_agg: Vec<AggBatchItem>,
+    last_agg_emit: Instant,
+    last_progress_emit: Instant,
+    last_coverage_emit: Instant,
+}
+
+impl EmitAccumulator {
+    fn new(now: Instant) -> Self {
+        Self {
+            pending_agg: Vec::new(),
+            last_agg_emit: now,
+            last_progress_emit: now,
+            last_coverage_emit: now,
+        }
+    }
 }
 
 pub fn run_bfs_scan<W: Write>(
@@ -80,7 +109,8 @@ pub fn run_bfs_scan<W: Write>(
 
     let mut estimated = options.default_estimated;
     let mut policy_skipped = false;
-    let mut last_progress_emit = Instant::now();
+    let mut accum = EmitAccumulator::new(Instant::now());
+    let use_bulk_estimate = matches!(runtime.request.mode, ScanMode::Quick);
 
     'scan_loop: while let Some((dir_path, depth)) = queue.pop_front() {
         if runtime.controls.cancelled.load(Ordering::Relaxed) {
@@ -97,6 +127,7 @@ pub fn run_bfs_scan<W: Write>(
 
         if is_blocked_path(&dir_path, &blocked_prefixes, is_windows) {
             policy_skipped = true;
+            on_policy_block(runtime, &mut accum, &dir_path, "Path blocked by policy")?;
             continue;
         }
 
@@ -109,6 +140,7 @@ pub fn run_bfs_scan<W: Write>(
                     "Failed to read directory",
                     Some(path_to_string(&dir_path)),
                 )?;
+                maybe_emit_coverage(runtime, &mut accum, false)?;
                 continue;
             }
         };
@@ -137,6 +169,7 @@ pub fn run_bfs_scan<W: Write>(
                         "Failed to resolve directory entry",
                         Some(path_to_string(&dir_path)),
                     )?;
+                    maybe_emit_coverage(runtime, &mut accum, false)?;
                     continue;
                 }
             };
@@ -145,6 +178,7 @@ pub fn run_bfs_scan<W: Write>(
             runtime.scanned_count += 1;
             if is_blocked_path(&path, &blocked_prefixes, is_windows) {
                 policy_skipped = true;
+                on_policy_block(runtime, &mut accum, &path, "Path blocked by policy")?;
                 continue;
             }
 
@@ -155,6 +189,7 @@ pub fn run_bfs_scan<W: Write>(
                 .to_ascii_lowercase();
             if skip_set.contains(&basename) {
                 policy_skipped = true;
+                on_policy_block(runtime, &mut accum, &path, "Path skipped in preview policy")?;
                 continue;
             }
 
@@ -167,6 +202,7 @@ pub fn run_bfs_scan<W: Write>(
                         "Failed to load entry file type",
                         Some(path_to_string(&path)),
                     )?;
+                    maybe_emit_coverage(runtime, &mut accum, false)?;
                     continue;
                 }
             };
@@ -176,25 +212,29 @@ pub fn run_bfs_scan<W: Write>(
             }
 
             if file_type.is_file() {
-                file_candidates.push(path.clone());
-                if file_candidates.len() >= FILE_METADATA_CHUNK_SIZE {
-                    match process_file_metadata_batch(
-                        runtime,
-                        &mut file_candidates,
-                        &options,
-                        queue.len(),
-                    )? {
-                        BatchControl::Continue => {}
-                        BatchControl::TimedOut => {
-                            estimated = true;
-                            break 'scan_loop;
+                if !use_bulk_estimate {
+                    file_candidates.push(path.clone());
+                    if file_candidates.len() >= FILE_METADATA_CHUNK_SIZE {
+                        match process_file_metadata_batch(
+                            runtime,
+                            &mut accum,
+                            &mut file_candidates,
+                            &options,
+                            queue.len(),
+                        )? {
+                            BatchControl::Continue => {}
+                            BatchControl::TimedOut => {
+                                estimated = true;
+                                break 'scan_loop;
+                            }
+                            BatchControl::Cancelled => break 'scan_loop,
                         }
-                        BatchControl::Cancelled => break 'scan_loop,
                     }
                 }
             } else if file_type.is_dir() {
                 if runtime.request.same_device_only && !same_device(&path, root_device) {
                     policy_skipped = true;
+                    on_policy_block(runtime, &mut accum, &path, "Directory is on a different device")?;
                     continue;
                 }
                 if depth < options.max_depth {
@@ -202,19 +242,43 @@ pub fn run_bfs_scan<W: Write>(
                 }
             }
 
-            if runtime.scanned_count % 512 == 0 || last_progress_emit.elapsed() >= Duration::from_millis(180) {
-                emit_progress(runtime, queue.len(), Some(path_to_string(&path)))?;
-                last_progress_emit = Instant::now();
-            }
+            maybe_emit_progress_and_diagnostics(
+                runtime,
+                &mut accum,
+                queue.len(),
+                Some(path_to_string(&path)),
+                false,
+            )?;
         }
 
-        match process_file_metadata_batch(runtime, &mut file_candidates, &options, queue.len())? {
-            BatchControl::Continue => {}
-            BatchControl::TimedOut => {
-                estimated = true;
-                break 'scan_loop;
+        if use_bulk_estimate {
+            if let Ok(Some(total)) = macos_fast::estimate_dir_size_getattrlistbulk(&dir_path) {
+                if total > 0 {
+                    accum.pending_agg.push(AggBatchItem {
+                        path: path_to_string(&dir_path),
+                        size_delta: total,
+                        count_delta: 0,
+                        estimated: true,
+                    });
+                    flush_agg_batch(runtime, &mut accum, false)?;
+                }
             }
-            BatchControl::Cancelled => break 'scan_loop,
+            maybe_emit_progress_and_diagnostics(runtime, &mut accum, queue.len(), None, false)?;
+        } else {
+            match process_file_metadata_batch(
+                runtime,
+                &mut accum,
+                &mut file_candidates,
+                &options,
+                queue.len(),
+            )? {
+                BatchControl::Continue => {}
+                BatchControl::TimedOut => {
+                    estimated = true;
+                    break 'scan_loop;
+                }
+                BatchControl::Cancelled => break 'scan_loop,
+            }
         }
     }
 
@@ -222,8 +286,13 @@ pub fn run_bfs_scan<W: Write>(
         estimated = true;
     }
 
+    flush_agg_batch(runtime, &mut accum, true)?;
+    maybe_emit_progress_and_diagnostics(runtime, &mut accum, queue.len(), None, true)?;
+    maybe_emit_coverage(runtime, &mut accum, true)?;
+
     if options.emit_quick_ready {
-        let confidence = infer_confidence(runtime.scanned_count, runtime.permission_errors, runtime.io_errors);
+        let confidence =
+            infer_confidence(runtime.scanned_count, runtime.permission_errors, runtime.io_errors);
         emit_message(
             runtime.writer,
             &OutgoingMessage::QuickReady {
@@ -233,8 +302,6 @@ pub fn run_bfs_scan<W: Write>(
             },
         )?;
     }
-
-    emit_progress(runtime, queue.len(), None)?;
 
     Ok(ScanSummary {
         elapsed_ms: runtime.started_at.elapsed().as_millis() as u64,
@@ -259,20 +326,117 @@ pub fn emit_message<W: Write>(writer: &mut W, message: &OutgoingMessage) -> Resu
     Ok(())
 }
 
-fn emit_progress<W: Write>(
+fn maybe_emit_progress_and_diagnostics<W: Write>(
     runtime: &mut ScanRuntime<'_, W>,
+    accum: &mut EmitAccumulator,
     queued_dirs: usize,
     current_path: Option<String>,
+    force: bool,
 ) -> Result<()> {
+    let now = Instant::now();
+    let progress_interval = Duration::from_millis(
+        runtime
+            .request
+            .emit_policy
+            .progress_interval_ms
+            .max(MIN_PROGRESS_INTERVAL_MS),
+    );
+
+    if !force && now.duration_since(accum.last_progress_emit) < progress_interval {
+        return Ok(());
+    }
+
     emit_message(
         runtime.writer,
         &OutgoingMessage::Progress {
             scanned_count: runtime.scanned_count,
             queued_dirs,
             elapsed_ms: runtime.started_at.elapsed().as_millis() as u64,
-            current_path,
+            current_path: current_path.clone(),
         },
-    )
+    )?;
+
+    let elapsed_ms = runtime.started_at.elapsed().as_millis() as u64;
+    let files_per_sec = if elapsed_ms == 0 {
+        0.0
+    } else {
+        runtime.scanned_count as f64 / (elapsed_ms as f64 / 1000.0)
+    };
+    let issue_ratio = (runtime.permission_errors + runtime.io_errors) as f64
+        / (runtime.scanned_count.max(1) as f64);
+    let io_wait_ratio = issue_ratio.min(0.95);
+
+    emit_message(
+        runtime.writer,
+        &OutgoingMessage::Diagnostics {
+            files_per_sec,
+            stage_elapsed_ms: runtime.stage_started_at.elapsed().as_millis() as u64,
+            io_wait_ratio,
+            queue_depth: queued_dirs,
+            hot_path: current_path,
+        },
+    )?;
+
+    accum.last_progress_emit = now;
+    Ok(())
+}
+
+fn maybe_emit_coverage<W: Write>(
+    runtime: &mut ScanRuntime<'_, W>,
+    accum: &mut EmitAccumulator,
+    force: bool,
+) -> Result<()> {
+    let now = Instant::now();
+    if !force && now.duration_since(accum.last_coverage_emit) < Duration::from_millis(300) {
+        return Ok(());
+    }
+
+    emit_message(
+        runtime.writer,
+        &OutgoingMessage::Coverage {
+            scanned: runtime.scanned_count,
+            blocked_by_policy: runtime.blocked_by_policy,
+            blocked_by_permission: runtime.blocked_by_permission,
+            elevation_required: runtime.elevation_required,
+        },
+    )?;
+    accum.last_coverage_emit = now;
+    Ok(())
+}
+
+fn maybe_emit_elevation_required<W: Write>(
+    runtime: &mut ScanRuntime<'_, W>,
+    path: &Path,
+    reason: &str,
+) -> Result<()> {
+    if runtime.elevation_signal_emitted
+        || matches!(runtime.request.elevation_policy, ElevationPolicy::None)
+    {
+        return Ok(());
+    }
+
+    emit_message(
+        runtime.writer,
+        &OutgoingMessage::ElevationRequired {
+            target_path: path_to_string(path),
+            reason: reason.to_string(),
+            policy: runtime.request.elevation_policy,
+        },
+    )?;
+    runtime.elevation_signal_emitted = true;
+    Ok(())
+}
+
+fn on_policy_block<W: Write>(
+    runtime: &mut ScanRuntime<'_, W>,
+    accum: &mut EmitAccumulator,
+    blocked_path: &Path,
+    reason: &str,
+) -> Result<()> {
+    runtime.blocked_by_policy += 1;
+    runtime.elevation_required = true;
+    maybe_emit_elevation_required(runtime, blocked_path, reason)?;
+    maybe_emit_coverage(runtime, accum, false)
 }
 
 fn emit_warning<W: Write>(
@@ -283,6 +447,8 @@ fn emit_warning<W: Write>(
 ) -> Result<()> {
     if code == "E_PERMISSION" {
         runtime.permission_errors += 1;
+        runtime.blocked_by_permission += 1;
+        runtime.elevation_required = true;
     } else {
         runtime.io_errors += 1;
     }
@@ -296,6 +462,41 @@ fn emit_warning<W: Write>(
             recoverable: true,
         },
     )
+}
+
+fn flush_agg_batch<W: Write>(
+    runtime: &mut ScanRuntime<'_, W>,
+    accum: &mut EmitAccumulator,
+    force: bool,
+) -> Result<()> {
+    if accum.pending_agg.is_empty() {
+        return Ok(());
+    }
+
+    let max_items = runtime
+        .request
+        .emit_policy
+        .agg_batch_max_items
+        .max(MIN_AGG_BATCH_ITEMS);
+    let max_interval = Duration::from_millis(
+        runtime
+            .request
+            .emit_policy
+            .agg_batch_max_ms
+            .max(MIN_AGG_BATCH_MS),
+    );
+
+    let should_emit = force
+        || accum.pending_agg.len() >= max_items
+        || accum.last_agg_emit.elapsed() >= max_interval;
+    if !should_emit {
+        return Ok(());
+    }
+
+    let items = std::mem::take(&mut accum.pending_agg);
+    emit_message(runtime.writer, &OutgoingMessage::AggBatch { items })?;
+    accum.last_agg_emit = Instant::now();
+    Ok(())
 }
 
 fn map_error_code(error: &std::io::Error) -> &'static str {
@@ -340,6 +541,7 @@ enum BatchControl {
 
 fn process_file_metadata_batch<W: Write>(
     runtime: &mut ScanRuntime<'_, W>,
+    accum: &mut EmitAccumulator,
     file_candidates: &mut Vec<PathBuf>,
     options: &ScanExecutionOptions,
     queue_len: usize,
@@ -352,7 +554,7 @@ fn process_file_metadata_batch<W: Write>(
     let file_metadata_results: Vec<(PathBuf, std::io::Result<u64>)> = batch
         .par_iter()
         .map(|file_path| {
-            let size_result = std::fs::metadata(file_path).map(|meta| meta.len());
+            let size_result = macos_fast::file_len(file_path);
             (file_path.clone(), size_result)
         })
         .collect();
@@ -362,10 +564,12 @@ fn process_file_metadata_batch<W: Write>(
         if options.time_budget_ms > 0
             && runtime.started_at.elapsed() >= Duration::from_millis(options.time_budget_ms)
         {
+            flush_agg_batch(runtime, accum, true)?;
             return Ok(BatchControl::TimedOut);
         }
 
         if runtime.controls.cancelled.load(Ordering::Relaxed) {
+            flush_agg_batch(runtime, accum, true)?;
             return Ok(BatchControl::Cancelled);
         }
 
@@ -373,15 +577,13 @@ fn process_file_metadata_batch<W: Write>(
         last_path = Some(path_label.clone());
         match size_result {
             Ok(size) => {
-                emit_message(
-                    runtime.writer,
-                    &OutgoingMessage::Agg {
-                        path: path_label,
-                        size_delta: size,
-                        count_delta: 1,
-                        estimated: false,
-                    },
-                )?;
+                accum.pending_agg.push(AggBatchItem {
+                    path: path_label,
+                    size_delta: size,
+                    count_delta: 1,
+                    estimated: false,
+                });
+                flush_agg_batch(runtime, accum, false)?;
             }
             Err(error) => {
                 emit_warning(
@@ -390,11 +592,12 @@ fn process_file_metadata_batch<W: Write>(
                     "Failed to read file metadata",
                     Some(path_label),
                 )?;
+                maybe_emit_coverage(runtime, accum, false)?;
             }
         }
     }
 
-    emit_progress(runtime, queue_len, last_path)?;
+    maybe_emit_progress_and_diagnostics(runtime, accum, queue_len, last_path, false)?;
     Ok(BatchControl::Continue)
 }
 

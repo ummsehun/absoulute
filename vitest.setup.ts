@@ -1,7 +1,10 @@
 import { vi } from "vitest";
 import { z } from "zod";
 
-const ScanStartResSchema = z.object({ scanId: z.string().min(1) });
+const ScanStartResSchema = z.object({
+  scanId: z.string().min(1),
+  startedAt: z.number().int().positive(),
+});
 const ScanCancelResSchema = z.object({ ok: z.boolean() });
 
 const electronAPIMock = {
@@ -15,7 +18,7 @@ const electronAPIMock = {
   })),
 
   scanStart: vi.fn(async () => {
-    const data = { scanId: "scan-test-1" };
+    const data = { scanId: "scan-test-1", startedAt: Date.now() };
     return { ok: true, data: ScanStartResSchema.parse(data) };
   }),
 
@@ -26,6 +29,19 @@ const electronAPIMock = {
     const data = { ok: true };
     return { ok: true, data: ScanCancelResSchema.parse(data) };
   }),
+
+  getPrivilegeHelperStatus: vi.fn(async () => ({
+    ok: true,
+    data: { installed: true, label: "com.spacelens.privilege-helper" },
+  })),
+  installPrivilegeHelper: vi.fn(async () => ({
+    ok: true,
+    data: { installed: true },
+  })),
+  requestElevation: vi.fn(async () => ({
+    ok: true,
+    data: { granted: true },
+  })),
 
   onScanProgressBatch: vi.fn((cb: (batch: unknown) => void) => {
     cb({
@@ -40,6 +56,7 @@ const electronAPIMock = {
         totalBytes: 128,
       },
       deltas: [],
+      aggBatches: [],
       patches: [],
     });
     return () => undefined;
@@ -70,6 +87,57 @@ const electronAPIMock = {
       recoverableErrors: 0,
       permissionErrors: 0,
       ioErrors: 0,
+      filesPerSec: 100,
+      stageElapsedMs: 1200,
+      ioWaitRatio: 0.4,
+      hotPath: "/",
+      coverage: {
+        scanned: 1,
+        blockedByPolicy: 0,
+        blockedByPermission: 0,
+        elevationRequired: false,
+      },
+    });
+    return () => undefined;
+  }),
+
+  onScanCoverageUpdate: vi.fn((cb: (event: unknown) => void) => {
+    cb({
+      scanId: "scan-test-1",
+      coverage: {
+        scanned: 1,
+        blockedByPolicy: 0,
+        blockedByPermission: 0,
+        elevationRequired: false,
+      },
+    });
+    return () => undefined;
+  }),
+
+  onScanPerfSample: vi.fn((cb: (event: unknown) => void) => {
+    cb({
+      scanId: "scan-test-1",
+      filesPerSec: 100,
+      stageElapsedMs: 1200,
+      ioWaitRatio: 0.4,
+      queueDepth: 4,
+      hotPath: "/",
+      coverage: {
+        scanned: 1,
+        blockedByPolicy: 0,
+        blockedByPermission: 0,
+        elevationRequired: false,
+      },
+    });
+    return () => undefined;
+  }),
+
+  onScanElevationRequired: vi.fn((cb: (event: unknown) => void) => {
+    cb({
+      scanId: "scan-test-1",
+      targetPath: "/System",
+      reason: "requires elevation",
+      policy: "manual",
     });
     return () => undefined;
   }),

@@ -2,22 +2,38 @@ import type { z } from "zod";
 import { AppErrorSchema, ErrorCodeSchema } from "../shared/schemas/common";
 import {
   AggDeltaSchema,
+  AggBatchSchema,
   CompressedTreePatchSchema,
   ScanCancelRequestSchema,
   ScanCancelResponseSchema,
   ScanCancelResultSchema,
+  GetScanPrivilegeHelperStatusResultSchema,
   ScanPauseRequestSchema,
   ScanPauseResponseSchema,
   ScanPauseResultSchema,
+  ScanPrivilegeHelperInstallResponseSchema,
+  ScanPrivilegeHelperInstallResultSchema,
+  ScanPrivilegeHelperStatusSchema,
+  ScanElevationRequestSchema,
+  ScanElevationResponseSchema,
+  ScanElevationResultSchema,
   ScanPerformanceProfileSchema,
   ScanProgressBatchSchema,
   ScanQuickReadySchema,
   ScanDiagnosticsSchema,
+  ScanCoverageSchema,
+  ScanCoverageUpdateSchema,
+  ScanPerfSampleSchema,
+  ScanElevationRequiredSchema,
   ScanProgressSchema,
   ScanResumeRequestSchema,
   ScanResumeResponseSchema,
   ScanResumeResultSchema,
   ScanModeSchema,
+  ScanAccuracyModeSchema,
+  ScanConcurrencyPolicySchema,
+  ScanElevationPolicySchema,
+  ScanEmitPolicySchema,
   ScanStartRequestSchema,
   ScanStartResponseSchema,
   ScanStartResultSchema,
@@ -49,13 +65,22 @@ export type GetDefaultScanRootResult = z.infer<typeof GetDefaultScanRootResultSc
 export type WalkEntry = z.infer<typeof WalkEntrySchema>;
 export type StatRecord = z.infer<typeof StatRecordSchema>;
 export type AggDelta = z.infer<typeof AggDeltaSchema>;
+export type AggBatch = z.infer<typeof AggBatchSchema>;
 export type CompressedTreePatch = z.infer<typeof CompressedTreePatchSchema>;
 export type ScanProgress = z.infer<typeof ScanProgressSchema>;
 export type ScanProgressBatch = z.infer<typeof ScanProgressBatchSchema>;
 export type ScanQuickReady = z.infer<typeof ScanQuickReadySchema>;
 export type ScanDiagnostics = z.infer<typeof ScanDiagnosticsSchema>;
+export type ScanCoverage = z.infer<typeof ScanCoverageSchema>;
+export type ScanCoverageUpdate = z.infer<typeof ScanCoverageUpdateSchema>;
+export type ScanPerfSample = z.infer<typeof ScanPerfSampleSchema>;
+export type ScanElevationRequired = z.infer<typeof ScanElevationRequiredSchema>;
 export type ScanPerformanceProfile = z.infer<typeof ScanPerformanceProfileSchema>;
 export type ScanMode = z.infer<typeof ScanModeSchema>;
+export type ScanAccuracyMode = z.infer<typeof ScanAccuracyModeSchema>;
+export type ScanElevationPolicy = z.infer<typeof ScanElevationPolicySchema>;
+export type ScanEmitPolicy = z.infer<typeof ScanEmitPolicySchema>;
+export type ScanConcurrencyPolicy = z.infer<typeof ScanConcurrencyPolicySchema>;
 export type ScanConfidence = z.infer<typeof ScanConfidenceSchema>;
 export type ScanEngine = z.infer<typeof ScanEngineSchema>;
 export type ScanStage = z.infer<typeof ScanStageSchema>;
@@ -75,6 +100,20 @@ export type ScanPauseResult = z.infer<typeof ScanPauseResultSchema>;
 export type ScanResumeRequest = z.infer<typeof ScanResumeRequestSchema>;
 export type ScanResumeResponse = z.infer<typeof ScanResumeResponseSchema>;
 export type ScanResumeResult = z.infer<typeof ScanResumeResultSchema>;
+
+export type ScanPrivilegeHelperStatus = z.infer<typeof ScanPrivilegeHelperStatusSchema>;
+export type ScanPrivilegeHelperInstallResponse = z.infer<
+  typeof ScanPrivilegeHelperInstallResponseSchema
+>;
+export type GetScanPrivilegeHelperStatusResult = z.infer<
+  typeof GetScanPrivilegeHelperStatusResultSchema
+>;
+export type ScanPrivilegeHelperInstallResult = z.infer<
+  typeof ScanPrivilegeHelperInstallResultSchema
+>;
+export type ScanElevationRequest = z.infer<typeof ScanElevationRequestSchema>;
+export type ScanElevationResponse = z.infer<typeof ScanElevationResponseSchema>;
+export type ScanElevationResult = z.infer<typeof ScanElevationResultSchema>;
 
 export type WindowState = z.infer<typeof WindowStateSchema>;
 export type WindowActionResponse = z.infer<typeof WindowActionResponseSchema>;

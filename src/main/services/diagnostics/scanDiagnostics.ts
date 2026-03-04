@@ -1,5 +1,6 @@
 import type {
   ScanConfidence,
+  ScanCoverage,
   ScanDiagnostics,
   ScanProgress,
   ScanQuickReady,
@@ -13,6 +14,11 @@ export interface DiagnosticCounters {
   engine?: "node" | "native";
   fallbackReason?: string;
   cpuHint?: string;
+  filesPerSec?: number;
+  stageElapsedMs?: number;
+  ioWaitRatio?: number;
+  hotPath?: string;
+  coverage?: ScanCoverage;
 }
 
 export function buildScanDiagnostics(
@@ -36,6 +42,11 @@ export function buildScanDiagnostics(
     engine: counters.engine,
     fallbackReason: counters.fallbackReason,
     cpuHint: counters.cpuHint,
+    filesPerSec: counters.filesPerSec,
+    stageElapsedMs: counters.stageElapsedMs,
+    ioWaitRatio: counters.ioWaitRatio,
+    hotPath: counters.hotPath,
+    coverage: counters.coverage,
   };
 }
 

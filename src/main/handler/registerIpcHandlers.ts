@@ -2,9 +2,13 @@ import { ipcMain } from "electron";
 import os from "node:os";
 import { IPC_CHANNELS } from "../../shared/constants/ipcChannels";
 import {
+  GetScanPrivilegeHelperStatusResultSchema,
   ScanCancelRequestSchema,
   ScanPauseRequestSchema,
   ScanPauseResultSchema,
+  ScanElevationRequestSchema,
+  ScanElevationResultSchema,
+  ScanPrivilegeHelperInstallResultSchema,
   ScanResumeRequestSchema,
   ScanResumeResultSchema,
   ScanStartRequestSchema,
@@ -21,6 +25,11 @@ import {
 } from "../../shared/schemas/window";
 import { WindowManager } from "../core/windowManager";
 import { ScanManager } from "../manager/scanManager";
+import {
+  getPrivilegeHelperStatus,
+  installPrivilegeHelper,
+  requestElevation,
+} from "../services/security/macosPrivilegeHelper";
 import { makeAppError, unknownToAppError } from "../utils/appError";
 
 export function registerIpcHandlers(
@@ -76,6 +85,56 @@ export function registerIpcHandlers(
         ok: false as const,
         error: unknownToAppError(
           makeAppError("E_VALIDATION", "Invalid scan cancel payload", true, {
+            raw: String(error),
+          }),
+        ),
+      });
+    }
+  });
+
+  ipcMain.handle(IPC_CHANNELS.SCAN_GET_PRIVILEGE_HELPER_STATUS, async () => {
+    try {
+      const data = await getPrivilegeHelperStatus();
+      return GetScanPrivilegeHelperStatusResultSchema.parse({
+        ok: true as const,
+        data,
+      });
+    } catch (error) {
+      return GetScanPrivilegeHelperStatusResultSchema.parse({
+        ok: false as const,
+        error: unknownToAppError(error),
+      });
+    }
+  });
+
+  ipcMain.handle(IPC_CHANNELS.SCAN_INSTALL_PRIVILEGE_HELPER, async () => {
+    try {
+      const data = await installPrivilegeHelper();
+      return ScanPrivilegeHelperInstallResultSchema.parse({
+        ok: true as const,
+        data,
+      });
+    } catch (error) {
+      return ScanPrivilegeHelperInstallResultSchema.parse({
+        ok: false as const,
+        error: unknownToAppError(error),
+      });
+    }
+  });
+
+  ipcMain.handle(IPC_CHANNELS.SCAN_REQUEST_ELEVATION, async (_event, input: unknown) => {
+    try {
+      const parsed = ScanElevationRequestSchema.parse({ targetPath: input });
+      const data = await requestElevation(parsed.targetPath);
+      return ScanElevationResultSchema.parse({
+        ok: true as const,
+        data,
+      });
+    } catch (error) {
+      return ScanElevationResultSchema.parse({
+        ok: false as const,
+        error: unknownToAppError(
+          makeAppError("E_VALIDATION", "Invalid elevation request payload", true, {
             raw: String(error),
           }),
         ),

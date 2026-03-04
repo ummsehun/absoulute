@@ -10,7 +10,7 @@ import {
     MAP_WIDTH,
     VizTreeNode
 } from '../utils/helpers';
-import type { ScanProgressBatch } from '../../../types/contracts';
+import type { ScanCoverageUpdate, ScanPerfSample, ScanProgressBatch } from '../../../types/contracts';
 
 interface CircleVizNode {
     path: string;
@@ -31,6 +31,8 @@ interface VisualizationViewProps {
     rootPath: string;
     visualizationRoot: string;
     focusedTopItems: Array<[string, number]>;
+    coverageUpdate: ScanCoverageUpdate | null;
+    perfSample: ScanPerfSample | null;
     setActiveRootPath: (path: string) => void;
 }
 
@@ -41,6 +43,8 @@ export function VisualizationView({
     rootPath,
     visualizationRoot,
     focusedTopItems,
+    coverageUpdate,
+    perfSample,
     setActiveRootPath,
 }: VisualizationViewProps) {
     const [layoutMode] = useState<LayoutMode>("circle_pack");
@@ -93,7 +97,11 @@ export function VisualizationView({
                     {labelFromPath(visualizationRoot || rootPath)}
                 </div>
 
-                <div className="w-16" /> {/* spacer for balance */}
+                <div className="text-xs text-white/70 font-mono">
+                    <span className={`px-2 py-1 rounded-full border ${progress?.progress.estimated ? "border-amber-300/60 bg-amber-500/20" : "border-emerald-300/60 bg-emerald-500/20"}`}>
+                        {progress?.progress.estimated ? "Estimated" : "Exact"}
+                    </span>
+                </div>
             </div>
 
             <div className="flex-1 flex gap-6 min-h-0" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
@@ -192,9 +200,9 @@ export function VisualizationView({
                 <div className="flex items-center gap-6 pointer-events-auto drop-shadow-xl">
                     <div className="flex items-center gap-3 text-sm text-white/60 font-medium">
                         <div className="w-5 h-5 rounded-full border border-white/20 flex items-center justify-center text-xs">i</div>
-                        <span>0개의 항목 선택</span>
+                        <span>files/s {Math.round(perfSample?.filesPerSec ?? 0).toLocaleString()}</span>
                         <span className="text-white/40">|</span>
-                        <span>0 KB</span>
+                        <span>blocked {coverageUpdate?.coverage.blockedByPolicy ?? 0}</span>
                     </div>
                     <button className="px-6 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 backdrop-blur-xl transition-all shadow-lg text-sm font-medium hover:text-white">
                         검토 및 제거

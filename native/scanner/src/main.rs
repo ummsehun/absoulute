@@ -5,95 +5,141 @@ mod scan;
 use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
-use std::thread;
 use std::time::Instant;
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 use crossbeam_channel::unbounded;
 
-use protocol::{IncomingMessage, OutgoingMessage, ScanMode};
+use protocol::{IncomingMessage, OutgoingMessage, ScanMode, StartRequest};
 use scan::aggregate::{emit_done, emit_message, ControlState, ScanRuntime};
 
 fn main() -> Result<()> {
     let controls = Arc::new(ControlState::new());
-    let (control_tx, control_rx) = unbounded::<IncomingMessage>();
+    let controls_for_stdin = Arc::clone(&controls);
+    let (start_tx, start_rx) = unbounded::<StartRequest>();
 
-    thread::spawn(move || {
+    std::thread::spawn(move || {
         let stdin = std::io::stdin();
         let lines = BufReader::new(stdin.lock()).lines();
         for line in lines.map_while(Result::ok) {
             if let Ok(message) = serde_json::from_str::<IncomingMessage>(&line) {
-                let _ = control_tx.send(message);
+                match message {
+                    IncomingMessage::Start {
+                        scan_id,
+                        root,
+                        mode,
+                        platform,
+                        time_budget_ms,
+                        max_depth,
+                        same_device_only,
+                        concurrency,
+                        accuracy_mode,
+                        elevation_policy,
+                        emit_policy,
+                        concurrency_policy,
+                        skip_basenames,
+                        blocked_prefixes,
+                    } => {
+                        let request = StartRequest {
+                            scan_id,
+                            root,
+                            mode,
+                            platform,
+                            time_budget_ms,
+                            max_depth,
+                            same_device_only,
+                            concurrency,
+                            accuracy_mode,
+                            elevation_policy,
+                            emit_policy,
+                            concurrency_policy,
+                            skip_basenames,
+                            blocked_prefixes,
+                        };
+                        if start_tx.send(request).is_err() {
+                            break;
+                        }
+                    }
+                    IncomingMessage::Pause => {
+                        controls_for_stdin.paused.store(true, Ordering::Relaxed);
+                    }
+                    IncomingMessage::Resume => {
+                        controls_for_stdin.paused.store(false, Ordering::Relaxed);
+                    }
+                    IncomingMessage::Cancel => {
+                        controls_for_stdin.cancelled.store(true, Ordering::Relaxed);
+                    }
+                }
             }
         }
     });
 
-    let request = loop {
-        let incoming = control_rx
-            .recv()
-            .context("missing start message from stdin channel")?;
-        if let Some(start) = incoming.into_start() {
-            break start;
-        }
-    };
-    let _ = rayon::ThreadPoolBuilder::new()
-        .num_threads(request.concurrency.max(1))
-        .build_global();
-
     let stdout = std::io::stdout();
     let mut writer = BufWriter::new(stdout.lock());
-    let started_at = Instant::now();
 
-    let mut runtime = ScanRuntime {
-        request: &request,
-        controls: &controls,
-        writer: &mut writer,
-        started_at,
-        scanned_count: 0,
-        permission_errors: 0,
-        io_errors: 0,
-    };
+    while let Ok(request) = start_rx.recv() {
+        initialize_thread_pool(&request);
 
-    let summary = run_scan_loop(&mut runtime, &control_rx)?;
+        let started_at = Instant::now();
+        let mut runtime = ScanRuntime {
+            request: &request,
+            controls: &controls,
+            writer: &mut writer,
+            started_at,
+            stage_started_at: started_at,
+            scanned_count: 0,
+            permission_errors: 0,
+            io_errors: 0,
+            blocked_by_policy: 0,
+            blocked_by_permission: 0,
+            elevation_required: false,
+            elevation_signal_emitted: false,
+        };
 
-    emit_done(&mut runtime.writer, summary.elapsed_ms, summary.estimated)?;
-    runtime.writer.flush()?;
+        let summary = run_scan_loop(&mut runtime)?;
+        emit_done(&mut runtime.writer, summary.elapsed_ms, summary.estimated)?;
+        runtime.writer.flush()?;
+    }
+
     Ok(())
+}
+
+fn initialize_thread_pool(request: &StartRequest) {
+    let policy_min = request.concurrency_policy.min.max(1);
+    let policy_max = request.concurrency_policy.max.max(policy_min);
+    let base_threads = if request.concurrency_policy.adaptive {
+        32
+    } else {
+        request.concurrency.max(1)
+    };
+    let thread_count = base_threads.max(policy_min).min(policy_max);
+
+    let _ = rayon::ThreadPoolBuilder::new()
+        .num_threads(thread_count)
+        .build_global();
 }
 
 fn run_scan_loop<W: Write>(
     runtime: &mut ScanRuntime<'_, W>,
-    control_rx: &crossbeam_channel::Receiver<IncomingMessage>,
 ) -> Result<scan::aggregate::ScanSummary> {
-    loop {
-        while let Ok(msg) = control_rx.try_recv() {
-            match msg {
-                IncomingMessage::Pause => runtime.controls.paused.store(true, Ordering::Relaxed),
-                IncomingMessage::Resume => runtime.controls.paused.store(false, Ordering::Relaxed),
-                IncomingMessage::Cancel => runtime.controls.cancelled.store(true, Ordering::Relaxed),
-                IncomingMessage::Start { .. } => {}
-            }
-        }
+    if runtime.controls.cancelled.load(Ordering::Relaxed) {
+        emit_message(
+            runtime.writer,
+            &OutgoingMessage::Warn {
+                code: "E_CANCELLED".to_string(),
+                message: "Scan cancelled".to_string(),
+                path: Some(runtime.request.root.clone()),
+                recoverable: true,
+            },
+        )?;
+        return Ok(scan::aggregate::ScanSummary {
+            elapsed_ms: runtime.started_at.elapsed().as_millis() as u64,
+            estimated: true,
+        });
+    }
 
-        if runtime.controls.cancelled.load(Ordering::Relaxed) {
-            emit_message(
-                runtime.writer,
-                &OutgoingMessage::Warn {
-                    code: "E_CANCELLED".to_string(),
-                    message: "Scan cancelled".to_string(),
-                    path: Some(runtime.request.root.clone()),
-                    recoverable: true,
-                },
-            )?;
-            return Ok(scan::aggregate::ScanSummary {
-                elapsed_ms: runtime.started_at.elapsed().as_millis() as u64,
-                estimated: true,
-            });
-        }
-
-        return match runtime.request.mode {
-            ScanMode::Quick => scan::quick::run(runtime),
-            ScanMode::Deep => scan::deep::run(runtime),
-        };
+    match runtime.request.mode {
+        ScanMode::Quick => scan::quick::run(runtime),
+        ScanMode::Deep => scan::deep::run(runtime),
     }
 }
