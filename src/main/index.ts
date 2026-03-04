@@ -21,56 +21,58 @@ if (!gotSingleInstanceLock) {
   app.quit();
 }
 
-app.whenReady().then(() => {
-  registerCspPolicy();
+if (gotSingleInstanceLock) {
+  app.whenReady().then(() => {
+    registerCspPolicy();
 
-  const windowManager = new WindowManager({
-    preloadPath,
-    rendererHtmlPath,
-    rendererDevUrl: process.env.ELECTRON_RENDERER_URL,
+    const windowManager = new WindowManager({
+      preloadPath,
+      rendererHtmlPath,
+      rendererDevUrl: process.env.ELECTRON_RENDERER_URL,
+    });
+
+    const diskScanService = new DiskScanService();
+    const scanManager = new ScanManager(diskScanService);
+
+    registerIpcHandlers(scanManager, windowManager);
+
+    const mainWindow = windowManager.createMainWindow();
+    registerSecurityGuards(mainWindow);
+
+    windowManager.onStateChanged((state) => {
+      windowManager
+        .getMainWindow()
+        ?.webContents.send(IPC_CHANNELS.WINDOW_STATE_CHANGED, state);
+    });
+
+    scanManager.onProgress((batch) => {
+      windowManager
+        .getMainWindow()
+        ?.webContents.send(IPC_CHANNELS.SCAN_PROGRESS_BATCH, batch);
+    });
+
+    scanManager.onError((error) => {
+      windowManager
+        .getMainWindow()
+        ?.webContents.send(IPC_CHANNELS.SCAN_ERROR, error);
+    });
+
+    app.on("second-instance", () => {
+      windowManager.focusOrRestore();
+    });
+
+    registerAppLifecycle(() => {
+      const nextWindow = windowManager.createMainWindow();
+      registerSecurityGuards(nextWindow);
+      return nextWindow;
+    });
   });
-
-  const diskScanService = new DiskScanService();
-  const scanManager = new ScanManager(diskScanService);
-
-  registerIpcHandlers(scanManager, windowManager);
-
-  const mainWindow = windowManager.createMainWindow();
-  registerSecurityGuards(mainWindow);
-
-  windowManager.onStateChanged((state) => {
-    windowManager
-      .getMainWindow()
-      ?.webContents.send(IPC_CHANNELS.WINDOW_STATE_CHANGED, state);
-  });
-
-  scanManager.onProgress((batch) => {
-    windowManager
-      .getMainWindow()
-      ?.webContents.send(IPC_CHANNELS.SCAN_PROGRESS_BATCH, batch);
-  });
-
-  scanManager.onError((error) => {
-    windowManager
-      .getMainWindow()
-      ?.webContents.send(IPC_CHANNELS.SCAN_ERROR, error);
-  });
-
-  app.on("second-instance", () => {
-    windowManager.focusOrRestore();
-  });
-
-  registerAppLifecycle(() => {
-    const nextWindow = windowManager.createMainWindow();
-    registerSecurityGuards(nextWindow);
-    return nextWindow;
-  });
-});
+}
 
 function resolvePreloadPath(currentDir: string): string {
   const candidates = [
-    path.join(currentDir, "../preload/index.mjs"),
     path.join(currentDir, "../preload/index.js"),
+    path.join(currentDir, "../preload/index.mjs"),
   ];
 
   for (const candidate of candidates) {

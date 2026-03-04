@@ -32,7 +32,7 @@ export const CompressedTreePatchSchema = z.object({
 
 export const ScanProgressSchema = z.object({
   scanId: z.string().min(1),
-  phase: z.enum(["walking", "aggregating", "compressing", "finalizing"]),
+  phase: z.enum(["walking", "paused", "aggregating", "compressing", "finalizing"]),
   scannedCount: z.number().int().nonnegative(),
   totalBytes: z.number().nonnegative(),
   currentPath: z.string().optional(),
@@ -58,7 +58,23 @@ export const ScanCancelRequestSchema = z.object({
   scanId: z.string().min(1),
 });
 
+export const ScanPauseRequestSchema = z.object({
+  scanId: z.string().min(1),
+});
+
+export const ScanResumeRequestSchema = z.object({
+  scanId: z.string().min(1),
+});
+
 export const ScanCancelResponseSchema = z.object({
+  ok: z.boolean(),
+});
+
+export const ScanPauseResponseSchema = z.object({
+  ok: z.boolean(),
+});
+
+export const ScanResumeResponseSchema = z.object({
   ok: z.boolean(),
 });
 
@@ -69,5 +85,15 @@ export const ScanStartResultSchema = z.union([
 
 export const ScanCancelResultSchema = z.union([
   SuccessResultSchema(ScanCancelResponseSchema),
+  FailureResultSchema,
+]);
+
+export const ScanPauseResultSchema = z.union([
+  SuccessResultSchema(ScanPauseResponseSchema),
+  FailureResultSchema,
+]);
+
+export const ScanResumeResultSchema = z.union([
+  SuccessResultSchema(ScanResumeResponseSchema),
   FailureResultSchema,
 ]);

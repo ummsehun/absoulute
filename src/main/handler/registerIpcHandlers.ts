@@ -3,11 +3,18 @@ import os from "node:os";
 import { IPC_CHANNELS } from "../../shared/constants/ipcChannels";
 import {
   ScanCancelRequestSchema,
+  ScanPauseRequestSchema,
+  ScanPauseResultSchema,
+  ScanResumeRequestSchema,
+  ScanResumeResultSchema,
   ScanStartRequestSchema,
   ScanStartResultSchema,
   ScanCancelResultSchema,
 } from "../../shared/schemas/scan";
-import { GetSystemInfoResultSchema } from "../../shared/schemas/system";
+import {
+  GetDefaultScanRootResultSchema,
+  GetSystemInfoResultSchema,
+} from "../../shared/schemas/system";
 import {
   GetWindowStateResultSchema,
   WindowActionResultSchema,
@@ -31,6 +38,17 @@ export function registerIpcHandlers(
     };
 
     return GetSystemInfoResultSchema.parse(payload);
+  });
+
+  ipcMain.handle(IPC_CHANNELS.APP_GET_DEFAULT_SCAN_ROOT, async () => {
+    const payload = {
+      ok: true as const,
+      data: {
+        path: os.homedir(),
+      },
+    };
+
+    return GetDefaultScanRootResultSchema.parse(payload);
   });
 
   ipcMain.handle(IPC_CHANNELS.SCAN_START, async (_event, input: unknown) => {
@@ -58,6 +76,38 @@ export function registerIpcHandlers(
         ok: false as const,
         error: unknownToAppError(
           makeAppError("E_VALIDATION", "Invalid scan cancel payload", true, {
+            raw: String(error),
+          }),
+        ),
+      });
+    }
+  });
+
+  ipcMain.handle(IPC_CHANNELS.SCAN_PAUSE, async (_event, input: unknown) => {
+    try {
+      const parsed = ScanPauseRequestSchema.parse({ scanId: input });
+      return ScanPauseResultSchema.parse(await scanManager.pause(parsed.scanId));
+    } catch (error) {
+      return ScanPauseResultSchema.parse({
+        ok: false as const,
+        error: unknownToAppError(
+          makeAppError("E_VALIDATION", "Invalid scan pause payload", true, {
+            raw: String(error),
+          }),
+        ),
+      });
+    }
+  });
+
+  ipcMain.handle(IPC_CHANNELS.SCAN_RESUME, async (_event, input: unknown) => {
+    try {
+      const parsed = ScanResumeRequestSchema.parse({ scanId: input });
+      return ScanResumeResultSchema.parse(await scanManager.resume(parsed.scanId));
+    } catch (error) {
+      return ScanResumeResultSchema.parse({
+        ok: false as const,
+        error: unknownToAppError(
+          makeAppError("E_VALIDATION", "Invalid scan resume payload", true, {
             raw: String(error),
           }),
         ),

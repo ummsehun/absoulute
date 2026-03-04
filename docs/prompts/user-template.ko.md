@@ -71,7 +71,7 @@ context_files:
   - "src/shared/schemas/scan.ts"
   - "src/types/scan.ts"
 target_artifacts:
-  - "src/preload/index.ts"
+  - "src/preload/index.mjs"
   - "src/main/handler/scanProgressHandler.ts"
 acceptance_tests:
   - "잘못된 payload는 E_VALIDATION"

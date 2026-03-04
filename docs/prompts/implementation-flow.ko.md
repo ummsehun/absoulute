@@ -24,7 +24,7 @@
 
 필수 산출물:
 
-- `src/preload/index.ts`
+- `src/preload/index.mjs`
 - `src/renderer/src/types/global.d.ts` (window API 선언)
 
 완료 조건:

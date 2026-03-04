@@ -36,7 +36,7 @@
 - [ ] `shared -> preload -> main -> renderer` 구현 사이클이 명시됐다.
 - [ ] electron-vite 최소 엔트리 5개가 고정됐다.
   - [ ] `src/main/index.ts`
-  - [ ] `src/preload/index.ts`
+  - [ ] `src/preload/index.mjs`
   - [ ] `src/renderer/index.html`
   - [ ] `src/renderer/src/main.tsx`
   - [ ] `src/renderer/src/App.tsx`

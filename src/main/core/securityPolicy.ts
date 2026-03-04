@@ -12,6 +12,16 @@ export interface PathPolicyDecision {
   error?: AppError;
 }
 
+export interface PathClassifierOptions {
+  isResolved?: boolean;
+}
+
+export type PathPolicyClassifier = (
+  inputPath: string,
+  optInProtected: boolean,
+  options?: PathClassifierOptions,
+) => PathPolicyDecision;
+
 export async function evaluateRootPath(
   inputPath: string,
   optInProtected: boolean,
@@ -19,9 +29,20 @@ export async function evaluateRootPath(
   const platform = os.platform();
   const homeDirectory = os.homedir();
   const policy = getProtectedPaths(platform, homeDirectory);
+  const normalizedAbsoluteBlock = policy.absoluteBlock.map((item) =>
+    normalizeForComparison(item, platform),
+  );
+  const normalizedOptInRequired = policy.optInRequired.map((item) =>
+    normalizeForComparison(item, platform),
+  );
   const normalizedInput = await normalizeAndResolvePath(inputPath, platform);
 
-  return classifyNormalizedPath(normalizedInput, optInProtected, platform, policy);
+  return classifyNormalizedPath(
+    normalizedInput,
+    optInProtected,
+    normalizedAbsoluteBlock,
+    normalizedOptInRequired,
+  );
 }
 
 export function classifyPathByPolicy(
@@ -30,19 +51,44 @@ export function classifyPathByPolicy(
   platform: NodeJS.Platform = os.platform(),
   homeDirectory: string = os.homedir(),
 ): PathPolicyDecision {
-  const policy = getProtectedPaths(platform, homeDirectory);
-  const normalizedInput = normalizeForComparison(path.resolve(inputPath), platform);
+  return createPathPolicyClassifier(platform, homeDirectory)(
+    inputPath,
+    optInProtected,
+  );
+}
 
-  return classifyNormalizedPath(normalizedInput, optInProtected, platform, policy);
+export function createPathPolicyClassifier(
+  platform: NodeJS.Platform = os.platform(),
+  homeDirectory: string = os.homedir(),
+): PathPolicyClassifier {
+  const policy = getProtectedPaths(platform, homeDirectory);
+  const normalizedAbsoluteBlock = policy.absoluteBlock.map((item) =>
+    normalizeForComparison(item, platform),
+  );
+  const normalizedOptInRequired = policy.optInRequired.map((item) =>
+    normalizeForComparison(item, platform),
+  );
+
+  return (inputPath, optInProtected, options) => {
+    const absoluteInput = options?.isResolved ? inputPath : path.resolve(inputPath);
+    const normalizedInput = normalizeForComparison(absoluteInput, platform);
+
+    return classifyNormalizedPath(
+      normalizedInput,
+      optInProtected,
+      normalizedAbsoluteBlock,
+      normalizedOptInRequired,
+    );
+  };
 }
 
 function classifyNormalizedPath(
   normalizedInput: string,
   optInProtected: boolean,
-  platform: NodeJS.Platform,
-  policy: ReturnType<typeof getProtectedPaths>,
+  normalizedAbsoluteBlock: string[],
+  normalizedOptInRequired: string[],
 ): PathPolicyDecision {
-  const absoluteMatch = findMatch(normalizedInput, policy.absoluteBlock, platform);
+  const absoluteMatch = findMatch(normalizedInput, normalizedAbsoluteBlock);
   if (absoluteMatch) {
     return {
       allowed: false,
@@ -57,7 +103,7 @@ function classifyNormalizedPath(
     };
   }
 
-  const optInMatch = findMatch(normalizedInput, policy.optInRequired, platform);
+  const optInMatch = findMatch(normalizedInput, normalizedOptInRequired);
   if (optInMatch && !optInProtected) {
     return {
       allowed: false,
@@ -97,11 +143,9 @@ async function normalizeAndResolvePath(
 
 function findMatch(
   candidatePath: string,
-  candidates: string[],
-  platform: NodeJS.Platform,
+  normalizedCandidates: string[],
 ): string | undefined {
-  for (const item of candidates) {
-    const normalizedItem = normalizeForComparison(item, platform);
+  for (const normalizedItem of normalizedCandidates) {
     if (isSameOrChildPath(candidatePath, normalizedItem)) {
       return normalizedItem;
     }

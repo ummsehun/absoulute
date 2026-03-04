@@ -6,22 +6,30 @@ import {
   ScanStartRequestSchema,
 } from "../shared/schemas/scan";
 import { WindowStateSchema } from "../shared/schemas/window";
-import type { ElectronAPI } from "../types/electron-api";
 
-const electronAPI: ElectronAPI = {
+const electronAPI = {
   getSystemInfo: async () =>
     ipcRenderer.invoke(IPC_CHANNELS.APP_GET_SYSTEM_INFO),
+
+  getDefaultScanRoot: async () =>
+    ipcRenderer.invoke(IPC_CHANNELS.APP_GET_DEFAULT_SCAN_ROOT),
 
   scanStart: async (input) => {
     const parsed = ScanStartRequestSchema.parse(input);
     return ipcRenderer.invoke(IPC_CHANNELS.SCAN_START, parsed);
   },
 
+  scanPause: async (scanId) =>
+    ipcRenderer.invoke(IPC_CHANNELS.SCAN_PAUSE, scanId),
+
+  scanResume: async (scanId) =>
+    ipcRenderer.invoke(IPC_CHANNELS.SCAN_RESUME, scanId),
+
   scanCancel: async (scanId) =>
     ipcRenderer.invoke(IPC_CHANNELS.SCAN_CANCEL, scanId),
 
   onScanProgressBatch: (callback) => {
-    const listener = (_event: Electron.IpcRendererEvent, payload: unknown) => {
+    const listener = (_event, payload) => {
       const parsed = ScanProgressBatchSchema.safeParse(payload);
       if (parsed.success) {
         callback(parsed.data);
@@ -35,7 +43,7 @@ const electronAPI: ElectronAPI = {
   },
 
   onScanError: (callback) => {
-    const listener = (_event: Electron.IpcRendererEvent, payload: unknown) => {
+    const listener = (_event, payload) => {
       const parsed = AppErrorSchema.safeParse(payload);
       if (parsed.success) {
         callback(parsed.data);
@@ -61,7 +69,7 @@ const electronAPI: ElectronAPI = {
     ipcRenderer.invoke(IPC_CHANNELS.WINDOW_CLOSE),
 
   onWindowStateChanged: (callback) => {
-    const listener = (_event: Electron.IpcRendererEvent, payload: unknown) => {
+    const listener = (_event, payload) => {
       const parsed = WindowStateSchema.safeParse(payload);
       if (parsed.success) {
         callback(parsed.data);

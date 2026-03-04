@@ -7,9 +7,22 @@ export default defineConfig({
     plugins: [externalizeDepsPlugin()],
   },
   preload: {
-    plugins: [externalizeDepsPlugin()],
+    build: {
+      rollupOptions: {
+        output: {
+          format: "cjs",
+          entryFileNames: "[name].js",
+          chunkFileNames: "chunks/[name]-[hash].js",
+        },
+      },
+    },
   },
   renderer: {
     plugins: [react(), tailwindcss()],
+    server: {
+      host: "127.0.0.1",
+      port: 5173,
+      strictPort: true,
+    },
   },
 });

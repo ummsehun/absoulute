@@ -1,6 +1,8 @@
 import type {
   AppError,
   ScanCancelResult,
+  ScanPauseResult,
+  ScanResumeResult,
   ScanStartRequest,
   ScanStartResult,
 } from "../../types/contracts";
@@ -29,6 +31,34 @@ export class ScanManager {
         data: {
           ok: cancelled,
         },
+      };
+    } catch (error) {
+      return {
+        ok: false,
+        error: unknownToAppError(error),
+      };
+    }
+  }
+
+  async pause(scanId: string): Promise<ScanPauseResult> {
+    try {
+      return {
+        ok: true,
+        data: this.diskScanService.pauseScan(scanId),
+      };
+    } catch (error) {
+      return {
+        ok: false,
+        error: unknownToAppError(error),
+      };
+    }
+  }
+
+  async resume(scanId: string): Promise<ScanResumeResult> {
+    try {
+      return {
+        ok: true,
+        data: this.diskScanService.resumeScan(scanId),
       };
     } catch (error) {
       return {

@@ -1,7 +1,10 @@
 export const IPC_CHANNELS = {
   APP_GET_SYSTEM_INFO: "app:get-system-info",
+  APP_GET_DEFAULT_SCAN_ROOT: "app:get-default-scan-root",
 
   SCAN_START: "scan:start",
+  SCAN_PAUSE: "scan:pause",
+  SCAN_RESUME: "scan:resume",
   SCAN_CANCEL: "scan:cancel",
   SCAN_PROGRESS_BATCH: "scan:progress-batch",
   SCAN_ERROR: "scan:error",

@@ -7,7 +7,7 @@
 아래 5개 경로를 최소 필수 엔트리로 유지한다.
 
 1. `src/main/index.ts`
-2. `src/preload/index.ts`
+2. `src/preload/index.mjs`
 3. `src/renderer/index.html`
 4. `src/renderer/src/main.tsx`
 5. `src/renderer/src/App.tsx`

@@ -6,8 +6,14 @@ import {
   ScanCancelRequestSchema,
   ScanCancelResponseSchema,
   ScanCancelResultSchema,
+  ScanPauseRequestSchema,
+  ScanPauseResponseSchema,
+  ScanPauseResultSchema,
   ScanProgressBatchSchema,
   ScanProgressSchema,
+  ScanResumeRequestSchema,
+  ScanResumeResponseSchema,
+  ScanResumeResultSchema,
   ScanStartRequestSchema,
   ScanStartResponseSchema,
   ScanStartResultSchema,
@@ -15,6 +21,7 @@ import {
   WalkEntrySchema,
 } from "../shared/schemas/scan";
 import {
+  GetDefaultScanRootResultSchema,
   GetSystemInfoResultSchema,
   SystemInfoSchema,
 } from "../shared/schemas/system";
@@ -30,6 +37,7 @@ export type AppError = z.infer<typeof AppErrorSchema>;
 
 export type SystemInfo = z.infer<typeof SystemInfoSchema>;
 export type GetSystemInfoResult = z.infer<typeof GetSystemInfoResultSchema>;
+export type GetDefaultScanRootResult = z.infer<typeof GetDefaultScanRootResultSchema>;
 
 export type WalkEntry = z.infer<typeof WalkEntrySchema>;
 export type StatRecord = z.infer<typeof StatRecordSchema>;
@@ -45,6 +53,14 @@ export type ScanStartResult = z.infer<typeof ScanStartResultSchema>;
 export type ScanCancelRequest = z.infer<typeof ScanCancelRequestSchema>;
 export type ScanCancelResponse = z.infer<typeof ScanCancelResponseSchema>;
 export type ScanCancelResult = z.infer<typeof ScanCancelResultSchema>;
+
+export type ScanPauseRequest = z.infer<typeof ScanPauseRequestSchema>;
+export type ScanPauseResponse = z.infer<typeof ScanPauseResponseSchema>;
+export type ScanPauseResult = z.infer<typeof ScanPauseResultSchema>;
+
+export type ScanResumeRequest = z.infer<typeof ScanResumeRequestSchema>;
+export type ScanResumeResponse = z.infer<typeof ScanResumeResponseSchema>;
+export type ScanResumeResult = z.infer<typeof ScanResumeResultSchema>;
 
 export type WindowState = z.infer<typeof WindowStateSchema>;
 export type WindowActionResponse = z.infer<typeof WindowActionResponseSchema>;

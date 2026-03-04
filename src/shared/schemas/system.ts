@@ -7,7 +7,16 @@ export const SystemInfoSchema = z.object({
   release: z.string().min(1),
 });
 
+export const DefaultScanRootSchema = z.object({
+  path: z.string().min(1),
+});
+
 export const GetSystemInfoResultSchema = z.union([
   SuccessResultSchema(SystemInfoSchema),
+  FailureResultSchema,
+]);
+
+export const GetDefaultScanRootResultSchema = z.union([
+  SuccessResultSchema(DefaultScanRootSchema),
   FailureResultSchema,
 ]);

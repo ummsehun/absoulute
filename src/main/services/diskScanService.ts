@@ -5,17 +5,24 @@ import crypto from "node:crypto";
 import type {
   AggDelta,
   AppError,
+  ScanPauseResponse,
   ScanProgress,
   ScanProgressBatch,
+  ScanResumeResponse,
   ScanStartRequest,
   ScanStartResponse,
 } from "../../types/contracts";
-import { classifyPathByPolicy, evaluateRootPath } from "../core/securityPolicy";
+import {
+  createPathPolicyClassifier,
+  evaluateRootPath,
+  type PathPolicyClassifier,
+} from "../core/securityPolicy";
 import { makeAppError } from "../utils/appError";
 import { ScanAggregator } from "./scanAggregator";
 
-const EMIT_INTERVAL_MS = 120;
-const DELTA_BATCH_LIMIT = 256;
+const EMIT_INTERVAL_MS = 250;
+const DELTA_BATCH_LIMIT = 1024;
+const STAT_CONCURRENCY = 48;
 const TOP_LIMIT_PER_DIRECTORY = 200;
 const MAX_RECOVERABLE_ERRORS = 100;
 
@@ -30,14 +37,17 @@ interface ScanJob {
   startedAt: number;
   optInProtected: boolean;
   cancelled: boolean;
+  paused: boolean;
   completed: boolean;
   scannedCount: number;
   totalBytes: number;
   currentPath: string;
   lastEmitAt: number;
-  pendingDeltas: AggDelta[];
+  pendingDeltaMap: Map<string, AggDelta>;
+  pendingDeltaEventCount: number;
   emittedErrorCount: number;
   aggregator: ScanAggregator;
+  pathClassifier: PathPolicyClassifier;
 }
 
 export class DiskScanService {
@@ -72,18 +82,21 @@ export class DiskScanService {
       startedAt,
       optInProtected: input.optInProtected,
       cancelled: false,
+      paused: false,
       completed: false,
       scannedCount: 0,
       totalBytes: 0,
       currentPath: rootDecision.normalizedPath,
       lastEmitAt: Date.now(),
-      pendingDeltas: [],
+      pendingDeltaMap: new Map<string, AggDelta>(),
+      pendingDeltaEventCount: 0,
       emittedErrorCount: 0,
       aggregator: new ScanAggregator(
         rootDecision.normalizedPath,
         TOP_LIMIT_PER_DIRECTORY,
         os.platform(),
       ),
+      pathClassifier: createPathPolicyClassifier(),
     };
 
     this.jobs.set(scanId, job);
@@ -93,6 +106,28 @@ export class DiskScanService {
     });
 
     return { scanId, startedAt };
+  }
+
+  pauseScan(scanId: string): ScanPauseResponse {
+    const job = this.jobs.get(scanId);
+    if (!job || job.completed || job.cancelled) {
+      return { ok: false };
+    }
+
+    job.paused = true;
+    this.emitProgressBatch(job, "paused", true);
+    return { ok: true };
+  }
+
+  resumeScan(scanId: string): ScanResumeResponse {
+    const job = this.jobs.get(scanId);
+    if (!job || job.completed || job.cancelled) {
+      return { ok: false };
+    }
+
+    job.paused = false;
+    this.emitProgressBatch(job, "walking", true);
+    return { ok: true };
   }
 
   cancelScan(scanId: string): boolean {
@@ -115,6 +150,12 @@ export class DiskScanService {
     const queue: QueueItem[] = [{ dirPath: job.rootPath, depth: 0 }];
 
     while (queue.length > 0 && !job.cancelled) {
+      if (job.paused) {
+        await sleep(60);
+        this.emitProgressBatch(job, "paused", false);
+        continue;
+      }
+
       const current = queue.shift();
       if (!current) {
         break;
@@ -122,7 +163,9 @@ export class DiskScanService {
 
       job.currentPath = current.dirPath;
 
-      const dirDecision = classifyPathByPolicy(current.dirPath, job.optInProtected);
+      const dirDecision = job.pathClassifier(current.dirPath, job.optInProtected, {
+        isResolved: true,
+      });
       if (!dirDecision.allowed) {
         if (dirDecision.error) {
           this.emitRecoverableError(job, dirDecision.error);
@@ -163,9 +206,14 @@ export class DiskScanService {
     current: QueueItem,
     queue: QueueItem[],
   ): Promise<void> {
-    const dir = await fs.opendir(current.dirPath);
+    const dir = await fs.opendir(current.dirPath, { bufferSize: 256 });
 
     for await (const entry of dir) {
+      if (job.cancelled) {
+        break;
+      }
+
+      await this.waitWhilePaused(job);
       if (job.cancelled) {
         break;
       }
@@ -174,7 +222,9 @@ export class DiskScanService {
       job.currentPath = fullPath;
       job.scannedCount += 1;
 
-      const entryDecision = classifyPathByPolicy(fullPath, job.optInProtected);
+      const entryDecision = job.pathClassifier(fullPath, job.optInProtected, {
+        isResolved: true,
+      });
       if (!entryDecision.allowed) {
         if (entryDecision.error) {
           this.emitRecoverableError(job, entryDecision.error);
@@ -196,21 +246,25 @@ export class DiskScanService {
         continue;
       }
 
-      try {
-        const stat = await fs.stat(fullPath);
-        job.totalBytes += stat.size;
+      await this.scheduleStatTask(job, async () => {
+        try {
+          const stat = await fs.stat(fullPath);
+          job.totalBytes += stat.size;
 
-        const deltas = job.aggregator.addFile(fullPath, stat.size);
-        job.pendingDeltas.push(...deltas);
-      } catch (error) {
-        this.emitRecoverableError(
-          job,
-          toFilesystemError(error, fullPath, "Failed to stat file"),
-        );
-      }
+          const deltas = job.aggregator.addFile(fullPath, stat.size);
+          this.appendDeltas(job, deltas);
+        } catch (error) {
+          this.emitRecoverableError(
+            job,
+            toFilesystemError(error, fullPath, "Failed to stat file"),
+          );
+        }
 
-      this.emitProgressBatch(job, "walking", false);
+        this.emitProgressBatch(job, "walking", false);
+      });
     }
+
+    await this.flushStatTasks(job);
   }
 
   private ensureDirectoryInAggregation(
@@ -236,19 +290,20 @@ export class DiskScanService {
     force: boolean,
   ): void {
     const now = Date.now();
-    const hasEnoughDeltas = job.pendingDeltas.length >= DELTA_BATCH_LIMIT;
-    const hasPatch = job.aggregator.hasPendingPatch();
+    const hasEnoughDeltas = job.pendingDeltaEventCount >= DELTA_BATCH_LIMIT;
     const timeElapsed = now - job.lastEmitAt >= EMIT_INTERVAL_MS;
 
-    if (!force && !hasEnoughDeltas && !timeElapsed && !hasPatch) {
+    if (!force && !hasEnoughDeltas && !timeElapsed) {
       return;
     }
 
     const patch = job.aggregator.consumePatch();
 
-    if (!force && job.pendingDeltas.length === 0 && !patch) {
+    if (!force && job.pendingDeltaMap.size === 0 && !patch) {
       return;
     }
+
+    const deltas = [...job.pendingDeltaMap.values()];
 
     const batch: ScanProgressBatch = {
       progress: {
@@ -258,15 +313,74 @@ export class DiskScanService {
         totalBytes: job.totalBytes,
         currentPath: job.currentPath,
       },
-      deltas: [...job.pendingDeltas],
+      deltas,
       patches: patch ? [patch] : [],
     };
 
-    job.pendingDeltas.length = 0;
+    job.pendingDeltaMap.clear();
+    job.pendingDeltaEventCount = 0;
     job.lastEmitAt = now;
 
     for (const listener of this.progressListeners) {
       listener(batch);
+    }
+  }
+
+  private appendDeltas(job: ScanJob, deltas: AggDelta[]): void {
+    for (const delta of deltas) {
+      job.pendingDeltaEventCount += 1;
+      const previous = job.pendingDeltaMap.get(delta.nodePath);
+      if (previous) {
+        previous.sizeDelta += delta.sizeDelta;
+        previous.countDelta += delta.countDelta;
+        continue;
+      }
+
+      job.pendingDeltaMap.set(delta.nodePath, {
+        nodePath: delta.nodePath,
+        sizeDelta: delta.sizeDelta,
+        countDelta: delta.countDelta,
+      });
+    }
+  }
+
+  private readonly activeStatTasks = new WeakMap<ScanJob, Set<Promise<void>>>();
+
+  private async scheduleStatTask(
+    job: ScanJob,
+    task: () => Promise<void>,
+  ): Promise<void> {
+    const tasks = this.activeStatTasks.get(job) ?? new Set<Promise<void>>();
+    this.activeStatTasks.set(job, tasks);
+
+    while (tasks.size >= STAT_CONCURRENCY && !job.cancelled) {
+      await Promise.race(tasks);
+      await this.waitWhilePaused(job);
+    }
+
+    const running = task()
+      .catch(() => undefined)
+      .finally(() => {
+        tasks.delete(running);
+      });
+
+    tasks.add(running);
+  }
+
+  private async flushStatTasks(job: ScanJob): Promise<void> {
+    const tasks = this.activeStatTasks.get(job);
+    if (!tasks || tasks.size === 0) {
+      return;
+    }
+
+    await Promise.allSettled(tasks);
+    tasks.clear();
+  }
+
+  private async waitWhilePaused(job: ScanJob): Promise<void> {
+    while (job.paused && !job.cancelled) {
+      this.emitProgressBatch(job, "paused", false);
+      await sleep(80);
     }
   }
 
@@ -309,5 +423,11 @@ function toFilesystemError(
     targetPath,
     code,
     raw: String(error),
+  });
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
   });
 }

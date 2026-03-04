@@ -18,6 +18,11 @@ describe("DiskScanService", () => {
     await fs.writeFile(path.join(tempRoot, "a.txt"), "abc");
     await fs.writeFile(path.join(nested, "b.txt"), "hello-world");
     await fs.writeFile(path.join(nestedChild, "c.txt"), "1234567890");
+    await Promise.all(
+      Array.from({ length: 320 }, (_, index) =>
+        fs.writeFile(path.join(nestedChild, `bulk-${index}.txt`), `payload-${index}`),
+      ),
+    );
 
     const service = new DiskScanService();
     const batches: ScanProgressBatch[] = [];
@@ -31,10 +36,30 @@ describe("DiskScanService", () => {
     });
 
     try {
-      await service.startScan({
+      const started = await service.startScan({
         rootPath: tempRoot,
         optInProtected: false,
       });
+
+      await waitFor(() => batches.length > 0, 4000);
+
+      const pausedAccepted = await waitForPauseAcceptance(
+        () => service.pauseScan(started.scanId),
+        () => batches.some((batch) => batch.progress.phase === "finalizing"),
+        1500,
+      );
+
+      if (pausedAccepted) {
+        await waitFor(
+          () => batches.some((batch) => batch.progress.phase === "paused"),
+          4000,
+        );
+
+        const resumed = service.resumeScan(started.scanId);
+        expect(resumed.ok).toBe(true);
+      } else {
+        expect(batches.some((batch) => batch.progress.phase === "finalizing")).toBe(true);
+      }
 
       await waitFor(
         () => batches.some((batch) => batch.progress.phase === "finalizing"),
@@ -73,4 +98,27 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => {
     setTimeout(resolve, ms);
   });
+}
+
+async function waitForPauseAcceptance(
+  pauseAction: () => { ok: boolean },
+  donePredicate: () => boolean,
+  timeoutMs: number,
+): Promise<boolean> {
+  const started = Date.now();
+
+  while (Date.now() - started < timeoutMs) {
+    if (donePredicate()) {
+      return false;
+    }
+
+    const paused = pauseAction();
+    if (paused.ok) {
+      return true;
+    }
+
+    await sleep(20);
+  }
+
+  return false;
 }

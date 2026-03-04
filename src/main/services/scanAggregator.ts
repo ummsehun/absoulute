@@ -139,23 +139,36 @@ export class ScanAggregator {
     childSize: number,
   ): void {
     const children = this.topChildren.get(parentPath) ?? new Map<string, number>();
-    children.set(childPath, childSize);
-
-    if (children.size > this.topLimit) {
-      const sorted = [...children.entries()].sort((a, b) => b[1] - a[1]);
-      const kept = sorted.slice(0, this.topLimit);
-      const pruned = sorted.slice(this.topLimit);
-
-      const next = new Map<string, number>(kept);
-      this.topChildren.set(parentPath, next);
-
-      for (const [removedPath] of pruned) {
-        this.pendingPruned.add(removedPath);
-      }
-
+    const existingSize = children.get(childPath);
+    if (existingSize !== undefined) {
+      children.set(childPath, childSize);
+      this.topChildren.set(parentPath, children);
       return;
     }
 
+    if (children.size < this.topLimit) {
+      children.set(childPath, childSize);
+      this.topChildren.set(parentPath, children);
+      return;
+    }
+
+    let smallestKey: string | null = null;
+    let smallestSize = Number.POSITIVE_INFINITY;
+    for (const [key, size] of children) {
+      if (size < smallestSize) {
+        smallestSize = size;
+        smallestKey = key;
+      }
+    }
+
+    if (!smallestKey || childSize <= smallestSize) {
+      this.topChildren.set(parentPath, children);
+      return;
+    }
+
+    children.delete(smallestKey);
+    this.pendingPruned.add(smallestKey);
+    children.set(childPath, childSize);
     this.topChildren.set(parentPath, children);
   }
 
