@@ -51,6 +51,18 @@ if (gotSingleInstanceLock) {
         ?.webContents.send(IPC_CHANNELS.SCAN_PROGRESS_BATCH, batch);
     });
 
+    scanManager.onQuickReady((event) => {
+      windowManager
+        .getMainWindow()
+        ?.webContents.send(IPC_CHANNELS.SCAN_QUICK_READY, event);
+    });
+
+    scanManager.onDiagnostics((diagnostics) => {
+      windowManager
+        .getMainWindow()
+        ?.webContents.send(IPC_CHANNELS.SCAN_DIAGNOSTICS, diagnostics);
+    });
+
     scanManager.onError((error) => {
       windowManager
         .getMainWindow()

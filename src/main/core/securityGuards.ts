@@ -29,8 +29,8 @@ export function registerCspPolicy(): void {
     const isDev = Boolean(process.env.ELECTRON_RENDERER_URL);
 
     const csp = isDev
-      ? "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self' ws://localhost:* http://localhost:*; img-src 'self' data:"
-      : "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data:";
+      ? "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self' ws://localhost:* http://localhost:* https://raw.githack.com https://raw.githubusercontent.com; img-src 'self' data:"
+      : "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self' https://raw.githack.com https://raw.githubusercontent.com; img-src 'self' data:";
 
     callback({
       responseHeaders: {

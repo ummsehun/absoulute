@@ -71,6 +71,8 @@ class StubDiskScanService {
   private id = 0;
   private readonly activeScans = new Set<string>();
   private readonly progressListeners = new Set<(batch: ScanProgressBatch) => void>();
+  private readonly quickReadyListeners = new Set<(event: unknown) => void>();
+  private readonly diagnosticsListeners = new Set<(event: unknown) => void>();
   private readonly errorListeners = new Set<(error: AppError) => void>();
 
   asDiskScanService() {
@@ -85,6 +87,16 @@ class StubDiskScanService {
   onError(listener: (error: AppError) => void): () => void {
     this.errorListeners.add(listener);
     return () => this.errorListeners.delete(listener);
+  }
+
+  onQuickReady(listener: (event: unknown) => void): () => void {
+    this.quickReadyListeners.add(listener);
+    return () => this.quickReadyListeners.delete(listener);
+  }
+
+  onDiagnostics(listener: (event: unknown) => void): () => void {
+    this.diagnosticsListeners.add(listener);
+    return () => this.diagnosticsListeners.delete(listener);
   }
 
   emitProgress(batch: ScanProgressBatch): void {

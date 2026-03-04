@@ -9,14 +9,21 @@ import {
   ScanPauseRequestSchema,
   ScanPauseResponseSchema,
   ScanPauseResultSchema,
+  ScanPerformanceProfileSchema,
   ScanProgressBatchSchema,
+  ScanQuickReadySchema,
+  ScanDiagnosticsSchema,
   ScanProgressSchema,
   ScanResumeRequestSchema,
   ScanResumeResponseSchema,
   ScanResumeResultSchema,
+  ScanModeSchema,
   ScanStartRequestSchema,
   ScanStartResponseSchema,
   ScanStartResultSchema,
+  ScanConfidenceSchema,
+  ScanEngineSchema,
+  ScanStageSchema,
   StatRecordSchema,
   WalkEntrySchema,
 } from "../shared/schemas/scan";
@@ -45,6 +52,13 @@ export type AggDelta = z.infer<typeof AggDeltaSchema>;
 export type CompressedTreePatch = z.infer<typeof CompressedTreePatchSchema>;
 export type ScanProgress = z.infer<typeof ScanProgressSchema>;
 export type ScanProgressBatch = z.infer<typeof ScanProgressBatchSchema>;
+export type ScanQuickReady = z.infer<typeof ScanQuickReadySchema>;
+export type ScanDiagnostics = z.infer<typeof ScanDiagnosticsSchema>;
+export type ScanPerformanceProfile = z.infer<typeof ScanPerformanceProfileSchema>;
+export type ScanMode = z.infer<typeof ScanModeSchema>;
+export type ScanConfidence = z.infer<typeof ScanConfidenceSchema>;
+export type ScanEngine = z.infer<typeof ScanEngineSchema>;
+export type ScanStage = z.infer<typeof ScanStageSchema>;
 
 export type ScanStartRequest = z.infer<typeof ScanStartRequestSchema>;
 export type ScanStartResponse = z.infer<typeof ScanStartResponseSchema>;

@@ -5,7 +5,9 @@ import type {
   GetWindowStateResult,
   ScanProgressBatch,
   ScanCancelResult,
+  ScanDiagnostics,
   ScanPauseResult,
+  ScanQuickReady,
   ScanResumeResult,
   ScanStartRequest,
   ScanStartResult,
@@ -22,6 +24,8 @@ export interface ElectronAPI {
   scanResume: (scanId: string) => Promise<ScanResumeResult>;
   scanCancel: (scanId: string) => Promise<ScanCancelResult>;
   onScanProgressBatch: (callback: (batch: ScanProgressBatch) => void) => () => void;
+  onScanQuickReady: (callback: (event: ScanQuickReady) => void) => () => void;
+  onScanDiagnostics: (callback: (diagnostics: ScanDiagnostics) => void) => () => void;
   onScanError: (callback: (error: AppError) => void) => () => void;
 
   getWindowState: () => Promise<GetWindowStateResult>;

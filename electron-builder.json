@@ -8,6 +8,17 @@
     "out/**",
     "package.json"
   ],
+  "extraResources": [
+    {
+      "from": "resources/bin",
+      "to": "bin",
+      "filter": [
+        "scanner-macos",
+        "scanner-win.exe",
+        "scanner-linux"
+      ]
+    }
+  ],
   "mac": {
     "target": ["dmg"]
   },

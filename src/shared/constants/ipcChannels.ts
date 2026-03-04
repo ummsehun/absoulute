@@ -7,6 +7,8 @@ export const IPC_CHANNELS = {
   SCAN_RESUME: "scan:resume",
   SCAN_CANCEL: "scan:cancel",
   SCAN_PROGRESS_BATCH: "scan:progress-batch",
+  SCAN_QUICK_READY: "scan:quick-ready",
+  SCAN_DIAGNOSTICS: "scan:diagnostics",
   SCAN_ERROR: "scan:error",
 
   WINDOW_GET_STATE: "window:get-state",

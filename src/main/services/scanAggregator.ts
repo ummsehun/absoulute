@@ -76,6 +76,43 @@ export class ScanAggregator {
     return deltas;
   }
 
+  addDirectoryEstimate(dirPath: string, estimatedSize: number): AggDelta[] {
+    if (!this.isWithinRoot(dirPath) || estimatedSize <= 0) {
+      return [];
+    }
+
+    const deltas: AggDelta[] = [];
+    let current = dirPath;
+
+    while (this.isWithinRoot(current)) {
+      const prev = this.directoryStats.get(current);
+      if (!prev) {
+        this.directoryStats.set(current, { size: estimatedSize, count: 0 });
+        this.pendingAdded.add(current);
+      } else {
+        prev.size += estimatedSize;
+        this.pendingUpdated.add(current);
+      }
+
+      deltas.push({
+        nodePath: current,
+        sizeDelta: estimatedSize,
+        countDelta: 0,
+      });
+
+      const parent = this.getParentWithinRoot(current);
+      if (!parent) {
+        break;
+      }
+
+      const total = this.directoryStats.get(current)?.size ?? 0;
+      this.updateTopChildren(parent, current, total);
+      current = parent;
+    }
+
+    return deltas;
+  }
+
   hasPendingPatch(): boolean {
     return (
       this.pendingAdded.size > 0 ||

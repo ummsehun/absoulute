@@ -7,6 +7,7 @@
   "scripts": {
     "dev": "electron-vite dev",
     "build": "electron-vite build",
+    "build:native:scanner": "cargo build --manifest-path native/scanner/Cargo.toml --release",
     "preview": "electron-vite preview",
     "lint": "eslint \"src/**/*.{ts,tsx}\" \"test/**/*.ts\"",
     "typecheck": "tsc --noEmit",
@@ -23,11 +24,13 @@
   "dependencies": {
     "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.5.0",
+    "@react-three/postprocessing": "^3.0.4",
     "@types/three": "^0.183.1",
     "clsx": "^2.1.1",
     "d3-hierarchy": "^3.1.2",
     "electron-store": "^11.0.2",
     "fs-extra": "^11.3.4",
+    "postprocessing": "^6.38.3",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "react-virtualized": "^9.22.6",

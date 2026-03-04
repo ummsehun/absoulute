@@ -32,11 +32,44 @@ const electronAPIMock = {
       progress: {
         scanId: "scan-test-1",
         phase: "walking",
+        scanStage: "quick",
+        quickReady: false,
+        confidence: "medium",
+        estimated: true,
         scannedCount: 1,
         totalBytes: 128,
       },
       deltas: [],
       patches: [],
+    });
+    return () => undefined;
+  }),
+
+  onScanQuickReady: vi.fn((cb: (event: unknown) => void) => {
+    cb({
+      scanId: "scan-test-1",
+      rootPath: "/",
+      quickReadyAt: Date.now(),
+      elapsedMs: 1200,
+      scanStage: "quick",
+      confidence: "medium",
+      estimated: true,
+    });
+    return () => undefined;
+  }),
+
+  onScanDiagnostics: vi.fn((cb: (event: unknown) => void) => {
+    cb({
+      scanId: "scan-test-1",
+      phase: "walking",
+      scanStage: "quick",
+      elapsedMs: 1200,
+      scannedCount: 1,
+      totalBytes: 128,
+      queueDepth: 4,
+      recoverableErrors: 0,
+      permissionErrors: 0,
+      ioErrors: 0,
     });
     return () => undefined;
   }),

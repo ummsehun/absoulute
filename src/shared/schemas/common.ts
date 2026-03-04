@@ -8,6 +8,7 @@ export const ErrorCodeSchema = z.enum([
   "E_IO",
   "E_CANCELLED",
   "E_PHASE_GATE",
+  "E_NATIVE_FAILURE",
 ]);
 
 export const AppErrorSchema = z.object({

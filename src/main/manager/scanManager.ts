@@ -1,8 +1,10 @@
 import type {
   AppError,
   ScanCancelResult,
+  ScanDiagnostics,
   ScanPauseResult,
   ScanProgressBatch,
+  ScanQuickReady,
   ScanResumeResult,
   ScanStartRequest,
   ScanStartResult,
@@ -14,6 +16,7 @@ type ScanLifecycleState =
   | "IDLE"
   | "STARTING"
   | "RUNNING"
+  | "QUICK_READY"
   | "PAUSED"
   | "FINALIZING"
   | "DONE"
@@ -23,6 +26,7 @@ type ScanLifecycleState =
 const ACTIVE_SCAN_STATES = new Set<ScanLifecycleState>([
   "STARTING",
   "RUNNING",
+  "QUICK_READY",
   "PAUSED",
   "FINALIZING",
 ]);
@@ -44,6 +48,10 @@ export class ScanManager {
 
     this.diskScanService.onError((error) => {
       this.handleError(error);
+    });
+
+    this.diskScanService.onQuickReady((event) => {
+      this.handleQuickReady(event);
     });
   }
 
@@ -77,14 +85,14 @@ export class ScanManager {
 
   async cancel(scanId: string): Promise<ScanCancelResult> {
     const state = this.scanStates.get(scanId) ?? "IDLE";
-    if (!["RUNNING", "PAUSED", "FINALIZING", "STARTING"].includes(state)) {
+    if (!["RUNNING", "QUICK_READY", "PAUSED", "FINALIZING", "STARTING"].includes(state)) {
       return {
         ok: false,
         error: this.makePhaseGateError(
           "cancel",
           scanId,
           "Scan cannot be cancelled in current state",
-          ["STARTING", "RUNNING", "PAUSED", "FINALIZING"],
+          ["STARTING", "RUNNING", "QUICK_READY", "PAUSED", "FINALIZING"],
           state,
         ),
       };
@@ -99,7 +107,7 @@ export class ScanManager {
             "cancel",
             scanId,
             "Scan does not exist or already completed",
-            ["STARTING", "RUNNING", "PAUSED", "FINALIZING"],
+            ["STARTING", "RUNNING", "QUICK_READY", "PAUSED", "FINALIZING"],
             state,
           ),
         };
@@ -122,14 +130,14 @@ export class ScanManager {
 
   async pause(scanId: string): Promise<ScanPauseResult> {
     const state = this.scanStates.get(scanId) ?? "IDLE";
-    if (state !== "RUNNING") {
+    if (state !== "RUNNING" && state !== "QUICK_READY") {
       return {
         ok: false,
         error: this.makePhaseGateError(
           "pause",
           scanId,
           "Scan can be paused only while running",
-          ["RUNNING"],
+          ["RUNNING", "QUICK_READY"],
           state,
         ),
       };
@@ -144,7 +152,7 @@ export class ScanManager {
             "pause",
             scanId,
             "Pause request was rejected",
-            ["RUNNING"],
+            ["RUNNING", "QUICK_READY"],
             state,
           ),
         };
@@ -214,6 +222,14 @@ export class ScanManager {
     return this.diskScanService.onError(listener);
   }
 
+  onQuickReady(listener: (event: ScanQuickReady) => void): () => void {
+    return this.diskScanService.onQuickReady(listener);
+  }
+
+  onDiagnostics(listener: (event: ScanDiagnostics) => void): () => void {
+    return this.diskScanService.onDiagnostics(listener);
+  }
+
   private hasActiveScan(): boolean {
     if (this.starting) {
       return true;
@@ -241,7 +257,10 @@ export class ScanManager {
         this.scanStates.set(scanId, "PAUSED");
         return;
       case "walking":
-        this.scanStates.set(scanId, "RUNNING");
+        this.scanStates.set(
+          scanId,
+          batch.progress.quickReady ? "QUICK_READY" : "RUNNING",
+        );
         return;
       case "aggregating":
       case "compressing":
@@ -259,6 +278,15 @@ export class ScanManager {
       default:
         return;
     }
+  }
+
+  private handleQuickReady(event: ScanQuickReady): void {
+    const current = this.scanStates.get(event.scanId) ?? "IDLE";
+    if (TERMINAL_SCAN_STATES.has(current)) {
+      return;
+    }
+
+    this.scanStates.set(event.scanId, "QUICK_READY");
   }
 
   private handleError(error: AppError): void {

@@ -13,47 +13,38 @@ function App() {
     error,
     aggregateSizes,
     setActiveRootPath,
-    scanBasePath,
-    scanStartedAt,
     apiReady,
     visualizationRoot,
-    breadcrumbPaths,
     focusedTopItems,
 
     // Actions
     oneClickScan,
-    startScan,
-    cancelScan,
-    pauseScan,
   } = useScanLogic();
 
-  const isStarted = Boolean(scanId) || Object.keys(aggregateSizes).length > 0;
+  const isCompleted = !scanId && Object.keys(aggregateSizes).length > 0;
+  const isScanning = Boolean(scanId);
 
   return (
     <Layout>
-      {!isStarted ? (
+      {!isCompleted ? (
         <LandingView
           apiReady={apiReady}
           rootPath={rootPath}
           setRootPath={setRootPath}
           oneClickScan={oneClickScan}
           error={error}
+          isScanning={isScanning}
+          progress={progress}
         />
       ) : (
         <VisualizationView
           scanId={scanId}
           progress={progress}
-          scanStartedAt={scanStartedAt}
           aggregateSizes={aggregateSizes}
-          scanBasePath={scanBasePath}
           rootPath={rootPath}
           visualizationRoot={visualizationRoot}
-          breadcrumbPaths={breadcrumbPaths}
           focusedTopItems={focusedTopItems}
           setActiveRootPath={setActiveRootPath}
-          startScan={startScan}
-          pauseScan={pauseScan}
-          cancelScan={cancelScan}
         />
       )}
     </Layout>
