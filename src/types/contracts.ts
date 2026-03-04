@@ -18,6 +18,12 @@ import {
   GetSystemInfoResultSchema,
   SystemInfoSchema,
 } from "../shared/schemas/system";
+import {
+  GetWindowStateResultSchema,
+  WindowActionResponseSchema,
+  WindowActionResultSchema,
+  WindowStateSchema,
+} from "../shared/schemas/window";
 
 export type ErrorCode = z.infer<typeof ErrorCodeSchema>;
 export type AppError = z.infer<typeof AppErrorSchema>;
@@ -39,3 +45,8 @@ export type ScanStartResult = z.infer<typeof ScanStartResultSchema>;
 export type ScanCancelRequest = z.infer<typeof ScanCancelRequestSchema>;
 export type ScanCancelResponse = z.infer<typeof ScanCancelResponseSchema>;
 export type ScanCancelResult = z.infer<typeof ScanCancelResultSchema>;
+
+export type WindowState = z.infer<typeof WindowStateSchema>;
+export type WindowActionResponse = z.infer<typeof WindowActionResponseSchema>;
+export type GetWindowStateResult = z.infer<typeof GetWindowStateResultSchema>;
+export type WindowActionResult = z.infer<typeof WindowActionResultSchema>;
