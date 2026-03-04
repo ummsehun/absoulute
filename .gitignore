@@ -1,0 +1,11 @@
+node_modules
+bun.lockb
+dist
+out
+release
+.DS_Store
+.vscode
+.idea
+dist
+out
+.env

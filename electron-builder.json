@@ -1,0 +1,20 @@
+{
+  "appId": "com.example.diskvisualizer",
+  "productName": "DiskVisualizer",
+  "directories": {
+    "output": "release"
+  },
+  "files": [
+    "dist/**",
+    "package.json"
+  ],
+  "mac": {
+    "target": ["dmg"]
+  },
+  "win": {
+    "target": ["nsis"]
+  },
+  "linux": {
+    "target": ["AppImage"]
+  }
+}
