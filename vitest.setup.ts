@@ -34,7 +34,9 @@ const electronAPIMock = {
 };
 
 vi.stubGlobal("electronAPI", electronAPIMock);
-Object.defineProperty(window, "electronAPI", {
-  value: electronAPIMock,
-  writable: true,
-});
+if (typeof window !== "undefined") {
+  Object.defineProperty(window, "electronAPI", {
+    value: electronAPIMock,
+    writable: true,
+  });
+}

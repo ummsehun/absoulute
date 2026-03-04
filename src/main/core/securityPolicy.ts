@@ -21,6 +21,27 @@ export async function evaluateRootPath(
   const policy = getProtectedPaths(platform, homeDirectory);
   const normalizedInput = await normalizeAndResolvePath(inputPath, platform);
 
+  return classifyNormalizedPath(normalizedInput, optInProtected, platform, policy);
+}
+
+export function classifyPathByPolicy(
+  inputPath: string,
+  optInProtected: boolean,
+  platform: NodeJS.Platform = os.platform(),
+  homeDirectory: string = os.homedir(),
+): PathPolicyDecision {
+  const policy = getProtectedPaths(platform, homeDirectory);
+  const normalizedInput = normalizeForComparison(path.resolve(inputPath), platform);
+
+  return classifyNormalizedPath(normalizedInput, optInProtected, platform, policy);
+}
+
+function classifyNormalizedPath(
+  normalizedInput: string,
+  optInProtected: boolean,
+  platform: NodeJS.Platform,
+  policy: ReturnType<typeof getProtectedPaths>,
+): PathPolicyDecision {
   const absoluteMatch = findMatch(normalizedInput, policy.absoluteBlock, platform);
   if (absoluteMatch) {
     return {
@@ -89,17 +110,16 @@ function findMatch(
   return undefined;
 }
 
-function normalizeForComparison(
-  rawPath: string,
-  platform: NodeJS.Platform,
-): string {
-  const slashNormalized = rawPath.replace(/\\/g, "/").replace(/\/+$/, "");
+function normalizeForComparison(rawPath: string, platform: NodeJS.Platform): string {
+  const slashNormalized = rawPath.replace(/\\/g, "/");
+  const trimmed = slashNormalized.replace(/\/+$/, "");
+  const rootSafe = trimmed === "" ? "/" : trimmed;
 
   if (platform === "win32") {
-    return slashNormalized.toLowerCase();
+    return rootSafe.toLowerCase();
   }
 
-  return slashNormalized;
+  return rootSafe;
 }
 
 function isSameOrChildPath(candidate: string, base: string): boolean {
