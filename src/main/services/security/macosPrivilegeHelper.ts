@@ -3,6 +3,7 @@ import { constants as fsConstants } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
+import { requiresFullDiskAccess } from "../../../shared/domain/pathPolicy";
 
 const FULL_DISK_ACCESS_URI =
   "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles";
@@ -18,7 +19,7 @@ export async function requestElevation(targetPath: string): Promise<{ granted: b
     return { granted: true };
   }
 
-  if (isMacOSPrivacyProtectedPath(normalizedTarget)) {
+  if (requiresFullDiskAccess(normalizedTarget, process.platform, os.homedir())) {
     await openFullDiskAccessSettings();
   }
 
@@ -48,26 +49,6 @@ export async function openFullDiskAccessSettings(): Promise<void> {
       reject(new Error(`failed to open Full Disk Access settings: ${stderr.trim()}`));
     });
   });
-}
-
-function isMacOSPrivacyProtectedPath(inputPath: string): boolean {
-  const homeDirectory = os.homedir();
-  const normalizedInput = normalizePath(inputPath);
-  const protectedRoots = [
-    path.join(homeDirectory, "Desktop"),
-    path.join(homeDirectory, "Documents"),
-    path.join(homeDirectory, "Downloads"),
-    path.join(homeDirectory, "Library"),
-  ].map(normalizePath);
-
-  return protectedRoots.some((root) =>
-    normalizedInput === root || normalizedInput.startsWith(`${root}/`)
-  );
-}
-
-function normalizePath(inputPath: string): string {
-  const normalized = inputPath.replace(/\\/g, "/").replace(/\/+$/, "");
-  return normalized === "" ? "/" : normalized;
 }
 
 async function checkReadable(targetPath: string): Promise<boolean | null> {

@@ -1,4 +1,5 @@
 import { useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
+import { resolveScanIntent } from "../../../shared/domain/scanIntent";
 import type {
     AggDelta,
     AppError,
@@ -237,13 +238,15 @@ export function useScanLogic() {
             return;
         }
 
+        const scanIntent = resolveScanIntent({ deepPolicyPreset });
+
         const result = await electronAPI.scanStart({
             rootPath: normalizedRoot,
             optInProtected: allowProtectedOptIn,
-            performanceProfile: "accuracy-first",
+            performanceProfile: scanIntent.performanceProfile,
             scanMode: "native_rust",
-            accuracyMode: "full",
-            deepPolicyPreset,
+            accuracyMode: scanIntent.accuracyMode,
+            deepPolicyPreset: scanIntent.deepPolicyPreset,
             elevationPolicy: "manual",
             emitPolicy: {
                 aggBatchMaxItems: 512,

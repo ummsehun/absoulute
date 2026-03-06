@@ -29,7 +29,7 @@ export function LandingView({
     progress,
     perfSample,
 }: LandingViewProps) {
-    const currentDirectory = getCurrentDirectoryLabel(progress?.progress.currentPath);
+    const phaseDetail = getPhaseDetail(progress);
     const inflight = perfSample?.inflightStats?.inFlight ?? perfSample?.queueDepth ?? 0;
     const deferredByBudget = perfSample?.deferredByBudget ?? 0;
     const softSkippedByPolicy = perfSample?.softSkippedByPolicy ?? 0;
@@ -72,10 +72,10 @@ export function LandingView({
                         className={`absolute inset-0 flex flex-col items-center justify-center transition-all duration-700 ${isScanning ? 'opacity-100 translate-y-0 visible' : 'opacity-0 translate-y-4 invisible'}`}
                     >
                         <h2 className="text-2xl font-semibold text-white/90 mb-2 drop-shadow-md">
-                            {progress?.progress.phase === "finalizing" ? "Finalizing..." : "Scanning Spaces..."}
+                            {phaseDetail.title}
                         </h2>
                         <p className="text-sm text-cyan-200/70 mb-1 animate-pulse">
-                            {`Dir: ${currentDirectory}`}
+                            {phaseDetail.subtitle}
                         </p>
                         <p className="text-xs text-cyan-100/60 mb-4 font-mono">
                             {`inflight ${inflight.toLocaleString()} | deferred ${deferredByBudget.toLocaleString()} | policy-skip ${softSkippedByPolicy.toLocaleString()}`}
@@ -142,6 +142,45 @@ export function LandingView({
             </div>
         </div>
     );
+}
+
+function getPhaseDetail(progress?: ScanProgressBatch | null): {
+    title: string;
+    subtitle: string;
+} {
+    const phase = progress?.progress.phase;
+    if (phase === "finalizing") {
+        return {
+            title: "Finalizing...",
+            subtitle: "Preparing the visualization",
+        };
+    }
+
+    if (phase === "compressing") {
+        return {
+            title: "Compressing...",
+            subtitle: "Reducing the tree for rendering",
+        };
+    }
+
+    if (phase === "aggregating") {
+        return {
+            title: "Aggregating...",
+            subtitle: "Merging scan batches into the final tree",
+        };
+    }
+
+    if (phase === "paused") {
+        return {
+            title: "Paused",
+            subtitle: `Dir: ${getCurrentDirectoryLabel(progress?.progress.currentPath)}`,
+        };
+    }
+
+    return {
+        title: "Scanning Spaces...",
+        subtitle: `Dir: ${getCurrentDirectoryLabel(progress?.progress.currentPath)}`,
+    };
 }
 
 function getCurrentDirectoryLabel(currentPath?: string): string {

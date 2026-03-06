@@ -6,6 +6,7 @@ import { resolveScanOptions } from "../../src/main/services/scan/scanRuntimeOpti
 import {
   buildNativeBlockedPrefixes,
   shouldEstimateDirectory,
+  isKakaoTalkChatTagPath,
   shouldSkipDeepPackageTraversal,
 } from "../../src/main/services/scan/scanTraversalPolicy";
 
@@ -58,6 +59,41 @@ describe("scanTraversalPolicy", () => {
     });
 
     expect(skipped).toBe(true);
+  });
+
+  it("soft-skips KakaoTalk chat tag containers during responsive deep scans", () => {
+    const options = resolveScanOptions(
+      {
+        rootPath,
+        optInProtected: false,
+        scanMode: "portable_plus_os_accel",
+      },
+      rootPath,
+    );
+    const kakaoChatTag = path.join(
+      homeDirectory,
+      "Library",
+      "Containers",
+      "com.kakao.KakaoTalkMac",
+      "Data",
+      "Library",
+      "Application Support",
+      "com.kakao.KakaoTalkMac",
+      "session-1",
+      "commonResource",
+      "myChatTag",
+    );
+
+    expect(isKakaoTalkChatTagPath(kakaoChatTag, "darwin")).toBe(true);
+    expect(
+      shouldSkipDeepPackageTraversal({
+        options,
+        rootPath,
+        dirPath: kakaoChatTag,
+        platform: "darwin",
+        skippedDirectories: new Set(),
+      }),
+    ).toBe(true);
   });
 
   it("drops opt-in protected prefixes once the user has granted consent", () => {

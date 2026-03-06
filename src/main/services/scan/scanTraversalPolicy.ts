@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import path from "node:path";
-import { getProtectedPaths } from "../../../shared/platform/protectedPaths";
+import { getProtectedPaths } from "../../../shared/domain/pathPolicy";
 import type { ScanMode } from "../../../types/contracts";
 import type { NativeScanPhaseMode } from "../native/nativeRustScannerClient";
 import type { ResolvedScanOptions } from "./scanRuntimeOptions";
@@ -275,6 +275,7 @@ export function shouldSkipDeepPackageTraversal(input: {
     isNvmVersionsPath(normalizedPath, platform) ||
     isPyenvVersionsPath(normalizedPath, platform) ||
     isPythonVenvPackagesPath(normalizedPath, platform) ||
+    isKakaoTalkChatTagPath(normalizedPath, platform) ||
     isBrowserExtensionsPath(normalizedPath, platform) ||
     isBrowserStoragePath(normalizedPath, platform) ||
     isBrowserWebAppResourcesPath(normalizedPath, platform)
@@ -473,6 +474,17 @@ export function isBrowserWebAppResourcesPath(
   }
 
   return false;
+}
+
+export function isKakaoTalkChatTagPath(
+  normalizedPath: string,
+  platform: NodeJS.Platform,
+): boolean {
+  const candidate = platform === "win32" ? normalizedPath.toLowerCase() : normalizedPath;
+  const lower = candidate.toLowerCase();
+  return lower.includes(
+    "/library/containers/com.kakao.kakaotalkmac/data/library/application support/com.kakao.kakaotalkmac/",
+  ) && lower.includes("/commonresource/mychattag");
 }
 
 export function isHeavyTraversalDirectory(dirPath: string): boolean {

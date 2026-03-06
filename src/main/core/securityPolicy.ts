@@ -1,7 +1,11 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { getProtectedPaths } from "../../shared/platform/protectedPaths";
+import {
+  getProtectedPaths,
+  isSameOrChildPolicyPath,
+  normalizePolicyPath,
+} from "../../shared/domain/pathPolicy";
 import type { AppError } from "../../types/contracts";
 import { makeAppError } from "../utils/appError";
 
@@ -149,17 +153,9 @@ function findMatch(
 }
 
 function normalizeForComparison(rawPath: string, platform: NodeJS.Platform): string {
-  const slashNormalized = rawPath.replace(/\\/g, "/");
-  const trimmed = slashNormalized.replace(/\/+$/, "");
-  const rootSafe = trimmed === "" ? "/" : trimmed;
-
-  if (platform === "win32") {
-    return rootSafe.toLowerCase();
-  }
-
-  return rootSafe;
+  return normalizePolicyPath(rawPath, platform);
 }
 
 function isSameOrChildPath(candidate: string, base: string): boolean {
-  return candidate === base || candidate.startsWith(`${base}/`);
+  return isSameOrChildPolicyPath(candidate, base);
 }

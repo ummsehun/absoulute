@@ -3,24 +3,22 @@ import os from "node:os";
 import path from "node:path";
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import readline from "node:readline";
+import type {
+  ScanAccuracyMode,
+  ScanConcurrencyPolicy,
+  ScanConfidence,
+  ScanDeepPolicyPreset,
+  ScanElevationPolicy,
+  ScanEmitPolicy,
+} from "../../../types/contracts";
 
 export type NativeScanPhaseMode = "quick" | "deep";
 export type NativeScanControl = "pause" | "resume" | "cancel";
-export type NativeAccuracyMode = "preview" | "full";
-export type NativeDeepPolicyPreset = "responsive" | "exact";
-export type NativeElevationPolicy = "auto" | "manual" | "none";
-
-export interface NativeEmitPolicy {
-  aggBatchMaxItems: number;
-  aggBatchMaxMs: number;
-  progressIntervalMs: number;
-}
-
-export interface NativeConcurrencyPolicy {
-  min: number;
-  max: number;
-  adaptive: boolean;
-}
+export type NativeAccuracyMode = ScanAccuracyMode;
+export type NativeDeepPolicyPreset = ScanDeepPolicyPreset;
+export type NativeElevationPolicy = ScanElevationPolicy;
+export type NativeEmitPolicy = ScanEmitPolicy;
+export type NativeConcurrencyPolicy = ScanConcurrencyPolicy;
 
 export interface NativeScannerStartRequest {
   scanId: string;
@@ -98,7 +96,7 @@ export interface NativeElevationRequiredMessage {
 export interface NativeQuickReadyMessage {
   type: "quick_ready";
   elapsedMs: number;
-  confidence: "low" | "medium" | "high";
+  confidence: ScanConfidence;
   estimated: boolean;
 }
 

@@ -17,6 +17,7 @@ export interface DirectorySnapshot {
 
 export class ScanAggregator {
   private readonly directoryStats = new Map<string, DirectoryStat>();
+  private readonly estimatedDirectorySizes = new Map<string, number>();
   private readonly topChildren = new Map<string, Map<string, number>>();
 
   private readonly pendingAdded = new Set<string>();
@@ -87,22 +88,70 @@ export class ScanAggregator {
       return [];
     }
 
+    const previousEstimate = this.estimatedDirectorySizes.get(dirPath) ?? 0;
+    const deltas: AggDelta[] = [];
+    if (previousEstimate > 0) {
+      deltas.push(...this.applyDirectorySizeDelta(dirPath, -previousEstimate));
+    }
+
+    this.estimatedDirectorySizes.set(dirPath, estimatedSize);
+    deltas.push(...this.applyDirectorySizeDelta(dirPath, estimatedSize));
+    return deltas;
+  }
+
+  clearEstimatedAncestors(targetPath: string): { deltas: AggDelta[]; cleared: string[] } {
+    const deltas: AggDelta[] = [];
+    const cleared: string[] = [];
+
+    const parentDirectory = this.getDirectoryForTarget(targetPath);
+    if (!parentDirectory) {
+      return { deltas, cleared };
+    }
+
+    let current = parentDirectory;
+    while (this.isWithinRoot(current)) {
+      const estimatedSize = this.estimatedDirectorySizes.get(current);
+      if (estimatedSize && estimatedSize > 0) {
+        this.estimatedDirectorySizes.delete(current);
+        cleared.push(current);
+        deltas.push(...this.applyDirectorySizeDelta(current, -estimatedSize));
+      }
+
+      const parent = this.getParentWithinRoot(current);
+      if (!parent) {
+        break;
+      }
+      current = parent;
+    }
+
+    return { deltas, cleared };
+  }
+
+  hasEstimatedDirectory(dirPath: string): boolean {
+    return this.estimatedDirectorySizes.has(dirPath);
+  }
+
+  private applyDirectorySizeDelta(dirPath: string, sizeDelta: number): AggDelta[] {
     const deltas: AggDelta[] = [];
     let current = dirPath;
 
     while (this.isWithinRoot(current)) {
       const prev = this.directoryStats.get(current);
       if (!prev) {
-        this.directoryStats.set(current, { size: estimatedSize, count: 0 });
+        if (sizeDelta <= 0) {
+          break;
+        }
+
+        this.directoryStats.set(current, { size: sizeDelta, count: 0 });
         this.pendingAdded.add(current);
       } else {
-        prev.size += estimatedSize;
+        prev.size = Math.max(prev.size + sizeDelta, 0);
         this.pendingUpdated.add(current);
       }
 
       deltas.push({
         nodePath: current,
-        sizeDelta: estimatedSize,
+        sizeDelta,
         countDelta: 0,
       });
 
@@ -189,6 +238,19 @@ export class ScanAggregator {
     }
 
     const parent = path.dirname(dirPath);
+    return this.isWithinRoot(parent) ? parent : null;
+  }
+
+  private getDirectoryForTarget(targetPath: string): string | null {
+    if (!this.isWithinRoot(targetPath)) {
+      return null;
+    }
+
+    if (this.directoryStats.has(targetPath)) {
+      return targetPath;
+    }
+
+    const parent = path.dirname(targetPath);
     return this.isWithinRoot(parent) ? parent : null;
   }
 

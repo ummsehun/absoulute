@@ -1,5 +1,6 @@
 import os from "node:os";
 import path from "node:path";
+import { resolveScanIntent } from "../../../shared/domain/scanIntent";
 import type {
   ScanAccuracyMode,
   ScanConcurrencyPolicy,
@@ -27,7 +28,6 @@ const DEFAULT_CONCURRENCY_MAX = 64;
 const DEEP_SKIP_PACKAGE_MANAGERS_DEFAULT = process.env.SCAN_DEEP_SKIP_PACKAGE_MANAGERS !== "0";
 const DEEP_SKIP_CACHE_PREFIXES_DEFAULT = process.env.SCAN_DEEP_SKIP_CACHE_PREFIXES !== "0";
 const DEEP_SKIP_BUNDLE_DIRS_DEFAULT = process.env.SCAN_DEEP_SKIP_BUNDLE_DIRS !== "0";
-const DEEP_POLICY_PRESET_DEFAULT: ScanDeepPolicyPreset = "responsive";
 
 export interface QuickPassConfig {
   depthLimit: number;
@@ -80,12 +80,16 @@ export function resolveScanOptions(
   normalizedRootPath: string,
 ): ResolvedScanOptions {
   const isRoot = normalizedRootPath === path.parse(normalizedRootPath).root;
-  const performanceProfile = input.performanceProfile ?? "accuracy-first";
   const scanMode: ScanMode =
     input.scanMode ?? (process.platform === "darwin" ? "native_rust" : "portable");
-  const accuracyMode: ScanAccuracyMode = input.accuracyMode ?? "full";
-  const deepPolicyPreset: ScanDeepPolicyPreset =
-    input.deepPolicyPreset ?? DEEP_POLICY_PRESET_DEFAULT;
+  const intent = resolveScanIntent({
+    performanceProfile: input.performanceProfile,
+    accuracyMode: input.accuracyMode,
+    deepPolicyPreset: input.deepPolicyPreset,
+  });
+  const deepPolicyPreset: ScanDeepPolicyPreset = intent.deepPolicyPreset;
+  const accuracyMode: ScanAccuracyMode = intent.accuracyMode;
+  const performanceProfile = intent.performanceProfile;
   const elevationPolicy: ScanElevationPolicy = input.elevationPolicy ?? "manual";
   const emitPolicy = {
     aggBatchMaxItems: Math.max(
@@ -126,9 +130,7 @@ export function resolveScanOptions(
   const profileBudget =
     performanceProfile === "accuracy-first"
       ? defaultBudget + 1500
-      : performanceProfile === "balanced"
-        ? defaultBudget
-        : Math.min(defaultBudget, QUICK_PASS_TIME_BUDGET_MS);
+      : Math.min(defaultBudget, QUICK_PASS_TIME_BUDGET_MS);
 
   return {
     performanceProfile,
