@@ -2,6 +2,7 @@ import type {
   ScanConfidence,
   ScanCoverage,
   ScanDiagnostics,
+  ScanInflightStats,
   ScanProgress,
   ScanQuickReady,
 } from "../../../types/contracts";
@@ -19,6 +20,9 @@ export interface DiagnosticCounters {
   ioWaitRatio?: number;
   hotPath?: string;
   coverage?: ScanCoverage;
+  softSkippedByPolicy?: number;
+  deferredByBudget?: number;
+  inflightStats?: ScanInflightStats;
 }
 
 export function buildScanDiagnostics(
@@ -47,6 +51,9 @@ export function buildScanDiagnostics(
     ioWaitRatio: counters.ioWaitRatio,
     hotPath: counters.hotPath,
     coverage: counters.coverage,
+    softSkippedByPolicy: counters.softSkippedByPolicy,
+    deferredByBudget: counters.deferredByBudget,
+    inflightStats: counters.inflightStats,
   };
 }
 

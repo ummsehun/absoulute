@@ -25,8 +25,12 @@ describe("renderer electronAPI mock", () => {
     const unsubscribeDiagnostics = window.electronAPI.onScanDiagnostics((event) => {
       expect(event.scanId).toBe("scan-test-1");
     });
+    const unsubscribeTerminal = window.electronAPI.onScanTerminal((event) => {
+      expect(event.scanId).toBe("scan-test-1");
+    });
     unsubscribeQuick();
     unsubscribeDiagnostics();
+    unsubscribeTerminal();
   });
 
   it("injects window API in test runtime", async () => {

@@ -1,7 +1,6 @@
 import type {
   AppError,
   GetDefaultScanRootResult,
-  GetScanPrivilegeHelperStatusResult,
   GetSystemInfoResult,
   GetWindowStateResult,
   ScanProgressBatch,
@@ -9,10 +8,10 @@ import type {
   ScanCoverageUpdate,
   ScanDiagnostics,
   ScanElevationRequired,
+  ScanTerminalEvent,
   ScanPauseResult,
   ScanElevationResult,
   ScanPerfSample,
-  ScanPrivilegeHelperInstallResult,
   ScanQuickReady,
   ScanResumeResult,
   ScanStartRequest,
@@ -29,13 +28,12 @@ export interface ElectronAPI {
   scanPause: (scanId: string) => Promise<ScanPauseResult>;
   scanResume: (scanId: string) => Promise<ScanResumeResult>;
   scanCancel: (scanId: string) => Promise<ScanCancelResult>;
-  getPrivilegeHelperStatus: () => Promise<GetScanPrivilegeHelperStatusResult>;
-  installPrivilegeHelper: () => Promise<ScanPrivilegeHelperInstallResult>;
   requestElevation: (targetPath: string) => Promise<ScanElevationResult>;
   onScanProgressBatch: (callback: (batch: ScanProgressBatch) => void) => () => void;
   onScanQuickReady: (callback: (event: ScanQuickReady) => void) => () => void;
   onScanDiagnostics: (callback: (diagnostics: ScanDiagnostics) => void) => () => void;
   onScanCoverageUpdate: (callback: (event: ScanCoverageUpdate) => void) => () => void;
+  onScanTerminal: (callback: (event: ScanTerminalEvent) => void) => () => void;
   onScanPerfSample: (callback: (event: ScanPerfSample) => void) => () => void;
   onScanElevationRequired: (callback: (event: ScanElevationRequired) => void) => () => void;
   onScanError: (callback: (error: AppError) => void) => () => void;

@@ -11,6 +11,7 @@ import type {
   ScanResumeResult,
   ScanStartRequest,
   ScanStartResult,
+  ScanTerminalEvent,
 } from "../../types/contracts";
 import { DiskScanService } from "../services/diskScanService";
 import { makeAppError, unknownToAppError } from "../utils/appError";
@@ -55,6 +56,10 @@ export class ScanManager {
 
     this.diskScanService.onQuickReady((event) => {
       this.handleQuickReady(event);
+    });
+
+    this.diskScanService.onTerminal((event) => {
+      this.handleTerminal(event);
     });
   }
 
@@ -116,7 +121,7 @@ export class ScanManager {
         };
       }
 
-      this.scanStates.set(scanId, "CANCELED");
+      this.scanStates.set(scanId, "FINALIZING");
       return {
         ok: true,
         data: {
@@ -237,6 +242,10 @@ export class ScanManager {
     return this.diskScanService.onCoverage(listener);
   }
 
+  onTerminal(listener: (event: ScanTerminalEvent) => void): () => void {
+    return this.diskScanService.onTerminal(listener);
+  }
+
   onPerfSample(listener: (event: ScanPerfSample) => void): () => void {
     return this.diskScanService.onPerfSample(listener);
   }
@@ -283,12 +292,6 @@ export class ScanManager {
         return;
       case "finalizing":
         this.scanStates.set(scanId, "FINALIZING");
-        queueMicrotask(() => {
-          const state = this.scanStates.get(scanId);
-          if (state === "FINALIZING") {
-            this.scanStates.set(scanId, "DONE");
-          }
-        });
         return;
       default:
         return;
@@ -305,24 +308,23 @@ export class ScanManager {
   }
 
   private handleError(error: AppError): void {
-    const scanId = this.extractScanId(error);
-    if (!scanId) {
-      return;
-    }
-
-    if (error.code === "E_CANCELLED") {
-      this.scanStates.set(scanId, "CANCELED");
-      return;
-    }
-
-    if (!error.recoverable) {
-      this.scanStates.set(scanId, "FAILED");
-    }
+    void error;
   }
 
-  private extractScanId(error: AppError): string | null {
-    const raw = error.details?.scanId;
-    return typeof raw === "string" && raw.length > 0 ? raw : null;
+  private handleTerminal(event: ScanTerminalEvent): void {
+    switch (event.status) {
+      case "done":
+        this.scanStates.set(event.scanId, "DONE");
+        return;
+      case "canceled":
+        this.scanStates.set(event.scanId, "CANCELED");
+        return;
+      case "failed":
+        this.scanStates.set(event.scanId, "FAILED");
+        return;
+      default:
+        return;
+    }
   }
 
   private pruneTerminalStates(limit = 200): void {

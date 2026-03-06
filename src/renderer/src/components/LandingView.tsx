@@ -2,7 +2,7 @@ import React from 'react';
 import { themeTokens } from '../theme/tokens';
 import { DriveSelector } from './DriveSelector';
 import { SpaceLens3D } from './SpaceLens3D';
-import type { ScanElevationRequired, ScanProgressBatch } from '../../../types/contracts';
+import type { ScanElevationRequired, ScanPerfSample, ScanProgressBatch } from '../../../types/contracts';
 
 interface LandingViewProps {
     apiReady: boolean;
@@ -14,6 +14,7 @@ interface LandingViewProps {
     elevationRequired?: ScanElevationRequired | null;
     isScanning?: boolean;
     progress?: ScanProgressBatch | null;
+    perfSample?: ScanPerfSample | null;
 }
 
 export function LandingView({
@@ -26,7 +27,13 @@ export function LandingView({
     elevationRequired,
     isScanning,
     progress,
+    perfSample,
 }: LandingViewProps) {
+    const currentDirectory = getCurrentDirectoryLabel(progress?.progress.currentPath);
+    const inflight = perfSample?.inflightStats?.inFlight ?? perfSample?.queueDepth ?? 0;
+    const deferredByBudget = perfSample?.deferredByBudget ?? 0;
+    const softSkippedByPolicy = perfSample?.softSkippedByPolicy ?? 0;
+
     return (
         <div className="flex-1 flex flex-col items-center justify-center w-full relative z-10 px-6 max-w-2xl mx-auto" style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}>
             <div
@@ -67,8 +74,11 @@ export function LandingView({
                         <h2 className="text-2xl font-semibold text-white/90 mb-2 drop-shadow-md">
                             {progress?.progress.phase === "finalizing" ? "Finalizing..." : "Scanning Spaces..."}
                         </h2>
-                        <p className="text-sm text-cyan-200/70 mb-4 animate-pulse">
-                            {progress?.progress.currentPath || "Analyzing root directory"}
+                        <p className="text-sm text-cyan-200/70 mb-1 animate-pulse">
+                            {`Dir: ${currentDirectory}`}
+                        </p>
+                        <p className="text-xs text-cyan-100/60 mb-4 font-mono">
+                            {`inflight ${inflight.toLocaleString()} | deferred ${deferredByBudget.toLocaleString()} | policy-skip ${softSkippedByPolicy.toLocaleString()}`}
                         </p>
                         <div className="w-64 h-2 bg-white/10 rounded-full overflow-hidden backdrop-blur-sm border border-white/5 relative">
                             {/* Indeterminate loading bar */}
@@ -132,4 +142,22 @@ export function LandingView({
             </div>
         </div>
     );
+}
+
+function getCurrentDirectoryLabel(currentPath?: string): string {
+    if (!currentPath) {
+        return "Analyzing root directory";
+    }
+
+    const normalized = currentPath.replace(/\\/g, "/").replace(/\/+$/, "");
+    if (!normalized) {
+        return "/";
+    }
+
+    const separatorIndex = normalized.lastIndexOf("/");
+    if (separatorIndex <= 0) {
+        return normalized;
+    }
+
+    return normalized.slice(0, separatorIndex) || "/";
 }

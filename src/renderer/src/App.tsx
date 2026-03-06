@@ -9,6 +9,7 @@ function App() {
     // State
     rootPath, setRootPath,
     scanId,
+    scanTerminal,
     progress,
     error,
     coverageUpdate,
@@ -22,10 +23,11 @@ function App() {
 
     // Actions
     oneClickScan,
+    exactRecheck,
     resolveElevation,
   } = useScanLogic();
 
-  const isCompleted = !scanId && Object.keys(aggregateSizes).length > 0;
+  const isCompleted = scanTerminal?.status === "done" && Object.keys(aggregateSizes).length > 0;
   const isScanning = Boolean(scanId);
 
   return (
@@ -41,6 +43,7 @@ function App() {
           elevationRequired={elevationRequired}
           isScanning={isScanning}
           progress={progress}
+          perfSample={perfSample}
         />
       ) : (
         <VisualizationView
@@ -53,6 +56,7 @@ function App() {
           coverageUpdate={coverageUpdate}
           perfSample={perfSample}
           setActiveRootPath={setActiveRootPath}
+          onExactRecheck={exactRecheck}
         />
       )}
     </Layout>

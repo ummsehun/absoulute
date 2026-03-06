@@ -11,6 +11,7 @@ pub struct StartRequest {
     pub same_device_only: bool,
     pub concurrency: usize,
     pub accuracy_mode: AccuracyMode,
+    pub deep_policy_preset: DeepPolicyPreset,
     pub elevation_policy: ElevationPolicy,
     pub emit_policy: EmitPolicy,
     pub concurrency_policy: ConcurrencyPolicy,
@@ -37,6 +38,19 @@ pub enum AccuracyMode {
 impl Default for AccuracyMode {
     fn default() -> Self {
         Self::Full
+    }
+}
+
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DeepPolicyPreset {
+    Responsive,
+    Exact,
+}
+
+impl Default for DeepPolicyPreset {
+    fn default() -> Self {
+        Self::Responsive
     }
 }
 
@@ -141,6 +155,9 @@ pub enum IncomingMessage {
         #[serde(rename = "accuracyMode")]
         #[serde(default)]
         accuracy_mode: AccuracyMode,
+        #[serde(rename = "deepPolicyPreset")]
+        #[serde(default)]
+        deep_policy_preset: DeepPolicyPreset,
         #[serde(rename = "elevationPolicy")]
         #[serde(default)]
         elevation_policy: ElevationPolicy,
@@ -183,6 +200,7 @@ impl IncomingMessage {
                 same_device_only,
                 concurrency,
                 accuracy_mode,
+                deep_policy_preset,
                 elevation_policy,
                 emit_policy,
                 concurrency_policy,
@@ -200,6 +218,7 @@ impl IncomingMessage {
                 same_device_only,
                 concurrency,
                 accuracy_mode,
+                deep_policy_preset,
                 elevation_policy,
                 emit_policy,
                 concurrency_policy,
@@ -273,6 +292,11 @@ pub enum OutgoingMessage {
         queue_depth: usize,
         #[serde(rename = "hotPath")]
         hot_path: Option<String>,
+        #[serde(rename = "softSkippedByPolicy")]
+        soft_skipped_by_policy: u64,
+        #[serde(rename = "deferredByBudget")]
+        deferred_by_budget: u64,
+        inflight: usize,
     },
     #[serde(rename = "coverage")]
     Coverage {

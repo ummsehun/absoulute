@@ -6,11 +6,12 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use anyhow::Result;
-use rayon::prelude::*;
+use crossbeam_channel::{RecvTimeoutError, unbounded};
 
 use crate::platform::{device_id_for_path, same_device};
 use crate::protocol::{
-    AggBatchItem, Confidence, ElevationPolicy, OutgoingMessage, ScanMode, StartRequest,
+    AggBatchItem, Confidence, DeepPolicyPreset, ElevationPolicy, OutgoingMessage, ScanMode,
+    StartRequest,
 };
 use crate::scan::macos_fast;
 
@@ -18,6 +19,8 @@ const FILE_METADATA_CHUNK_SIZE: usize = 64;
 const MIN_AGG_BATCH_ITEMS: usize = 64;
 const MIN_AGG_BATCH_MS: u64 = 20;
 const MIN_PROGRESS_INTERVAL_MS: u64 = 80;
+const BATCH_HEARTBEAT_INTERVAL_MS: u64 = 250;
+const DEEP_DIRECTORY_BUDGET_MS: u64 = 500;
 
 pub struct ControlState {
     pub paused: AtomicBool,
@@ -46,6 +49,15 @@ pub struct ScanRuntime<'a, W: Write> {
     pub blocked_by_permission: u64,
     pub elevation_required: bool,
     pub elevation_signal_emitted: bool,
+    pub soft_skipped_by_policy: u64,
+    pub deferred_by_budget: u64,
+}
+
+#[derive(Clone, Copy)]
+enum PolicyBlockKind {
+    Hard,
+    SoftSkip,
+    DeferredByBudget,
 }
 
 #[derive(Clone, Copy)]
@@ -124,6 +136,11 @@ pub fn run_bfs_scan<W: Write>(
     let mut policy_skipped = false;
     let mut accum = EmitAccumulator::new(Instant::now());
     let use_bulk_estimate = matches!(runtime.request.mode, ScanMode::Quick);
+    let deep_responsive_preset = matches!(runtime.request.mode, ScanMode::Deep)
+        && matches!(
+            runtime.request.deep_policy_preset,
+            DeepPolicyPreset::Responsive
+        );
 
     'scan_loop: while let Some((dir_path, depth)) = queue.pop_front() {
         if runtime.controls.cancelled.load(Ordering::Relaxed) {
@@ -145,7 +162,7 @@ pub fn run_bfs_scan<W: Write>(
                 &mut accum,
                 &dir_path,
                 "Path blocked by policy",
-                true,
+                PolicyBlockKind::Hard,
             )?;
             continue;
         }
@@ -156,6 +173,7 @@ pub fn run_bfs_scan<W: Write>(
             &skip_dir_suffixes,
             &root_normalized,
             is_windows,
+            deep_responsive_preset,
         ) {
             policy_skipped = true;
             on_policy_block(
@@ -163,7 +181,7 @@ pub fn run_bfs_scan<W: Write>(
                 &mut accum,
                 &dir_path,
                 "Path skipped by performance policy",
-                false,
+                PolicyBlockKind::SoftSkip,
             )?;
             continue;
         }
@@ -183,6 +201,12 @@ pub fn run_bfs_scan<W: Write>(
         };
 
         let mut file_candidates: Vec<PathBuf> = Vec::new();
+        let dir_started_at = Instant::now();
+        let dir_budget_ms = if deep_responsive_preset {
+            DEEP_DIRECTORY_BUDGET_MS
+        } else {
+            0
+        };
 
         for entry_res in read_dir {
             if options.time_budget_ms > 0
@@ -196,6 +220,21 @@ pub fn run_bfs_scan<W: Write>(
                 break;
             }
             wait_if_paused(runtime.controls);
+
+            if dir_budget_ms > 0
+                && dir_started_at.elapsed() >= Duration::from_millis(dir_budget_ms)
+            {
+                policy_skipped = true;
+                estimated = true;
+                on_policy_block(
+                    runtime,
+                    &mut accum,
+                    &dir_path,
+                    "Directory deferred by time budget",
+                    PolicyBlockKind::DeferredByBudget,
+                )?;
+                break;
+            }
 
             let entry = match entry_res {
                 Ok(v) => v,
@@ -220,7 +259,7 @@ pub fn run_bfs_scan<W: Write>(
                     &mut accum,
                     &path,
                     "Path blocked by policy",
-                    true,
+                    PolicyBlockKind::Hard,
                 )?;
                 continue;
             }
@@ -233,7 +272,7 @@ pub fn run_bfs_scan<W: Write>(
                     &mut accum,
                     &path,
                     "Path skipped by performance policy",
-                    false,
+                    PolicyBlockKind::SoftSkip,
                 )?;
                 continue;
             }
@@ -250,7 +289,7 @@ pub fn run_bfs_scan<W: Write>(
                     &mut accum,
                     &path,
                     "Path skipped by performance policy",
-                    false,
+                    PolicyBlockKind::SoftSkip,
                 )?;
                 continue;
             }
@@ -282,6 +321,7 @@ pub fn run_bfs_scan<W: Write>(
                             &mut accum,
                             &mut file_candidates,
                             &options,
+                            &dir_path,
                             queue.len(),
                         )? {
                             BatchControl::Continue => {}
@@ -302,7 +342,7 @@ pub fn run_bfs_scan<W: Write>(
                         &mut accum,
                         &path,
                         "Path skipped by performance policy",
-                        false,
+                        PolicyBlockKind::SoftSkip,
                     )?;
                     continue;
                 }
@@ -313,7 +353,7 @@ pub fn run_bfs_scan<W: Write>(
                         &mut accum,
                         &path,
                         "Directory is on a different device",
-                        false,
+                        PolicyBlockKind::SoftSkip,
                     )?;
                     continue;
                 }
@@ -327,6 +367,7 @@ pub fn run_bfs_scan<W: Write>(
                 &mut accum,
                 queue.len(),
                 Some(path_to_string(&path)),
+                0,
                 false,
             )?;
         }
@@ -343,13 +384,14 @@ pub fn run_bfs_scan<W: Write>(
                     flush_agg_batch(runtime, &mut accum, false)?;
                 }
             }
-            maybe_emit_progress_and_diagnostics(runtime, &mut accum, queue.len(), None, false)?;
+            maybe_emit_progress_and_diagnostics(runtime, &mut accum, queue.len(), None, 0, false)?;
         } else {
             match process_file_metadata_batch(
                 runtime,
                 &mut accum,
                 &mut file_candidates,
                 &options,
+                &dir_path,
                 queue.len(),
             )? {
                 BatchControl::Continue => {}
@@ -367,7 +409,7 @@ pub fn run_bfs_scan<W: Write>(
     }
 
     flush_agg_batch(runtime, &mut accum, true)?;
-    maybe_emit_progress_and_diagnostics(runtime, &mut accum, queue.len(), None, true)?;
+    maybe_emit_progress_and_diagnostics(runtime, &mut accum, queue.len(), None, 0, true)?;
     maybe_emit_coverage(runtime, &mut accum, true)?;
 
     if options.emit_quick_ready {
@@ -411,6 +453,7 @@ fn maybe_emit_progress_and_diagnostics<W: Write>(
     accum: &mut EmitAccumulator,
     queued_dirs: usize,
     current_path: Option<String>,
+    inflight: usize,
     force: bool,
 ) -> Result<()> {
     let now = Instant::now();
@@ -454,6 +497,9 @@ fn maybe_emit_progress_and_diagnostics<W: Write>(
             io_wait_ratio,
             queue_depth: queued_dirs,
             hot_path: current_path,
+            soft_skipped_by_policy: runtime.soft_skipped_by_policy,
+            deferred_by_budget: runtime.deferred_by_budget,
+            inflight,
         },
     )?;
 
@@ -512,10 +558,21 @@ fn on_policy_block<W: Write>(
     accum: &mut EmitAccumulator,
     blocked_path: &Path,
     reason: &str,
-    requires_elevation: bool,
+    kind: PolicyBlockKind,
 ) -> Result<()> {
     runtime.blocked_by_policy += 1;
-    if requires_elevation {
+    match kind {
+        PolicyBlockKind::Hard => {}
+        PolicyBlockKind::SoftSkip => {
+            runtime.soft_skipped_by_policy += 1;
+        }
+        PolicyBlockKind::DeferredByBudget => {
+            runtime.soft_skipped_by_policy += 1;
+            runtime.deferred_by_budget += 1;
+        }
+    }
+
+    if matches!(kind, PolicyBlockKind::Hard) {
         runtime.elevation_required = true;
         maybe_emit_elevation_required(runtime, blocked_path, reason)?;
     }
@@ -627,6 +684,7 @@ fn process_file_metadata_batch<W: Write>(
     accum: &mut EmitAccumulator,
     file_candidates: &mut Vec<PathBuf>,
     options: &ScanExecutionOptions,
+    current_dir: &Path,
     queue_len: usize,
 ) -> Result<BatchControl> {
     if file_candidates.is_empty() {
@@ -634,16 +692,24 @@ fn process_file_metadata_batch<W: Write>(
     }
 
     let batch = std::mem::take(file_candidates);
-    let file_metadata_results: Vec<(PathBuf, std::io::Result<u64>)> = batch
-        .par_iter()
-        .map(|file_path| {
-            let size_result = macos_fast::file_len(file_path);
-            (file_path.clone(), size_result)
-        })
-        .collect();
+    let total_items = batch.len();
+    let (tx, rx) = unbounded::<(PathBuf, std::io::Result<u64>)>();
+    for file_path in batch {
+        let tx_cloned = tx.clone();
+        rayon::spawn(move || {
+            let size_result = macos_fast::file_len(&file_path);
+            let _ = tx_cloned.send((file_path, size_result));
+        });
+    }
+    drop(tx);
 
+    let mut processed_items = 0usize;
     let mut last_path: Option<String> = None;
-    for (file_path, size_result) in file_metadata_results {
+    let heartbeat_interval = Duration::from_millis(BATCH_HEARTBEAT_INTERVAL_MS);
+    let mut last_heartbeat_emit = Instant::now();
+    let current_dir_label = path_to_string(current_dir);
+
+    while processed_items < total_items {
         if options.time_budget_ms > 0
             && runtime.started_at.elapsed() >= Duration::from_millis(options.time_budget_ms)
         {
@@ -656,31 +722,58 @@ fn process_file_metadata_batch<W: Write>(
             return Ok(BatchControl::Cancelled);
         }
 
-        let path_label = path_to_string(&file_path);
-        last_path = Some(path_label.clone());
-        match size_result {
-            Ok(size) => {
-                accum.pending_agg.push(AggBatchItem {
-                    path: path_label,
-                    size_delta: size,
-                    count_delta: 1,
-                    estimated: false,
-                });
-                flush_agg_batch(runtime, accum, false)?;
+        match rx.recv_timeout(Duration::from_millis(40)) {
+            Ok((file_path, size_result)) => {
+                processed_items += 1;
+                let path_label = path_to_string(&file_path);
+                last_path = Some(path_label.clone());
+                match size_result {
+                    Ok(size) => {
+                        accum.pending_agg.push(AggBatchItem {
+                            path: path_label,
+                            size_delta: size,
+                            count_delta: 1,
+                            estimated: false,
+                        });
+                        flush_agg_batch(runtime, accum, false)?;
+                    }
+                    Err(error) => {
+                        emit_warning(
+                            runtime,
+                            map_error_code(&error),
+                            "Failed to read file metadata",
+                            Some(path_label),
+                        )?;
+                        maybe_emit_coverage(runtime, accum, false)?;
+                    }
+                }
             }
-            Err(error) => {
-                emit_warning(
-                    runtime,
-                    map_error_code(&error),
-                    "Failed to read file metadata",
-                    Some(path_label),
-                )?;
-                maybe_emit_coverage(runtime, accum, false)?;
-            }
+            Err(RecvTimeoutError::Timeout) => {}
+            Err(RecvTimeoutError::Disconnected) => break,
+        }
+
+        if last_heartbeat_emit.elapsed() >= heartbeat_interval {
+            let inflight = total_items.saturating_sub(processed_items);
+            maybe_emit_progress_and_diagnostics(
+                runtime,
+                accum,
+                queue_len.saturating_add(inflight),
+                Some(current_dir_label.clone()),
+                inflight,
+                false,
+            )?;
+            last_heartbeat_emit = Instant::now();
         }
     }
 
-    maybe_emit_progress_and_diagnostics(runtime, accum, queue_len, last_path, false)?;
+    maybe_emit_progress_and_diagnostics(
+        runtime,
+        accum,
+        queue_len,
+        last_path.or(Some(current_dir_label)),
+        0,
+        false,
+    )?;
     Ok(BatchControl::Continue)
 }
 
@@ -697,9 +790,18 @@ fn is_soft_skipped_dir(
     skip_dir_suffixes: &[String],
     root_normalized: &str,
     is_windows: bool,
+    enable_path_rules: bool,
 ) -> bool {
     is_soft_skipped_by_prefix(path, soft_skip_prefixes, root_normalized, is_windows)
         || is_soft_skipped_by_suffix(path, skip_dir_suffixes, root_normalized, is_windows)
+        || (enable_path_rules
+            && (is_rustup_doc_or_source_path(path, root_normalized, is_windows)
+                || is_nvm_versions_path(path, root_normalized, is_windows)
+                || is_pyenv_versions_path(path, root_normalized, is_windows)
+                || is_python_venv_packages_path(path, root_normalized, is_windows)
+                || is_browser_extensions_path(path, root_normalized, is_windows)
+                || is_browser_storage_path(path, root_normalized, is_windows)
+                || is_browser_web_app_resources_path(path, root_normalized, is_windows)))
 }
 
 fn is_soft_skipped_by_prefix(
@@ -744,6 +846,135 @@ fn is_soft_skipped_by_suffix(
     skip_dir_suffixes
         .iter()
         .any(|suffix| basename.ends_with(suffix))
+}
+
+fn is_rustup_doc_or_source_path(path: &Path, root_normalized: &str, is_windows: bool) -> bool {
+    let candidate = normalize_for_compare(&path.to_string_lossy(), is_windows);
+    if candidate == root_normalized {
+        return false;
+    }
+    if !candidate.contains("/.rustup/toolchains/") {
+        return false;
+    }
+    candidate.contains("/share/doc/") || candidate.contains("/lib/rustlib/src/")
+}
+
+fn is_nvm_versions_path(path: &Path, root_normalized: &str, is_windows: bool) -> bool {
+  let candidate = normalize_for_compare(&path.to_string_lossy(), is_windows);
+  if candidate == root_normalized {
+    return false;
+  }
+  candidate.contains("/.nvm/versions/")
+}
+
+fn is_pyenv_versions_path(path: &Path, root_normalized: &str, is_windows: bool) -> bool {
+    let candidate = normalize_for_compare(&path.to_string_lossy(), is_windows);
+    if candidate == root_normalized {
+        return false;
+    }
+    candidate.contains("/.pyenv/versions/")
+}
+
+fn is_python_venv_packages_path(path: &Path, root_normalized: &str, is_windows: bool) -> bool {
+    let candidate = normalize_for_compare(&path.to_string_lossy(), is_windows);
+    if candidate == root_normalized {
+        return false;
+    }
+    let in_venv = candidate.contains("/venv/") || candidate.contains("/.venv/");
+    if !in_venv {
+        return false;
+    }
+    candidate.contains("/site-packages/") || candidate.contains("/dist-packages/")
+}
+
+fn is_browser_extensions_path(path: &Path, root_normalized: &str, is_windows: bool) -> bool {
+    let candidate = normalize_for_compare(&path.to_string_lossy(), is_windows);
+    if candidate == root_normalized {
+        return false;
+    }
+    let lower = candidate.to_ascii_lowercase();
+    if !lower.contains("/extensions/") {
+        return false;
+    }
+
+    let browser_roots = [
+        "/library/application support/google/chrome/",
+        "/library/application support/google/chrome beta/",
+        "/library/application support/google/chrome canary/",
+        "/library/application support/bravesoftware/brave-browser/",
+        "/library/application support/microsoft edge/",
+        "/library/application support/vivaldi/",
+        "/library/application support/opera",
+        "/library/application support/zen/",
+        "/library/application support/firefox/",
+        "/library/application support/librewolf/",
+    ];
+
+    browser_roots.iter().any(|prefix| lower.contains(prefix))
+}
+
+fn is_browser_storage_path(path: &Path, root_normalized: &str, is_windows: bool) -> bool {
+    let candidate = normalize_for_compare(&path.to_string_lossy(), is_windows);
+    if candidate == root_normalized {
+        return false;
+    }
+    let lower = candidate.to_ascii_lowercase();
+    let browser_roots = [
+        "/library/application support/google/chrome/",
+        "/library/application support/google/chrome beta/",
+        "/library/application support/google/chrome canary/",
+        "/library/application support/bravesoftware/brave-browser/",
+        "/library/application support/microsoft edge/",
+        "/library/application support/vivaldi/",
+        "/library/application support/opera",
+        "/library/application support/zen/",
+        "/library/application support/firefox/",
+        "/library/application support/librewolf/",
+    ];
+    let in_browser_root = browser_roots.iter().any(|prefix| lower.contains(prefix));
+    if !in_browser_root {
+        return false;
+    }
+
+    if lower.contains("/storage/ext/") || lower.contains("/shared dictionary/cache/") {
+        return true;
+    }
+    let is_profile_storage = lower.contains("/profiles/")
+        && (lower.contains("/storage/default/")
+            || lower.contains("/storage/temporary/")
+            || lower.contains("/storage/permanent/"));
+    if is_profile_storage
+        && (lower.contains("/cache/") || lower.contains("/cache2/") || lower.contains("/morgue/"))
+    {
+        return true;
+    }
+
+    false
+}
+
+fn is_browser_web_app_resources_path(path: &Path, root_normalized: &str, is_windows: bool) -> bool {
+    let candidate = normalize_for_compare(&path.to_string_lossy(), is_windows);
+    if candidate == root_normalized {
+        return false;
+    }
+    let lower = candidate.to_ascii_lowercase();
+    let browser_roots = [
+        "/library/application support/google/chrome/",
+        "/library/application support/google/chrome beta/",
+        "/library/application support/google/chrome canary/",
+        "/library/application support/bravesoftware/brave-browser/",
+        "/library/application support/microsoft edge/",
+        "/library/application support/vivaldi/",
+        "/library/application support/opera",
+    ];
+    let in_browser_root = browser_roots.iter().any(|prefix| lower.contains(prefix));
+    if !in_browser_root {
+        return false;
+    }
+
+    lower.contains("/web applications/")
+        || lower.contains("/manifest resources/")
+        || lower.contains("/shortcuts menu icons/")
 }
 
 fn normalize_for_compare(raw: &str, is_windows: bool) -> String {

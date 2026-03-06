@@ -22,12 +22,6 @@ const electronAPI = {
   scanCancel: async (scanId) =>
     ipcRenderer.invoke(IPC_CHANNELS.SCAN_CANCEL, scanId),
 
-  getPrivilegeHelperStatus: async () =>
-    ipcRenderer.invoke(IPC_CHANNELS.SCAN_GET_PRIVILEGE_HELPER_STATUS),
-
-  installPrivilegeHelper: async () =>
-    ipcRenderer.invoke(IPC_CHANNELS.SCAN_INSTALL_PRIVILEGE_HELPER),
-
   requestElevation: async (targetPath) =>
     ipcRenderer.invoke(IPC_CHANNELS.SCAN_REQUEST_ELEVATION, String(targetPath ?? "")),
 
@@ -113,6 +107,23 @@ const electronAPI = {
     ipcRenderer.on(IPC_CHANNELS.SCAN_COVERAGE_UPDATE, listener);
     return () => {
       ipcRenderer.off(IPC_CHANNELS.SCAN_COVERAGE_UPDATE, listener);
+    };
+  },
+
+  onScanTerminal: (callback) => {
+    if (typeof callback !== "function") {
+      return () => {};
+    }
+
+    const listener = (_event, payload) => {
+      if (isScanTerminalEvent(payload)) {
+        callback(payload);
+      }
+    };
+
+    ipcRenderer.on(IPC_CHANNELS.SCAN_TERMINAL, listener);
+    return () => {
+      ipcRenderer.off(IPC_CHANNELS.SCAN_TERMINAL, listener);
     };
   },
 
@@ -208,6 +219,10 @@ function coerceScanStartInput(input) {
     input.accuracyMode === "preview" || input.accuracyMode === "full"
       ? input.accuracyMode
       : undefined;
+  const deepPolicyPreset =
+    input.deepPolicyPreset === "responsive" || input.deepPolicyPreset === "exact"
+      ? input.deepPolicyPreset
+      : undefined;
   const elevationPolicy =
     input.elevationPolicy === "auto" ||
     input.elevationPolicy === "manual" ||
@@ -223,6 +238,7 @@ function coerceScanStartInput(input) {
     performanceProfile,
     scanMode,
     accuracyMode,
+    deepPolicyPreset,
     elevationPolicy,
     emitPolicy,
     concurrencyPolicy,
@@ -436,6 +452,15 @@ function isScanDiagnostics(value) {
         value.ioWaitRatio <= 1)) &&
     (value.hotPath === undefined || typeof value.hotPath === "string") &&
     (value.coverage === undefined || isScanCoverage(value.coverage)) &&
+    (value.softSkippedByPolicy === undefined ||
+      (typeof value.softSkippedByPolicy === "number" &&
+        Number.isInteger(value.softSkippedByPolicy) &&
+        value.softSkippedByPolicy >= 0)) &&
+    (value.deferredByBudget === undefined ||
+      (typeof value.deferredByBudget === "number" &&
+        Number.isInteger(value.deferredByBudget) &&
+        value.deferredByBudget >= 0)) &&
+    (value.inflightStats === undefined || isScanInflightStats(value.inflightStats)) &&
     (value.engine === undefined ||
       value.engine === "node" ||
       value.engine === "native") &&
@@ -476,6 +501,19 @@ function isScanCoverageUpdate(value) {
   );
 }
 
+function isScanTerminalEvent(value) {
+  return (
+    isObject(value) &&
+    typeof value.scanId === "string" &&
+    (value.status === "done" ||
+      value.status === "canceled" ||
+      value.status === "failed") &&
+    typeof value.finishedAt === "number" &&
+    Number.isInteger(value.finishedAt) &&
+    value.finishedAt > 0
+  );
+}
+
 function isScanPerfSample(value) {
   return (
     isObject(value) &&
@@ -494,7 +532,32 @@ function isScanPerfSample(value) {
     Number.isInteger(value.queueDepth) &&
     value.queueDepth >= 0 &&
     (value.hotPath === undefined || typeof value.hotPath === "string") &&
-    (value.coverage === undefined || isScanCoverage(value.coverage))
+    (value.coverage === undefined || isScanCoverage(value.coverage)) &&
+    (value.softSkippedByPolicy === undefined ||
+      (typeof value.softSkippedByPolicy === "number" &&
+        Number.isInteger(value.softSkippedByPolicy) &&
+        value.softSkippedByPolicy >= 0)) &&
+    (value.deferredByBudget === undefined ||
+      (typeof value.deferredByBudget === "number" &&
+        Number.isInteger(value.deferredByBudget) &&
+        value.deferredByBudget >= 0)) &&
+    (value.inflightStats === undefined || isScanInflightStats(value.inflightStats))
+  );
+}
+
+function isScanInflightStats(value) {
+  if (!isObject(value)) {
+    return false;
+  }
+
+  return (
+    typeof value.inFlight === "number" &&
+    Number.isInteger(value.inFlight) &&
+    value.inFlight >= 0 &&
+    (value.queuedDirs === undefined ||
+      (typeof value.queuedDirs === "number" &&
+        Number.isInteger(value.queuedDirs) &&
+        value.queuedDirs >= 0))
   );
 }
 

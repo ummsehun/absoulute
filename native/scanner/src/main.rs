@@ -34,6 +34,7 @@ fn main() -> Result<()> {
                         same_device_only,
                         concurrency,
                         accuracy_mode,
+                        deep_policy_preset,
                         elevation_policy,
                         emit_policy,
                         concurrency_policy,
@@ -52,6 +53,7 @@ fn main() -> Result<()> {
                             same_device_only,
                             concurrency,
                             accuracy_mode,
+                            deep_policy_preset,
                             elevation_policy,
                             emit_policy,
                             concurrency_policy,
@@ -98,6 +100,8 @@ fn main() -> Result<()> {
             blocked_by_permission: 0,
             elevation_required: false,
             elevation_signal_emitted: false,
+            soft_skipped_by_policy: 0,
+            deferred_by_budget: 0,
         };
 
         let summary = run_scan_loop(&mut runtime)?;

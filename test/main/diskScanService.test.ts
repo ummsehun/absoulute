@@ -4,9 +4,10 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import type {
-  ScanDiagnostics,
-  ScanProgressBatch,
-  ScanQuickReady,
+    ScanDiagnostics,
+    ScanProgressBatch,
+    ScanQuickReady,
+    ScanTerminalEvent,
 } from "../../src/types/contracts";
 import { DiskScanService } from "../../src/main/services/diskScanService";
 
@@ -32,6 +33,7 @@ describe("DiskScanService", () => {
     const batches: ScanProgressBatch[] = [];
     const quickReadyEvents: ScanQuickReady[] = [];
     const diagnosticsEvents: ScanDiagnostics[] = [];
+    const terminalEvents: ScanTerminalEvent[] = [];
     const errors: string[] = [];
 
     const stopProgress = service.onProgress((batch) => {
@@ -45,6 +47,9 @@ describe("DiskScanService", () => {
     });
     const stopDiagnostics = service.onDiagnostics((event) => {
       diagnosticsEvents.push(event);
+    });
+    const stopTerminal = service.onTerminal((event) => {
+      terminalEvents.push(event);
     });
 
     try {
@@ -77,6 +82,7 @@ describe("DiskScanService", () => {
         () => batches.some((batch) => batch.progress.phase === "finalizing"),
         4000,
       );
+      await waitFor(() => terminalEvents.length > 0, 4000);
 
       const allDeltas = batches.flatMap((batch) => batch.deltas);
       const allPatches = batches.flatMap((batch) => batch.patches);
@@ -87,12 +93,14 @@ describe("DiskScanService", () => {
       expect(allPatches.length).toBeGreaterThan(0);
       expect(quickReadyEvents.length).toBeGreaterThan(0);
       expect(diagnosticsEvents.length).toBeGreaterThan(0);
+      expect(terminalEvents.at(-1)?.status).toBe("done");
       expect(errors).toEqual([]);
     } finally {
       stopProgress();
       stopErrors();
       stopQuickReady();
       stopDiagnostics();
+      stopTerminal();
       await fs.rm(tempRoot, { recursive: true, force: true });
     }
   });

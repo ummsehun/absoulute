@@ -19,12 +19,23 @@ export function getProtectedPaths(
   }
 
   return {
-    absoluteBlock: ["/System", "/usr", "/bin", "/sbin", "/private"],
+    absoluteBlock: ["/System", "/bin", "/sbin", "/usr/bin", "/usr/sbin"],
     optInRequired: [
-      "/Applications",
-      `${homeDirectory}/Library`,
-      `${homeDirectory}/Library/Application Support`,
+      `${homeDirectory}/Desktop`,
+      `${homeDirectory}/Documents`,
+      `${homeDirectory}/Downloads`,
+      `${homeDirectory}/Library/Mail`,
+      `${homeDirectory}/Library/Messages`,
+      `${homeDirectory}/Library/Safari`,
+      `${homeDirectory}/Library/Calendars`,
+      `${homeDirectory}/Library/Application Support/AddressBook`,
+      `${homeDirectory}/Library/Application Support/CallHistoryDB`,
+      `${homeDirectory}/Library/Application Support/com.apple.TCC`,
+      `${homeDirectory}/Library/Application Support/MobileSync`,
+      `${homeDirectory}/Library/Containers/com.apple.mail`,
+      `${homeDirectory}/Library/Containers/com.apple.MobileSMS`,
+      `${homeDirectory}/Library/Containers/com.apple.Safari`,
     ],
-    defaultAllowRoots: [homeDirectory],
+    defaultAllowRoots: [homeDirectory, "/Applications", "/Library", "/private", "/Volumes"],
   };
 }

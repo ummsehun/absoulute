@@ -50,6 +50,7 @@ export const ScanModeSchema = z.enum([
 export const ScanEngineSchema = z.enum(["node", "native"]);
 export const ScanAccuracyModeSchema = z.enum(["preview", "full"]);
 export const ScanElevationPolicySchema = z.enum(["auto", "manual", "none"]);
+export const ScanDeepPolicyPresetSchema = z.enum(["responsive", "exact"]);
 
 export const ScanEmitPolicySchema = z.object({
   aggBatchMaxItems: z.number().int().positive().max(20_000).optional(),
@@ -68,6 +69,11 @@ export const ScanCoverageSchema = z.object({
   blockedByPolicy: z.number().int().nonnegative(),
   blockedByPermission: z.number().int().nonnegative(),
   elevationRequired: z.boolean(),
+});
+
+export const ScanInflightStatsSchema = z.object({
+  inFlight: z.number().int().nonnegative(),
+  queuedDirs: z.number().int().nonnegative().optional(),
 });
 
 export const ScanProgressSchema = z.object({
@@ -96,6 +102,7 @@ export const ScanStartRequestSchema = z.object({
   scanMode: ScanModeSchema.optional(),
   quickBudgetMs: z.number().int().positive().max(30_000).optional(),
   accuracyMode: ScanAccuracyModeSchema.optional(),
+  deepPolicyPreset: ScanDeepPolicyPresetSchema.optional(),
   elevationPolicy: ScanElevationPolicySchema.optional(),
   emitPolicy: ScanEmitPolicySchema.optional(),
   concurrencyPolicy: ScanConcurrencyPolicySchema.optional(),
@@ -129,15 +136,6 @@ export const ScanPauseResponseSchema = z.object({
 
 export const ScanResumeResponseSchema = z.object({
   ok: z.boolean(),
-});
-
-export const ScanPrivilegeHelperStatusSchema = z.object({
-  installed: z.boolean(),
-  label: z.string().min(1),
-});
-
-export const ScanPrivilegeHelperInstallResponseSchema = z.object({
-  installed: z.boolean(),
 });
 
 export const ScanElevationRequestSchema = z.object({
@@ -178,11 +176,22 @@ export const ScanDiagnosticsSchema = z.object({
   ioWaitRatio: z.number().min(0).max(1).optional(),
   hotPath: z.string().min(1).optional(),
   coverage: ScanCoverageSchema.optional(),
+  softSkippedByPolicy: z.number().int().nonnegative().optional(),
+  deferredByBudget: z.number().int().nonnegative().optional(),
+  inflightStats: ScanInflightStatsSchema.optional(),
 });
 
 export const ScanCoverageUpdateSchema = z.object({
   scanId: z.string().min(1),
   coverage: ScanCoverageSchema,
+});
+
+export const ScanTerminalStatusSchema = z.enum(["done", "canceled", "failed"]);
+
+export const ScanTerminalEventSchema = z.object({
+  scanId: z.string().min(1),
+  status: ScanTerminalStatusSchema,
+  finishedAt: z.number().int().positive(),
 });
 
 export const ScanPerfSampleSchema = z.object({
@@ -193,6 +202,9 @@ export const ScanPerfSampleSchema = z.object({
   queueDepth: z.number().int().nonnegative(),
   hotPath: z.string().min(1).optional(),
   coverage: ScanCoverageSchema.optional(),
+  softSkippedByPolicy: z.number().int().nonnegative().optional(),
+  deferredByBudget: z.number().int().nonnegative().optional(),
+  inflightStats: ScanInflightStatsSchema.optional(),
 });
 
 export const ScanElevationRequiredSchema = z.object({
@@ -219,16 +231,6 @@ export const ScanPauseResultSchema = z.union([
 
 export const ScanResumeResultSchema = z.union([
   SuccessResultSchema(ScanResumeResponseSchema),
-  FailureResultSchema,
-]);
-
-export const GetScanPrivilegeHelperStatusResultSchema = z.union([
-  SuccessResultSchema(ScanPrivilegeHelperStatusSchema),
-  FailureResultSchema,
-]);
-
-export const ScanPrivilegeHelperInstallResultSchema = z.union([
-  SuccessResultSchema(ScanPrivilegeHelperInstallResponseSchema),
   FailureResultSchema,
 ]);
 

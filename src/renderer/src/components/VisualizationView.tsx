@@ -34,6 +34,7 @@ interface VisualizationViewProps {
     coverageUpdate: ScanCoverageUpdate | null;
     perfSample: ScanPerfSample | null;
     setActiveRootPath: (path: string) => void;
+    onExactRecheck?: () => void | Promise<void>;
 }
 
 export function VisualizationView({
@@ -46,6 +47,7 @@ export function VisualizationView({
     coverageUpdate,
     perfSample,
     setActiveRootPath,
+    onExactRecheck,
 }: VisualizationViewProps) {
     const [layoutMode] = useState<LayoutMode>("circle_pack");
 
@@ -203,7 +205,20 @@ export function VisualizationView({
                         <span>files/s {Math.round(perfSample?.filesPerSec ?? 0).toLocaleString()}</span>
                         <span className="text-white/40">|</span>
                         <span>blocked {coverageUpdate?.coverage.blockedByPolicy ?? 0}</span>
+                        <span className="text-white/40">|</span>
+                        <span>deferred {perfSample?.deferredByBudget ?? 0}</span>
                     </div>
+                    {progress?.progress.estimated ? (
+                        <button
+                            type="button"
+                            onClick={() => {
+                                void onExactRecheck?.();
+                            }}
+                            className="px-6 py-2.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-300/50 backdrop-blur-xl transition-all shadow-lg text-sm font-semibold text-emerald-100"
+                        >
+                            Exact Recheck
+                        </button>
+                    ) : null}
                     <button className="px-6 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 backdrop-blur-xl transition-all shadow-lg text-sm font-medium hover:text-white">
                         검토 및 제거
                     </button>

@@ -7,6 +7,7 @@ import readline from "node:readline";
 export type NativeScanPhaseMode = "quick" | "deep";
 export type NativeScanControl = "pause" | "resume" | "cancel";
 export type NativeAccuracyMode = "preview" | "full";
+export type NativeDeepPolicyPreset = "responsive" | "exact";
 export type NativeElevationPolicy = "auto" | "manual" | "none";
 
 export interface NativeEmitPolicy {
@@ -31,6 +32,7 @@ export interface NativeScannerStartRequest {
   sameDeviceOnly: boolean;
   concurrency: number;
   accuracyMode: NativeAccuracyMode;
+  deepPolicyPreset: NativeDeepPolicyPreset;
   elevationPolicy: NativeElevationPolicy;
   emitPolicy: NativeEmitPolicy;
   concurrencyPolicy: NativeConcurrencyPolicy;
@@ -81,6 +83,9 @@ export interface NativeDiagnosticsMessage {
   ioWaitRatio: number;
   queueDepth: number;
   hotPath?: string;
+  softSkippedByPolicy?: number;
+  deferredByBudget?: number;
+  inflight?: number;
 }
 
 export interface NativeElevationRequiredMessage {
@@ -302,6 +307,7 @@ export function createNativeScannerSession(): NativeScannerSession {
         sameDeviceOnly: request.sameDeviceOnly,
         concurrency: request.concurrency,
         accuracyMode: request.accuracyMode,
+        deepPolicyPreset: request.deepPolicyPreset,
         elevationPolicy: request.elevationPolicy,
         emitPolicy: request.emitPolicy,
         concurrencyPolicy: request.concurrencyPolicy,
@@ -424,6 +430,9 @@ function parseNativeScannerLine(line: string): NativeScannerMessage | null {
         ioWaitRatio: toSafeBoundedRatio(message.ioWaitRatio),
         queueDepth: toSafeNonNegative(message.queueDepth),
         hotPath: typeof message.hotPath === "string" ? message.hotPath : undefined,
+        softSkippedByPolicy: toSafeOptionalNonNegative(message.softSkippedByPolicy),
+        deferredByBudget: toSafeOptionalNonNegative(message.deferredByBudget),
+        inflight: toSafeOptionalNonNegative(message.inflight),
       };
     case "elevation_required":
       if (typeof message.targetPath !== "string" || typeof message.reason !== "string") {
@@ -514,6 +523,16 @@ function terminateChild(child: ChildProcessWithoutNullStreams): void {
 function toSafeNonNegative(value: unknown): number {
   if (typeof value !== "number" || !Number.isFinite(value)) {
     return 0;
+  }
+  return Math.max(0, Math.floor(value));
+}
+
+function toSafeOptionalNonNegative(value: unknown): number | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return undefined;
   }
   return Math.max(0, Math.floor(value));
 }

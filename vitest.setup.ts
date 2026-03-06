@@ -30,14 +30,6 @@ const electronAPIMock = {
     return { ok: true, data: ScanCancelResSchema.parse(data) };
   }),
 
-  getPrivilegeHelperStatus: vi.fn(async () => ({
-    ok: true,
-    data: { installed: true, label: "com.spacelens.privilege-helper" },
-  })),
-  installPrivilegeHelper: vi.fn(async () => ({
-    ok: true,
-    data: { installed: true },
-  })),
   requestElevation: vi.fn(async () => ({
     ok: true,
     data: { granted: true },
@@ -110,6 +102,15 @@ const electronAPIMock = {
         blockedByPermission: 0,
         elevationRequired: false,
       },
+    });
+    return () => undefined;
+  }),
+
+  onScanTerminal: vi.fn((cb: (event: unknown) => void) => {
+    cb({
+      scanId: "scan-test-1",
+      status: "done",
+      finishedAt: Date.now(),
     });
     return () => undefined;
   }),

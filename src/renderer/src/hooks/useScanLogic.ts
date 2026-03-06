@@ -1,11 +1,13 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
 import type {
     AggDelta,
     AppError,
+    ScanDeepPolicyPreset,
     ScanCoverageUpdate,
     ScanElevationRequired,
     ScanPerfSample,
     ScanProgressBatch,
+    ScanTerminalEvent,
     SystemInfo,
     WindowState,
 } from "../../../types/contracts";
@@ -26,7 +28,7 @@ export function useScanLogic() {
     const electronAPI = getElectronAPI();
     const [rootPath, setRootPath] = useState<string>(".");
     const [scanId, setScanId] = useState<string>("");
-    const [allowProtectedOptIn, setAllowProtectedOptIn] = useState<boolean>(true);
+    const [allowProtectedOptIn, setAllowProtectedOptIn] = useState<boolean>(false);
     const [systemInfo, setSystemInfo] = useState<SystemInfo | null>(null);
     const [windowState, setWindowState] = useState<WindowState | null>(null);
     const [progress, setProgress] = useState<ScanProgressBatch | null>(null);
@@ -34,6 +36,7 @@ export function useScanLogic() {
     const [coverageUpdate, setCoverageUpdate] = useState<ScanCoverageUpdate | null>(null);
     const [perfSample, setPerfSample] = useState<ScanPerfSample | null>(null);
     const [elevationRequired, setElevationRequired] = useState<ScanElevationRequired | null>(null);
+    const [scanTerminal, setScanTerminal] = useState<ScanTerminalEvent | null>(null);
     const [warningSummary, setWarningSummary] = useState<{
         permission: number;
         io: number;
@@ -64,6 +67,24 @@ export function useScanLogic() {
     const scanBasePathRef = useRef<string>("");
     const activeRootPathRef = useRef<string>("");
     const rootPathRef = useRef<string>(".");
+
+    const commitPendingDeltas = useEffectEvent(() => {
+        if (pendingDeltasRef.current.length === 0) {
+            return;
+        }
+
+        applyDeltasInPlace(aggregateRef.current, pendingDeltasRef.current);
+        pruneAggregateStateInPlace(
+            aggregateRef.current,
+            scanBasePathRef.current || normalizeFsPath(rootPathRef.current),
+            activeRootPathRef.current ||
+            scanBasePathRef.current ||
+            normalizeFsPath(rootPathRef.current),
+        );
+        pendingDeltasRef.current.length = 0;
+        setAggregateSizes({ ...aggregateRef.current });
+        lastVisualCommitRef.current = Date.now();
+    });
 
     useEffect(() => {
         scanBasePathRef.current = scanBasePath;
@@ -122,16 +143,7 @@ export function useScanLogic() {
                 pendingDeltasRef.current.length > 0 &&
                 (isNonWalkingPhase || reachedVisualInterval || reachedDeltaBurst)
             ) {
-                applyDeltasInPlace(aggregateRef.current, pendingDeltasRef.current);
-                pruneAggregateStateInPlace(
-                    aggregateRef.current,
-                    scanBasePathRef.current || normalizeFsPath(rootPathRef.current),
-                    activeRootPathRef.current ||
-                    scanBasePathRef.current ||
-                    normalizeFsPath(rootPathRef.current),
-                );
-                pendingDeltasRef.current.length = 0;
-                setAggregateSizes({ ...aggregateRef.current });
+                commitPendingDeltas();
                 lastVisualCommitRef.current = now;
             }
 
@@ -168,6 +180,17 @@ export function useScanLogic() {
             setCoverageUpdate(event);
         });
 
+        const unsubscribeTerminal = electronAPI.onScanTerminal((event) => {
+            commitPendingDeltas();
+            setScanTerminal(event);
+            setScanId("");
+            setScanStartedAt(null);
+            setElevationRequired(null);
+            if (event.status !== "failed") {
+                setError(null);
+            }
+        });
+
         const unsubscribePerfSample = electronAPI.onScanPerfSample((event) => {
             setPerfSample(event);
         });
@@ -181,6 +204,7 @@ export function useScanLogic() {
             unsubscribeProgress();
             unsubscribeError();
             unsubscribeCoverage();
+            unsubscribeTerminal();
             unsubscribePerfSample();
             unsubscribeElevationRequired();
         };
@@ -197,7 +221,10 @@ export function useScanLogic() {
         }
     };
 
-    const startScanForPath = async (nextRootPath: string) => {
+    const startScanForPath = async (
+        nextRootPath: string,
+        deepPolicyPreset: ScanDeepPolicyPreset = "responsive",
+    ) => {
         if (!electronAPI) return;
 
         const normalizedRoot = normalizeFsPath(nextRootPath);
@@ -216,7 +243,8 @@ export function useScanLogic() {
             performanceProfile: "accuracy-first",
             scanMode: "native_rust",
             accuracyMode: "full",
-            elevationPolicy: "auto",
+            deepPolicyPreset,
+            elevationPolicy: "manual",
             emitPolicy: {
                 aggBatchMaxItems: 512,
                 aggBatchMaxMs: 120,
@@ -244,25 +272,35 @@ export function useScanLogic() {
             setPatchStats({ added: 0, updated: 0, pruned: 0 });
             setWarningSummary({ permission: 0, io: 0, lastPath: null });
             setCoverageUpdate(null);
+            setScanTerminal(null);
             setPerfSample(null);
             setElevationRequired(null);
             setError(null);
         } else {
+            if (result.error.code === "E_OPTIN_REQUIRED") {
+                setElevationRequired({
+                    scanId: "scan-preflight",
+                    targetPath: normalizedRoot,
+                    reason: "선택한 경로는 명시적 권한 허용이 필요합니다. 설정에서 접근 권한을 허용해 주세요.",
+                    policy: "manual",
+                });
+                setError(null);
+                return;
+            }
             setError(result.error);
         }
     };
 
-    const startScan = async () => await startScanForPath(rootPath);
-    const oneClickScan = async () => await startScanForPath(rootPath);
-    const scanTopRoot = async () => await startScanForPath(getTopRootPath(rootPath));
+    const startScan = async () => await startScanForPath(rootPath, "responsive");
+    const oneClickScan = async () => await startScanForPath(rootPath, "responsive");
+    const scanTopRoot = async () => await startScanForPath(getTopRootPath(rootPath), "responsive");
+    const exactRecheck = async () =>
+        await startScanForPath(scanBasePathRef.current || rootPathRef.current, "exact");
 
     const cancelScan = async () => {
         if (!scanId || !electronAPI) return;
         const result = await electronAPI.scanCancel(scanId);
-        if (result.ok) {
-            setScanId("");
-            setScanStartedAt(null);
-        } else {
+        if (!result.ok) {
             setError(result.error);
         }
     };
@@ -365,6 +403,7 @@ export function useScanLogic() {
         coverageUpdate,
         perfSample,
         elevationRequired,
+        scanTerminal,
         aggregateSizes,
         patchStats,
         scanBasePath,
@@ -380,6 +419,7 @@ export function useScanLogic() {
         startScan,
         oneClickScan,
         scanTopRoot,
+        exactRecheck,
         cancelScan,
         pauseScan,
         resumeScan,

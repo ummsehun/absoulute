@@ -18,7 +18,7 @@ describe("securityPolicy classifyPathByPolicy", () => {
 
   it("requires opt-in for optional protected paths", () => {
     const result = classifyPathByPolicy(
-      "/Users/tester/Library",
+      "/Users/tester/Documents",
       false,
       "darwin",
       "/Users/tester",
@@ -30,8 +30,20 @@ describe("securityPolicy classifyPathByPolicy", () => {
 
   it("allows opt-in path when explicit consent is enabled", () => {
     const result = classifyPathByPolicy(
-      "/Users/tester/Library",
+      "/Users/tester/Documents",
       true,
+      "darwin",
+      "/Users/tester",
+    );
+
+    expect(result.allowed).toBe(true);
+    expect(result.error).toBeUndefined();
+  });
+
+  it("allows general Library application support paths without opt-in", () => {
+    const result = classifyPathByPolicy(
+      "/Users/tester/Library/Application Support/com.kakao.KakaoTalkMac",
+      false,
       "darwin",
       "/Users/tester",
     );

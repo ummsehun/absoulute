@@ -6,6 +6,7 @@ import type {
   AppError,
   ScanProgressBatch,
   ScanStartRequest,
+  ScanTerminalEvent,
 } from "../../src/types/contracts";
 
 describe("ScanManager", () => {
@@ -36,7 +37,11 @@ describe("ScanManager", () => {
 
     if (first.ok) {
       service.emitProgress(makeProgressBatch(first.data.scanId, "finalizing"));
-      await Promise.resolve();
+      service.emitTerminal({
+        scanId: first.data.scanId,
+        status: "done",
+        finishedAt: Date.now(),
+      });
     }
 
     const third = await manager.start(makeStartInput("/tmp"));
@@ -73,6 +78,7 @@ class StubDiskScanService {
   private readonly progressListeners = new Set<(batch: ScanProgressBatch) => void>();
   private readonly quickReadyListeners = new Set<(event: unknown) => void>();
   private readonly diagnosticsListeners = new Set<(event: unknown) => void>();
+  private readonly terminalListeners = new Set<(event: ScanTerminalEvent) => void>();
   private readonly errorListeners = new Set<(error: AppError) => void>();
 
   asDiskScanService() {
@@ -99,9 +105,21 @@ class StubDiskScanService {
     return () => this.diagnosticsListeners.delete(listener);
   }
 
+  onTerminal(listener: (event: ScanTerminalEvent) => void): () => void {
+    this.terminalListeners.add(listener);
+    return () => this.terminalListeners.delete(listener);
+  }
+
   emitProgress(batch: ScanProgressBatch): void {
     for (const listener of this.progressListeners) {
       listener(batch);
+    }
+  }
+
+  emitTerminal(event: ScanTerminalEvent): void {
+    this.activeScans.delete(event.scanId);
+    for (const listener of this.terminalListeners) {
+      listener(event);
     }
   }
 
