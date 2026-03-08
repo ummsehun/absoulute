@@ -19,6 +19,7 @@ pub struct StartRequest {
     pub soft_skip_prefixes: Vec<String>,
     pub skip_dir_suffixes: Vec<String>,
     pub blocked_prefixes: Vec<String>,
+    pub permission_prefixes: Vec<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -178,6 +179,9 @@ pub enum IncomingMessage {
         #[serde(rename = "blockedPrefixes")]
         #[serde(default)]
         blocked_prefixes: Vec<String>,
+        #[serde(rename = "permissionPrefixes")]
+        #[serde(default)]
+        permission_prefixes: Vec<String>,
     },
     #[serde(rename = "pause")]
     Pause,
@@ -208,6 +212,7 @@ impl IncomingMessage {
                 soft_skip_prefixes,
                 skip_dir_suffixes,
                 blocked_prefixes,
+                permission_prefixes,
             } => Some(StartRequest {
                 scan_id,
                 root,
@@ -226,6 +231,7 @@ impl IncomingMessage {
                 soft_skip_prefixes,
                 skip_dir_suffixes,
                 blocked_prefixes,
+                permission_prefixes,
             }),
             _ => None,
         }
@@ -249,6 +255,8 @@ pub struct CoverageSummary {
     pub blocked_by_policy: u64,
     #[serde(rename = "blockedByPermission")]
     pub blocked_by_permission: u64,
+    #[serde(rename = "skippedByScope")]
+    pub skipped_by_scope: u64,
     #[serde(rename = "elevationRequired")]
     pub elevation_required: bool,
 }
@@ -305,6 +313,8 @@ pub enum OutgoingMessage {
         blocked_by_policy: u64,
         #[serde(rename = "blockedByPermission")]
         blocked_by_permission: u64,
+        #[serde(rename = "skippedByScope")]
+        skipped_by_scope: u64,
         #[serde(rename = "elevationRequired")]
         elevation_required: bool,
     },

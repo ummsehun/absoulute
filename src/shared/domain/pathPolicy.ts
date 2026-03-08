@@ -1,10 +1,11 @@
 import path from "node:path";
 
-export type PathGateCode = "E_PROTECTED_PATH" | "E_OPTIN_REQUIRED";
+export type PathGateCode = "E_PROTECTED_PATH" | "E_PERMISSION";
 
 export interface ProtectedPathPolicy {
-  absoluteBlock: string[];
-  optInRequired: string[];
+  scanBlocked: string[];
+  scanRequiresPermission: string[];
+  nonRemovable: string[];
   defaultAllowRoots: string[];
   fullDiskAccessRequired: string[];
 }
@@ -15,30 +16,28 @@ export function getProtectedPaths(
 ): ProtectedPathPolicy {
   if (platform === "win32") {
     return {
-      absoluteBlock: ["C:/Windows"],
-      optInRequired: ["C:/Program Files", "C:/Program Files (x86)"],
+      scanBlocked: ["C:/System Volume Information"],
+      scanRequiresPermission: ["C:/Program Files", "C:/Program Files (x86)"],
+      nonRemovable: ["C:/Windows"],
       defaultAllowRoots: [homeDirectory],
       fullDiskAccessRequired: ["C:/Program Files", "C:/Program Files (x86)"],
     };
   }
 
   return {
-    absoluteBlock: ["/System", "/bin", "/sbin", "/usr/bin", "/usr/sbin"],
-    optInRequired: [
+    scanBlocked: ["/dev", "/net"],
+    scanRequiresPermission: [
       `${homeDirectory}/Desktop`,
       `${homeDirectory}/Documents`,
       `${homeDirectory}/Downloads`,
-      `${homeDirectory}/Library/Mail`,
-      `${homeDirectory}/Library/Messages`,
-      `${homeDirectory}/Library/Safari`,
-      `${homeDirectory}/Library/Calendars`,
-      `${homeDirectory}/Library/Application Support/AddressBook`,
-      `${homeDirectory}/Library/Application Support/CallHistoryDB`,
-      `${homeDirectory}/Library/Application Support/com.apple.TCC`,
-      `${homeDirectory}/Library/Application Support/MobileSync`,
-      `${homeDirectory}/Library/Containers/com.apple.mail`,
-      `${homeDirectory}/Library/Containers/com.apple.MobileSMS`,
-      `${homeDirectory}/Library/Containers/com.apple.Safari`,
+      `${homeDirectory}/Library`,
+    ],
+    nonRemovable: [
+      "/System",
+      "/bin",
+      "/sbin",
+      "/usr/bin",
+      "/usr/sbin",
     ],
     defaultAllowRoots: [homeDirectory, "/Applications", "/Library", "/private", "/Volumes"],
     fullDiskAccessRequired: [
@@ -86,4 +85,11 @@ export function requiresFullDiskAccess(
   const candidate = normalizePolicyPath(path.resolve(inputPath), platform);
   const roots = resolvePolicyRoots(policy.fullDiskAccessRequired, platform);
   return roots.some((root) => isSameOrChildPolicyPath(candidate, root));
+}
+
+export function pathIntersectsPolicyPath(candidate: string, base: string): boolean {
+  return (
+    isSameOrChildPolicyPath(candidate, base) ||
+    isSameOrChildPolicyPath(base, candidate)
+  );
 }

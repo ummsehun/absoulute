@@ -26,6 +26,7 @@ export interface ScanJob {
   pendingDeltaEventCount: number;
   blockedByPolicyCount: number;
   blockedByPermissionCount: number;
+  skippedByScopeCount: number;
   elevationRequired: boolean;
   elevationAttempted: boolean;
   lastCoverageEmitAt: number;
@@ -42,6 +43,10 @@ export interface ScanJob {
   softSkippedByPolicyCount: number;
   deferredByBudgetCount: number;
   inflightCount: number;
+  rootDeviceId: number | null;
+  deniedPermissionRoots: string[];
+  nonRemovableRoots: string[];
+  visibleNonRemovableRoots: Set<string>;
   options: ResolvedScanOptions;
   engine: ScanEngine;
   fallbackReason?: string;

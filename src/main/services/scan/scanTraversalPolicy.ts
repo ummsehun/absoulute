@@ -502,16 +502,27 @@ export function isHeavyTraversalDirectory(dirPath: string): boolean {
 export function buildNativeBlockedPrefixes(
   platform: NodeJS.Platform,
   homeDirectory: string,
-  optInProtected: boolean,
 ): string[] {
   const policy = getProtectedPaths(platform, homeDirectory);
-  const blocked = [...policy.absoluteBlock];
-  if (!optInProtected) {
-    blocked.push(...policy.optInRequired);
-  }
-
+  const blocked = [...policy.scanBlocked];
   const unique = new Set<string>();
   for (const raw of blocked) {
+    const resolved = path.resolve(raw);
+    const normalized = normalizeForNativePrefix(resolved, platform);
+    if (normalized) {
+      unique.add(normalized);
+    }
+  }
+
+  return [...unique].sort((left, right) => right.length - left.length);
+}
+
+export function buildNativePermissionDeniedPrefixes(
+  platform: NodeJS.Platform,
+  deniedPermissionRoots: string[],
+): string[] {
+  const unique = new Set<string>();
+  for (const raw of deniedPermissionRoots) {
     const resolved = path.resolve(raw);
     const normalized = normalizeForNativePrefix(resolved, platform);
     if (normalized) {

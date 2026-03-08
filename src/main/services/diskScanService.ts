@@ -1,5 +1,6 @@
-import os from "node:os";
 import crypto from "node:crypto";
+import fs from "node:fs/promises";
+import os from "node:os";
 import type {
   AggDelta,
   AppError,
@@ -76,6 +77,7 @@ export class DiskScanService {
       this.scanPolicyService.recordFileObservation(job, filePath, fileSize),
     recordPolicySoftSkip: (job, input) =>
       this.scanPolicyService.recordPolicySoftSkip(job, input),
+    recordScopeSkip: (job) => this.scanPolicyService.recordScopeSkip(job),
     scheduleStatTask: (job, task) => this.scheduleStatTask(job, task),
     syncExactTraversal: (job, targetPath) =>
       this.scanPolicyService.syncExactTraversal(job, targetPath),
@@ -118,11 +120,12 @@ export class DiskScanService {
 
   async startScan(input: ScanStartRequest): Promise<ScanStartResponse> {
     const rootDecision = await evaluateRootPath(input.rootPath, input.optInProtected);
-    if (!rootDecision.allowed && rootDecision.error) {
+    if (!rootDecision.scanAllowed && rootDecision.error) {
       throw rootDecision.error;
     }
 
     await this.scanPolicyService.assertPathReadable(rootDecision.normalizedPath);
+    const rootStat = await fs.stat(rootDecision.normalizedPath).catch(() => null);
 
     const scanId = crypto.randomUUID();
     const startedAt = Date.now();
@@ -145,6 +148,7 @@ export class DiskScanService {
       pendingDeltaEventCount: 0,
       blockedByPolicyCount: 0,
       blockedByPermissionCount: 0,
+      skippedByScopeCount: 0,
       elevationRequired: false,
       elevationAttempted: false,
       lastCoverageEmitAt: startedAt,
@@ -161,6 +165,14 @@ export class DiskScanService {
       softSkippedByPolicyCount: 0,
       deferredByBudgetCount: 0,
       inflightCount: 0,
+      rootDeviceId:
+        rootStat && typeof rootStat.dev === "number" && Number.isFinite(rootStat.dev)
+          ? rootStat.dev
+          : null,
+      deniedPermissionRoots:
+        rootDecision.effectiveAccess?.deniedPermissionRoots ?? [],
+      nonRemovableRoots: rootDecision.effectiveAccess?.nonRemovableRoots ?? [],
+      visibleNonRemovableRoots: new Set<string>(),
       options,
       engine: options.scanMode === "native_rust" ? "native" : "node",
       aggregator: new ScanAggregator(
@@ -168,7 +180,11 @@ export class DiskScanService {
         TOP_LIMIT_PER_DIRECTORY,
         os.platform(),
       ),
-      pathClassifier: createPathPolicyClassifier(),
+      pathClassifier: createPathPolicyClassifier(
+        os.platform(),
+        os.homedir(),
+        rootDecision.effectiveAccess,
+      ),
       scanStage: "quick",
     };
 
@@ -177,7 +193,7 @@ export class DiskScanService {
 
     void this.runScan(job)
       .then((status) => {
-        this.eventBus.emitTerminal(job.scanId, status);
+        this.eventBus.emitTerminalEvent(job, status);
       })
       .catch((error) => {
         const appError = unknownToAppError(error);
@@ -185,7 +201,7 @@ export class DiskScanService {
           ...appError,
           recoverable: false,
         });
-        this.eventBus.emitTerminal(job.scanId, "failed");
+        this.eventBus.emitTerminalEvent(job, "failed");
       })
       .finally(() => {
         this.jobs.delete(scanId);
@@ -306,7 +322,7 @@ export class DiskScanService {
         this.eventBus.emitProgressBatch(job, "walking", true);
         this.eventBus.emitDiagnostics(job, "walking", 0, true);
 
-        const deepBudgetMs = 0;
+        const deepBudgetMs = job.options.deepBudgetMs;
 
         const deepResult = await this.nativeScanOrchestrator.runStage(
           this.toNativeStageContext(job),
@@ -378,6 +394,7 @@ export class DiskScanService {
     return {
       onAgg: (message) => {
         job.currentPath = message.path;
+        this.markVisibleNonRemovableRoot(job, message.path);
         if (message.countDelta > 0) {
           this.scanPolicyService.recordFileObservation(
             job,
@@ -397,6 +414,7 @@ export class DiskScanService {
         let lastPath: string | null = null;
         for (const item of message.items) {
           lastPath = item.path;
+          this.markVisibleNonRemovableRoot(job, item.path);
           if (item.countDelta > 0) {
             this.scanPolicyService.recordFileObservation(
               job,
@@ -425,6 +443,7 @@ export class DiskScanService {
         if (message.currentPath) {
           this.scanPolicyService.syncExactTraversal(job, message.currentPath);
           job.currentPath = message.currentPath;
+          this.markVisibleNonRemovableRoot(job, message.currentPath);
         }
         this.eventBus.emitProgressBatch(job, "walking", false);
         this.eventBus.emitDiagnostics(job, "walking", queueDepth, false);
@@ -437,6 +456,10 @@ export class DiskScanService {
         job.blockedByPermissionCount = Math.max(
           job.blockedByPermissionCount,
           message.blockedByPermission,
+        );
+        job.skippedByScopeCount = Math.max(
+          job.skippedByScopeCount,
+          message.skippedByScope,
         );
         job.elevationRequired =
           job.elevationRequired || Boolean(message.elevationRequired);
@@ -497,7 +520,7 @@ export class DiskScanService {
     return {
       scanId: job.scanId,
       rootPath: job.rootPath,
-      optInProtected: job.optInProtected,
+      permissionDeniedRoots: job.deniedPermissionRoots,
       paused: job.paused,
       cancelled: job.cancelled,
       options: job.options,
@@ -505,6 +528,14 @@ export class DiskScanService {
   }
 
   private readonly activeStatTasks = new WeakMap<ScanJob, Set<Promise<void>>>();
+
+  private markVisibleNonRemovableRoot(job: ScanJob, targetPath: string): void {
+    for (const root of job.nonRemovableRoots) {
+      if (targetPath === root || targetPath.startsWith(`${root}/`)) {
+        job.visibleNonRemovableRoots.add(root);
+      }
+    }
+  }
 
   private async scheduleStatTask(
     job: ScanJob,

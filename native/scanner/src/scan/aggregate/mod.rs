@@ -42,6 +42,7 @@ pub struct ScanRuntime<'a, W: Write> {
     pub io_errors: u64,
     pub blocked_by_policy: u64,
     pub blocked_by_permission: u64,
+    pub skipped_by_scope: u64,
     pub elevation_required: bool,
     pub elevation_signal_emitted: bool,
     pub soft_skipped_by_policy: u64,

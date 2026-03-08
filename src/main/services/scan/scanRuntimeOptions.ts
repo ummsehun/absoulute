@@ -20,6 +20,9 @@ const QUICK_PASS_TIME_BUDGET_MS = 5000;
 const ROOT_QUICK_PASS_DEPTH = 1;
 const ROOT_QUICK_PASS_TIME_BUDGET_MS = 3000;
 const DEFAULT_NON_ROOT_QUICK_BUDGET_MS = 3000;
+const ROOT_PREVIEW_DEEP_BUDGET_MS = 6000;
+const SHALLOW_PREVIEW_DEEP_BUDGET_MS = 9000;
+const DEFAULT_PREVIEW_DEEP_BUDGET_MS = 12000;
 const DEFAULT_AGG_BATCH_MAX_ITEMS = 512;
 const DEFAULT_AGG_BATCH_MAX_MS = 120;
 const DEFAULT_PROGRESS_INTERVAL_MS = 120;
@@ -52,6 +55,7 @@ export interface ResolvedScanOptions {
   deepSkipBundleDirs: boolean;
   deepSoftSkipPrefixes: string[];
   deepSkipDirSuffixes: string[];
+  deepBudgetMs: number;
   quickBudgetMs: number;
   statConcurrency: number;
 }
@@ -80,6 +84,7 @@ export function resolveScanOptions(
   normalizedRootPath: string,
 ): ResolvedScanOptions {
   const isRoot = normalizedRootPath === path.parse(normalizedRootPath).root;
+  const pathDepth = getPathDepth(normalizedRootPath);
   const scanMode: ScanMode =
     input.scanMode ?? (process.platform === "darwin" ? "native_rust" : "portable");
   const intent = resolveScanIntent({
@@ -131,6 +136,14 @@ export function resolveScanOptions(
     performanceProfile === "accuracy-first"
       ? defaultBudget + 1500
       : Math.min(defaultBudget, QUICK_PASS_TIME_BUDGET_MS);
+  const deepBudgetMs =
+    intent.semanticMode === "exact"
+      ? 0
+      : isRoot
+        ? ROOT_PREVIEW_DEEP_BUDGET_MS
+        : pathDepth <= 2
+          ? SHALLOW_PREVIEW_DEEP_BUDGET_MS
+          : DEFAULT_PREVIEW_DEEP_BUDGET_MS;
 
   return {
     performanceProfile,
@@ -146,6 +159,7 @@ export function resolveScanOptions(
     deepSkipBundleDirs,
     deepSoftSkipPrefixes,
     deepSkipDirSuffixes,
+    deepBudgetMs,
     quickBudgetMs: input.quickBudgetMs ?? profileBudget,
     statConcurrency: resolveStatConcurrency(
       performanceProfile,
@@ -205,4 +219,13 @@ function resolveConcurrencyPolicy(
   const adaptive = input?.adaptive ?? true;
 
   return { min, max, adaptive };
+}
+
+function getPathDepth(inputPath: string): number {
+  const normalized = path.resolve(inputPath).replace(/\\/g, "/");
+  if (normalized === "/") {
+    return 0;
+  }
+
+  return normalized.split("/").filter(Boolean).length;
 }

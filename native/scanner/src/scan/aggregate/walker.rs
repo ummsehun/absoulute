@@ -47,6 +47,12 @@ pub fn run_bfs_scan<W: Write>(
         .iter()
         .map(|prefix| normalize_for_compare(prefix, is_windows))
         .collect::<Vec<_>>();
+    let permission_prefixes = runtime
+        .request
+        .permission_prefixes
+        .iter()
+        .map(|prefix| normalize_for_compare(prefix, is_windows))
+        .collect::<Vec<_>>();
     let soft_skip_prefixes = runtime
         .request
         .soft_skip_prefixes
@@ -89,6 +95,17 @@ pub fn run_bfs_scan<W: Write>(
         {
             estimated = true;
             break;
+        }
+
+        if is_blocked_path(&dir_path, &permission_prefixes, is_windows) {
+            on_policy_block(
+                runtime,
+                &mut accum,
+                &dir_path,
+                "Path requires system permission",
+                PolicyBlockKind::PermissionRequired,
+            )?;
+            continue;
         }
 
         if is_blocked_path(&dir_path, &blocked_prefixes, is_windows) {
@@ -188,6 +205,16 @@ pub fn run_bfs_scan<W: Write>(
 
             let path = entry.path();
             runtime.scanned_count += 1;
+            if is_blocked_path(&path, &permission_prefixes, is_windows) {
+                on_policy_block(
+                    runtime,
+                    &mut accum,
+                    &path,
+                    "Path requires system permission",
+                    PolicyBlockKind::PermissionRequired,
+                )?;
+                continue;
+            }
             if is_blocked_path(&path, &blocked_prefixes, is_windows) {
                 policy_skipped = true;
                 on_policy_block(
@@ -287,13 +314,12 @@ pub fn run_bfs_scan<W: Write>(
                     continue;
                 }
                 if runtime.request.same_device_only && !same_device(&path, root_device) {
-                    policy_skipped = true;
                     on_policy_block(
                         runtime,
                         &mut accum,
                         &path,
                         "Directory is on a different device",
-                        PolicyBlockKind::SoftSkip,
+                        PolicyBlockKind::ScopeExcluded,
                     )?;
                     continue;
                 }

@@ -20,6 +20,7 @@ describe("scanRuntimeOptions", () => {
     expect(options.deepPolicyPreset).toBe("responsive");
     expect(options.accuracyMode).toBe("preview");
     expect(options.performanceProfile).toBe("preview-first");
+    expect(options.deepBudgetMs).toBeGreaterThan(0);
   });
 
   it("canonicalizes exact scans to full traversal semantics", () => {
@@ -36,6 +37,7 @@ describe("scanRuntimeOptions", () => {
     expect(options.deepPolicyPreset).toBe("exact");
     expect(options.accuracyMode).toBe("full");
     expect(options.performanceProfile).toBe("accuracy-first");
+    expect(options.deepBudgetMs).toBe(0);
   });
 
   it("treats accuracyMode=full without an explicit preset as exact", () => {
@@ -51,5 +53,27 @@ describe("scanRuntimeOptions", () => {
     expect(options.deepPolicyPreset).toBe("exact");
     expect(options.accuracyMode).toBe("full");
     expect(options.performanceProfile).toBe("accuracy-first");
+    expect(options.deepBudgetMs).toBe(0);
+  });
+
+  it("shrinks preview deep budget for filesystem roots", () => {
+    const rootOptions = resolveScanOptions(
+      {
+        rootPath: "/",
+        optInProtected: false,
+        deepPolicyPreset: "responsive",
+      },
+      "/",
+    );
+    const userOptions = resolveScanOptions(
+      {
+        rootPath: "/Users/tester",
+        optInProtected: false,
+        deepPolicyPreset: "responsive",
+      },
+      "/Users/tester",
+    );
+
+    expect(rootOptions.deepBudgetMs).toBeLessThan(userOptions.deepBudgetMs);
   });
 });

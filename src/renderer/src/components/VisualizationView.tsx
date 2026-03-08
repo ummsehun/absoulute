@@ -1,28 +1,57 @@
-import React, { useMemo, useState } from 'react';
+import React, { useDeferredValue, useMemo, useState } from 'react';
 import { hierarchy, pack } from 'd3-hierarchy';
 import {
-    buildVizTree,
+    buildBreadcrumbPaths,
     formatBytes,
+    formatCount,
+    getDisplaySizeForPath,
+    isSameOrChildPath,
     labelFromPath,
-    nodeColor,
+    parentPathOf,
+    resolveBubbleTone,
     truncateLabel,
-    MAP_HEIGHT,
-    MAP_WIDTH,
-    VizTreeNode
 } from '../utils/helpers';
+import {
+    ChevronLeftIcon,
+    ChevronRightIcon,
+    FolderGlyph,
+    HomeGlyph,
+} from './icons';
+import { BubbleChart } from './BubbleChart';
+import { SidebarList } from './SidebarList';
 import type { ScanCoverageUpdate, ScanPerfSample, ScanProgressBatch } from '../../../types/contracts';
 
-interface CircleVizNode {
+export interface DrilldownBubbleNode {
     path: string;
     name: string;
     size: number;
-    depth: number;
+    selfSize: number;
+    children: DrilldownBubbleNode[];
+    kind: 'directory' | 'other';
+    interactive: boolean;
+}
+
+export interface CircleVizNode {
+    path: string;
+    name: string;
+    size: number;
     x: number;
     y: number;
     r: number;
+    fill: string;
+    stroke: string;
+    text: string;
+    kind: DrilldownBubbleNode['kind'];
+    interactive: boolean;
 }
 
-type LayoutMode = "circle_pack" | "treemap";
+export interface ListRow {
+    path: string;
+    name: string;
+    size: number;
+    kind: 'directory' | 'other';
+    interactive: boolean;
+}
 
 interface VisualizationViewProps {
     scanId: string;
@@ -37,199 +66,465 @@ interface VisualizationViewProps {
     onExactRecheck?: () => void | Promise<void>;
 }
 
+const VIEWBOX_WIDTH = 980;
+const VIEWBOX_HEIGHT = 760;
+const MAX_VISIBLE_BUBBLES = 8;
+const EMPTY_PATH_SET = new Set<string>();
+
+
 export function VisualizationView({
-    scanId,
     progress,
     aggregateSizes,
     rootPath,
     visualizationRoot,
     focusedTopItems,
     coverageUpdate,
-    perfSample,
+    // perfSample, // Removed as per instruction
     setActiveRootPath,
-    onExactRecheck,
 }: VisualizationViewProps) {
-    const [layoutMode] = useState<LayoutMode>("circle_pack");
+    const deferredAggregateSizes = useDeferredValue(aggregateSizes);
+    const deferredVisualizationRoot = useDeferredValue(visualizationRoot);
+    const deferredFocusedTopItems = useDeferredValue(focusedTopItems);
+    const [selectionState, setSelectionState] = useState<{
+        scopePath: string;
+        paths: Set<string>;
+    }>({
+        scopePath: visualizationRoot,
+        paths: new Set(),
+    });
+    const [hoverState, setHoverState] = useState<{
+        scopePath: string;
+        path: string | null;
+    }>({
+        scopePath: visualizationRoot,
+        path: null,
+    });
+
+    const displayScanRootSize = useMemo(() => {
+        return getDisplaySizeForPath(deferredAggregateSizes, rootPath);
+    }, [deferredAggregateSizes, rootPath]);
+
+    const displayVisualizationSize = useMemo(() => {
+        return getDisplaySizeForPath(
+            deferredAggregateSizes,
+            deferredVisualizationRoot || rootPath,
+        );
+    }, [deferredAggregateSizes, deferredVisualizationRoot, rootPath]);
+
+    const visibleChildren = useMemo(() => {
+        return deferredFocusedTopItems.slice(0, MAX_VISIBLE_BUBBLES);
+    }, [deferredFocusedTopItems]);
+
+    const displayedChildrenTotal = useMemo(() => {
+        return visibleChildren.reduce((total, [, size]) => total + size, 0);
+    }, [visibleChildren]);
+
+    const remainderSize = Math.max(displayVisualizationSize - displayedChildrenTotal, 0);
+    const showRemainderBubble =
+        remainderSize > 0 &&
+        (visibleChildren.length === 0 || remainderSize / Math.max(displayVisualizationSize, 1) >= 0.04);
+
+    const listRows = useMemo<ListRow[]>(() => {
+        const rows: ListRow[] = visibleChildren.map(([nodePath, size]) => ({
+            path: nodePath,
+            name: labelFromPath(nodePath),
+            size,
+            kind: 'directory',
+            interactive: true,
+        }));
+
+        if (showRemainderBubble) {
+            rows.push({
+                path: `${deferredVisualizationRoot || rootPath}#other`,
+                name: visibleChildren.length === 0 ? 'Loose Files' : 'Other Items',
+                size: remainderSize,
+                kind: 'other',
+                interactive: false,
+            });
+        }
+
+        return rows;
+    }, [
+        deferredVisualizationRoot,
+        remainderSize,
+        rootPath,
+        showRemainderBubble,
+        visibleChildren,
+    ]);
+
+    const drilldownTree = useMemo<DrilldownBubbleNode | null>(() => {
+        const currentPath = deferredVisualizationRoot || rootPath;
+        const children: DrilldownBubbleNode[] = listRows.map((row) => ({
+            path: row.path,
+            name: row.name,
+            size: row.size,
+            selfSize: row.size,
+            children: [],
+            kind: row.kind,
+            interactive: row.interactive,
+        }));
+
+        if (displayVisualizationSize <= 0 && children.length === 0) {
+            return null;
+        }
+
+        return {
+            path: currentPath,
+            name: labelFromPath(currentPath),
+            size: Math.max(displayVisualizationSize, displayedChildrenTotal + remainderSize),
+            selfSize: 0,
+            children,
+            kind: 'directory',
+            interactive: false,
+        };
+    }, [
+        deferredVisualizationRoot,
+        displayedChildrenTotal,
+        displayVisualizationSize,
+        listRows,
+        remainderSize,
+        rootPath,
+    ]);
+
+    const packedTree = useMemo(() => {
+        if (!drilldownTree) {
+            return null;
+        }
+
+        return pack<DrilldownBubbleNode>()
+            .size([VIEWBOX_WIDTH, VIEWBOX_HEIGHT])
+            .padding(5)(
+                hierarchy(drilldownTree)
+                    .sum((node) => node.selfSize)
+                    .sort((left, right) => (right.value ?? 0) - (left.value ?? 0)),
+            );
+    }, [drilldownTree]);
 
     const circleNodes = useMemo(() => {
-        if (layoutMode !== "circle_pack") return [];
-        const tree = buildVizTree(aggregateSizes, visualizationRoot);
-        if (!tree) return [];
+        if (!packedTree) {
+            return [] as CircleVizNode[];
+        }
 
-        const packed = pack<VizTreeNode>()
-            .size([MAP_WIDTH, MAP_HEIGHT])
-            .padding(4)(
-                hierarchy(tree)
-                    .sum((node) => node.selfSize)
-                    .sort((a, b) => (b.value ?? 0) - (a.value ?? 0)),
-            );
+        return (packedTree.children ?? [])
+            .filter((node) => node.r >= 20 && (node.value ?? 0) > 0)
+            .sort((left, right) => right.r - left.r)
+            .map((node): CircleVizNode => {
+                const tone =
+                    node.data.kind === 'other'
+                        ? {
+                            fill: 'rgba(255,255,255,0.16)',
+                            stroke: 'rgba(255,255,255,0.28)',
+                            text: 'rgba(255,255,255,0.86)',
+                        }
+                        : resolveBubbleTone(node.data.path);
 
-        return packed
-            .descendants()
-            .filter((node) => node.depth > 0 && (node.value ?? 0) > 0)
-            .map(
-                (node): CircleVizNode => ({
+                return {
                     path: node.data.path,
                     name: node.data.name,
                     size: node.data.size,
-                    depth: node.depth,
                     x: node.x,
                     y: node.y,
                     r: node.r,
-                }),
+                    fill: tone.fill,
+                    stroke: tone.stroke,
+                    text: tone.text,
+                    kind: node.data.kind,
+                    interactive: node.data.interactive,
+                };
+            });
+    }, [packedTree]);
+
+    const breadcrumbPaths = useMemo(() => {
+        return buildBreadcrumbPaths(rootPath, visualizationRoot);
+    }, [rootPath, visualizationRoot]);
+
+    const parentPath = useMemo(() => {
+        const parent = parentPathOf(visualizationRoot);
+        if (!parent) {
+            return null;
+        }
+
+        return isSameOrChildPath(parent, rootPath) ? parent : null;
+    }, [rootPath, visualizationRoot]);
+
+    const selectedPaths =
+        selectionState.scopePath === visualizationRoot ? selectionState.paths : EMPTY_PATH_SET;
+    const hoveredPath = hoverState.scopePath === visualizationRoot ? hoverState.path : null;
+
+    const hoveredNode = useMemo(() => {
+        if (!hoveredPath) {
+            return null;
+        }
+
+        return circleNodes.find((node) => node.path === hoveredPath) ?? null;
+    }, [circleNodes, hoveredPath]);
+
+    const selectedRows = useMemo(() => {
+        return listRows.filter((row) => selectedPaths.has(row.path));
+    }, [listRows, selectedPaths]);
+
+    const selectedCount = selectedRows.length;
+    const selectedSize = selectedRows.reduce((total, row) => total + row.size, 0);
+    const allVisibleSelected = listRows.length > 0 && listRows.every((row) => selectedPaths.has(row.path));
+
+    const isTreePending =
+        deferredAggregateSizes !== aggregateSizes ||
+        deferredVisualizationRoot !== visualizationRoot ||
+        deferredFocusedTopItems !== focusedTopItems;
+
+    const scannedCount = progress?.progress.scannedCount ?? 0;
+    const completeness = coverageUpdate?.coverage.completeness ?? 'exact';
+    const blockedByPermission = coverageUpdate?.coverage.blockedByPermission ?? 0;
+    const skippedByScope = coverageUpdate?.coverage.skippedByScope ?? 0;
+    const nonRemovableVisible = coverageUpdate?.coverage.nonRemovableVisible ?? 0;
+
+    const completenessNote = completeness === 'partial_permission'
+        ? 'Some protected folders were excluded because macOS permission was missing.'
+        : completeness === 'partial_scope'
+            ? 'Some folders on a different mounted volume were excluded from the root total.'
+            : completeness === 'partial_mixed'
+                ? 'Both protected folders and cross-volume folders were excluded from the final total.'
+                : 'All reachable folders in the selected volume were included.';
+    const scopePercent = displayScanRootSize > 0
+        ? Math.min(100, (displayVisualizationSize / displayScanRootSize) * 100)
+        : 0;
+
+    const filesPerSec = 0; // Keeping simplified
+
+    const toggleRowSelection = (path: string) => {
+        setSelectionState((prev) => {
+            const next = new Set(
+                prev.scopePath === visualizationRoot ? prev.paths : EMPTY_PATH_SET,
             );
-    }, [aggregateSizes, layoutMode, visualizationRoot]);
+
+            if (next.has(path)) {
+                next.delete(path);
+            } else {
+                next.add(path);
+            }
+
+            return {
+                scopePath: visualizationRoot,
+                paths: next,
+            };
+        });
+    };
+
+    const toggleSelectAll = () => {
+        setSelectionState((prev) => {
+            const scopedPaths =
+                prev.scopePath === visualizationRoot ? prev.paths : EMPTY_PATH_SET;
+
+            if (listRows.length === 0) {
+                return {
+                    scopePath: visualizationRoot,
+                    paths: new Set(),
+                };
+            }
+
+            if (listRows.every((row) => scopedPaths.has(row.path))) {
+                return {
+                    scopePath: visualizationRoot,
+                    paths: new Set(),
+                };
+            }
+
+            return {
+                scopePath: visualizationRoot,
+                paths: new Set(listRows.map((row) => row.path)),
+            };
+        });
+    };
 
     return (
-        <div className="flex-1 flex flex-col w-full h-full relative z-10 bg-transparent text-white overflow-hidden pb-4 px-4 pt-10" style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}>
+        <div
+            className="relative min-h-screen w-full self-stretch overflow-hidden text-white"
+            style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+        >
+            <div className="absolute inset-0 bg-[linear-gradient(180deg,#6028c7_0%,#33106b_58%,#22084f_100%)]" />
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_12%,rgba(172,112,255,0.2),transparent_26%),radial-gradient(circle_at_78%_22%,rgba(126,223,255,0.16),transparent_22%),radial-gradient(circle_at_50%_100%,rgba(255,255,255,0.06),transparent_32%)]" />
 
-            {/* Top Navigation Bar Component (Like Finder) */}
-            <div className="flex items-center justify-between px-4 pb-4" style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}>
-                <div className="flex gap-2" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
-                    <button className="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center hover:bg-white/10 transition">
-                        <svg className="w-4 h-4 text-white/70" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
-                    </button>
-                    <button className="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center hover:bg-white/10 transition">
-                        <svg className="w-4 h-4 text-white/70" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
-                    </button>
-                </div>
-
-                <div className="flex items-center gap-2 font-medium text-white/80 drop-shadow-md">
-                    <svg className="w-4 h-4 text-gray-300" fill="currentColor" viewBox="0 0 24 24"><path d="M4 4h16v16H4z" opacity="0.2" /><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zM4 18V6h16v12H4z" /></svg>
-                    {labelFromPath(visualizationRoot || rootPath)}
-                </div>
-
-                <div className="text-xs text-white/70 font-mono">
-                    <span className={`px-2 py-1 rounded-full border ${progress?.progress.estimated ? "border-amber-300/60 bg-amber-500/20" : "border-emerald-300/60 bg-emerald-500/20"}`}>
-                        {progress?.progress.estimated ? "Estimated" : "Exact"}
-                    </span>
-                </div>
-            </div>
-
-            <div className="flex-1 flex gap-6 min-h-0" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
-                {/* Left Sidebar */}
-                <aside className="w-[320px] flex flex-col rounded-[24px] border border-white/10 bg-white/5 backdrop-blur-3xl shadow-[0_20px_60px_-15px_rgba(0,0,0,0.5)] overflow-hidden relative">
-                    {/* Sidebar Header: Drive Info */}
-                    <div className="p-5 border-b border-white/5 bg-white/5">
-                        <div className="flex items-center gap-4 mb-4">
-                            <div className="w-12 h-12 bg-white/10 rounded-xl border border-white/10 flex items-center justify-center shadow-inner">
-                                <svg className="w-6 h-6 text-gray-300" fill="currentColor" viewBox="0 0 24 24"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zM4 18V6h16v12H4z" /></svg>
+            <div className="relative z-10 flex h-full w-full">
+                <div className="grid min-h-0 flex-1 grid-cols-[320px_minmax(0,1fr)] max-lg:grid-cols-1">
+                    <aside className="flex min-h-0 flex-col border-r border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.02))] px-5 py-5">
+                        <div className="rounded-[26px] border border-white/12 bg-white/[0.06] p-6 shadow-[0_24px_50px_rgba(18,6,54,0.18)]">
+                            <div className="flex items-start justify-between gap-4">
+                                <div>
+                                    <p className="text-[13px] font-semibold text-white">
+                                        {labelFromPath(rootPath)}
+                                    </p>
+                                    <p className="mt-2 text-[15px] text-white/58">
+                                        {formatBytes(displayVisualizationSize)} of {formatBytes(displayScanRootSize)} in view
+                                    </p>
+                                </div>
+                                <span className="text-2xl font-semibold tracking-tight text-white/82">
+                                    {Math.round(scopePercent)}%
+                                </span>
                             </div>
-                            <div>
-                                <h3 className="text-lg font-semibold">{labelFromPath(rootPath)}</h3>
-                                <p className="text-xs text-white/50">{formatBytes(aggregateSizes[rootPath] || 0)} | 항목 {progress?.progress.scannedCount || 0}개</p>
+                            <div className="mt-5 h-3 rounded-full bg-black/18 p-[2px]">
+                                <div
+                                    className="h-full rounded-full bg-[linear-gradient(90deg,#ffffff_0%,#c7ceff_40%,#79dfff_100%)]"
+                                    style={{ width: `${Math.max(scopePercent, 4)}%` }}
+                                />
                             </div>
                         </div>
-                        <div className="text-sm text-white/70">선택: 없음 </div>
-                    </div>
 
-                    {/* Top Items List */}
-                    <div className="flex-1 overflow-y-auto px-2 py-2" style={{ scrollbarWidth: 'none' }}>
-                        {focusedTopItems.length === 0 ? (
-                            <div className="p-4 text-center text-white/40 text-sm">항목이 없습니다.</div>
-                        ) : (
-                            <ul className="flex flex-col gap-1">
-                                {focusedTopItems.map(([nodePath, size], index) => (
-                                    <li key={`top-${nodePath}-${index}`} className="flex items-center justify-between p-2 rounded-xl hover:bg-white/10 transition cursor-pointer group" onClick={() => setActiveRootPath(nodePath)}>
-                                        <div className="flex items-center gap-3 overflow-hidden">
-                                            <div className="w-6 h-6 flex items-center justify-center text-cyan-400">
-                                                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" /></svg>
-                                            </div>
-                                            <span className="text-sm font-medium text-white/80 group-hover:text-white truncate">{labelFromPath(nodePath)}</span>
-                                        </div>
-                                        <span className="text-xs font-mono text-white/50 whitespace-nowrap">{formatBytes(size)}</span>
-                                    </li>
-                                ))}
-                            </ul>
-                        )}
-                    </div>
-                </aside>
-
-                {/* Center Map Area */}
-                <main className="flex-1 relative flex items-center justify-center rounded-[32px] overflow-hidden">
-                    {layoutMode === "circle_pack" ? (
-                        circleNodes.length === 0 ? (
-                            <div className="flex flex-col items-center">
-                                <div className="w-16 h-16 rounded-full border-4 border-purple-500 border-t-transparent animate-spin mb-4" />
-                                <p className="text-white/50 text-lg">데이터 분석 중...</p>
+                        <div className="mt-5 rounded-[24px] border border-white/12 bg-white/[0.06] p-5 shadow-[0_24px_50px_rgba(18,6,54,0.14)]">
+                            <div className="flex items-center gap-3">
+                                <div className="flex h-12 w-12 items-center justify-center rounded-[16px] bg-[linear-gradient(180deg,rgba(117,212,255,0.95),rgba(121,161,255,0.9))] shadow-[0_8px_16px_rgba(93,154,255,0.22)]">
+                                    <FolderGlyph className="h-6 w-6 text-white/95" />
+                                </div>
+                                <div className="min-w-0">
+                                    <p className="truncate text-[20px] font-semibold tracking-tight text-white">
+                                        {labelFromPath(visualizationRoot)}
+                                    </p>
+                                    <p className="mt-1 text-[13px] text-white/66">
+                                        {formatBytes(displayVisualizationSize)} | {formatCount(scannedCount)} items
+                                    </p>
+                                </div>
                             </div>
-                        ) : (
-                            <svg className="w-full h-full object-contain filter drop-shadow-2xl" viewBox={`0 0 ${MAP_WIDTH} ${MAP_HEIGHT}`}>
-                                {circleNodes.map((node) => (
-                                    <g key={`circle-${node.path}`} className="cursor-pointer transition-transform hover:scale-[1.02] origin-center" onClick={() => setActiveRootPath(node.path)}>
-                                        <circle
-                                            cx={node.x}
-                                            cy={node.y}
-                                            r={node.r}
-                                            fill={nodeColor(node.depth, node.path)}
-                                            style={{ filter: "drop-shadow(0px 10px 20px rgba(0,0,0,0.5))" }}
-                                            className="transition-colors hover:brightness-110"
-                                        />
-                                        {node.r > 26 ? (
-                                            <foreignObject x={node.x - node.r} y={node.y - node.r} width={node.r * 2} height={node.r * 2}>
-                                                <div className="w-full h-full flex flex-col items-center justify-center pointer-events-none text-white drop-shadow-md p-2">
-                                                    <svg className="w-10 h-10 mb-2 opacity-80" fill="currentColor" viewBox="0 0 20 20"><path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" /></svg>
-                                                    <span className="text-sm font-bold truncate w-full text-center leading-tight">{truncateLabel(node.name, 16)}</span>
-                                                    <span className="text-xs opacity-70 font-mono mt-0.5">{formatBytes(node.size)}</span>
-                                                </div>
-                                            </foreignObject>
-                                        ) : null}
-                                        <title>{`${node.path}\n${formatBytes(node.size)}`}</title>
-                                    </g>
-                                ))}
-                            </svg>
-                        )
-                    ) : (
-                        <div className="text-center text-white/50">Treemap mode not styled for this view yet.</div>
-                    )}
-                </main>
-            </div>
+                            <p className="mt-3 text-[12px] leading-5 text-white/54">
+                                {completenessNote}
+                            </p>
+                        </div>
 
-            {/* Bottom Floating Footer Area */}
-            <div className="absolute bottom-6 left-6 right-6 flex justify-between items-end pointer-events-none z-50">
-                {/* Bottom Left Drive Progress */}
-                <div className="pointer-events-auto">
-                    <div className="flex justify-between text-xs text-white/70 mb-2 font-medium">
-                        <span>{labelFromPath(rootPath)}</span>
-                        <span className="font-mono text-white/50">{formatBytes(aggregateSizes[rootPath] || 0)} 사용 중</span>
-                    </div>
-                    <div className="w-64 h-1.5 bg-white/10 rounded-full overflow-hidden backdrop-blur-md">
-                        <div className="h-full bg-gradient-to-r from-purple-500 to-indigo-400 w-1/2" /> {/* Example progress */}
-                    </div>
+                        <div className="mt-5 flex items-center justify-between">
+                            <button
+                                type="button"
+                                onClick={toggleSelectAll}
+                                className="text-[15px] font-semibold tracking-tight text-white/88 transition hover:text-white"
+                            >
+                                Select: {allVisibleSelected ? 'None' : 'All'}
+                            </button>
+                            <div className="text-sm text-white/50">
+                                {formatCount(filesPerSec)} files/s
+                            </div>
+                        </div>
+
+                        <SidebarList
+                            listRows={listRows}
+                            selectedPaths={selectedPaths}
+                            hoveredPath={hoveredPath}
+                            toggleRowSelection={toggleRowSelection}
+                            onHoverChange={(path) =>
+                                setHoverState((prev) =>
+                                    path === null && prev.scopePath === visualizationRoot
+                                        ? { scopePath: visualizationRoot, path: null }
+                                        : { scopePath: visualizationRoot, path }
+                                )
+                            }
+                            setActiveRootPath={setActiveRootPath}
+                        />
+                    </aside>
+
+                    <section className="relative min-w-0 flex-1 overflow-hidden">
+                        <div className="flex items-center gap-3 px-8 py-7">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    if (parentPath) {
+                                        setActiveRootPath(parentPath);
+                                    }
+                                }}
+                                disabled={!parentPath}
+                                className="flex h-11 w-11 items-center justify-center rounded-full border border-white/12 bg-white/6 text-white/72 transition hover:bg-white/12 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+                            >
+                                <ChevronLeftIcon className="h-5 w-5" />
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setActiveRootPath(rootPath)}
+                                className="flex h-11 w-11 items-center justify-center rounded-full border border-white/12 bg-white/6 text-white/72 transition hover:bg-white/12 hover:text-white"
+                            >
+                                <HomeGlyph className="h-5 w-5" />
+                            </button>
+                            <div className="min-w-0 flex items-center gap-2 overflow-hidden text-base text-white/84">
+                                {breadcrumbPaths.map((path, index) => (
+                                    <React.Fragment key={path}>
+                                        {index > 0 ? <ChevronRightIcon className="h-4 w-4 shrink-0 text-white/34" /> : null}
+                                        <button
+                                            type="button"
+                                            onClick={() => setActiveRootPath(path)}
+                                            className="flex shrink-0 items-center gap-2 rounded-full px-2 py-1 text-left transition hover:bg-white/8"
+                                        >
+                                            <FolderGlyph className="h-4 w-4 text-cyan-200/92" />
+                                            <span className="truncate">{truncateLabel(labelFromPath(path), 18)}</span>
+                                        </button>
+                                    </React.Fragment>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div className="absolute inset-x-0 top-20 bottom-0 flex items-center justify-center px-8 pb-10">
+                            <div className="absolute inset-0 z-0">
+                                <BubbleChart
+                                    packedTree={packedTree}
+                                    isTreePending={isTreePending}
+                                    circleNodes={circleNodes}
+                                    hoveredNode={hoveredNode}
+                                    selectedPaths={selectedPaths}
+                                    hoveredPath={hoveredPath}
+                                    VIEWBOX_WIDTH={VIEWBOX_WIDTH}
+                                    VIEWBOX_HEIGHT={VIEWBOX_HEIGHT}
+                                    setActiveRootPath={setActiveRootPath}
+                                    onHoverChange={(path) =>
+                                        setHoverState(() => ({
+                                            scopePath: visualizationRoot,
+                                            path,
+                                        }))
+                                    }
+                                />
+                            </div>
+                            <div className="absolute top-0 right-0 z-50 bg-black text-white p-4 font-mono text-xs" style={{ whiteSpace: 'pre' }}>
+                                DEBUG INFO:
+                                circleNodes.length: {circleNodes.length}
+                                isTreePending: {isTreePending ? 'true' : 'false'}
+                                packedTree: {packedTree ? 'true' : 'false'}
+                                drilldownTree.size: {drilldownTree?.size ?? 'N/A'}
+                                displayVisualizationSize: {displayVisualizationSize}
+                                listRows.length: {listRows.length}
+                            </div>
+                        </div>
+                    </section>
                 </div>
 
-                {/* Bottom Right Actions */}
-                <div className="flex items-center gap-6 pointer-events-auto drop-shadow-xl">
-                    <div className="flex items-center gap-3 text-sm text-white/60 font-medium">
-                        <div className="w-5 h-5 rounded-full border border-white/20 flex items-center justify-center text-xs">i</div>
-                        <span>files/s {Math.round(perfSample?.filesPerSec ?? 0).toLocaleString()}</span>
-                        <span className="text-white/40">|</span>
-                        <span>blocked {coverageUpdate?.coverage.blockedByPolicy ?? 0}</span>
-                        <span className="text-white/40">|</span>
-                        <span>deferred {perfSample?.deferredByBudget ?? 0}</span>
+                <footer className="flex items-center justify-between gap-4 border-t border-white/10 px-6 py-4 text-white/84">
+                    <div className="text-[15px] font-medium">
+                        {selectedCount > 0 ? `${formatCount(selectedCount)} items selected` : 'No items selected'}
+                        <span className="mx-3 text-white/26">|</span>
+                        {formatBytes(selectedSize)}
+                        <span className="mx-3 text-white/26">|</span>
+                        {formatCount(blockedByPermission)} permission
+                        <span className="mx-2 text-white/26">|</span>
+                        {formatCount(skippedByScope)} scope
+                        <span className="mx-2 text-white/26">|</span>
+                        {formatCount(nonRemovableVisible)} protected system
                     </div>
-                    {progress?.progress.estimated ? (
+
+                    <div className="flex items-center gap-3">
                         <button
                             type="button"
-                            onClick={() => {
-                                void onExactRecheck?.();
-                            }}
-                            className="px-6 py-2.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-300/50 backdrop-blur-xl transition-all shadow-lg text-sm font-semibold text-emerald-100"
+                            onClick={() =>
+                                setSelectionState({
+                                    scopePath: visualizationRoot,
+                                    paths: new Set(),
+                                })
+                            }
+                            className="rounded-full border border-white/12 bg-white/6 px-5 py-3 text-base font-semibold text-white/82 transition hover:bg-white/12 hover:text-white"
                         >
-                            Exact Recheck
+                            Clear Selection
                         </button>
-                    ) : null}
-                    <button className="px-6 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 backdrop-blur-xl transition-all shadow-lg text-sm font-medium hover:text-white">
-                        검토 및 제거
-                    </button>
-                </div>
+                        <button
+                            type="button"
+                            disabled={selectedCount === 0}
+                            className="rounded-full bg-[linear-gradient(180deg,#e262ea_0%,#aa43e5_100%)] px-7 py-3 text-base font-semibold text-white shadow-[0_16px_34px_rgba(170,67,229,0.36)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-55"
+                        >
+                            Review and Remove
+                        </button>
+                    </div>
+                </footer>
             </div>
-
-            {scanId && (
-                <div className="absolute top-20 right-6 text-xs text-white bg-indigo-500/80 px-3 py-1.5 rounded-full backdrop-blur z-50 animate-pulse border border-white/20 shadow-lg pointer-events-none">
-                    Scanning in progress...
-                </div>
-            )}
         </div>
     );
 }
+

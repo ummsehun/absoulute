@@ -5,8 +5,10 @@ use super::path_utils::{is_same_or_child_path, normalize_for_compare};
 #[derive(Clone, Copy)]
 pub(crate) enum PolicyBlockKind {
     Hard,
+    PermissionRequired,
     SoftSkip,
     DeferredByBudget,
+    ScopeExcluded,
 }
 
 pub(crate) fn map_error_code(error: &std::io::Error) -> &'static str {

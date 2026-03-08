@@ -38,6 +38,7 @@ export interface NativeScannerStartRequest {
   softSkipPrefixes: string[];
   skipDirSuffixes: string[];
   blockedPrefixes: string[];
+  permissionPrefixes: string[];
 }
 
 export interface NativeAggMessage {
@@ -71,6 +72,7 @@ export interface NativeCoverageMessage {
   scanned: number;
   blockedByPolicy: number;
   blockedByPermission: number;
+  skippedByScope: number;
   elevationRequired: boolean;
 }
 
@@ -313,6 +315,7 @@ export function createNativeScannerSession(): NativeScannerSession {
         softSkipPrefixes: request.softSkipPrefixes,
         skipDirSuffixes: request.skipDirSuffixes,
         blockedPrefixes: request.blockedPrefixes,
+        permissionPrefixes: request.permissionPrefixes,
       };
 
       writeJsonLine(startPayload);
@@ -418,6 +421,7 @@ function parseNativeScannerLine(line: string): NativeScannerMessage | null {
         scanned: toSafeNonNegative(message.scanned),
         blockedByPolicy: toSafeNonNegative(message.blockedByPolicy),
         blockedByPermission: toSafeNonNegative(message.blockedByPermission),
+        skippedByScope: toSafeNonNegative(message.skippedByScope),
         elevationRequired: Boolean(message.elevationRequired),
       };
     case "diagnostics":

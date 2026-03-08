@@ -17,6 +17,7 @@ import {
 import type { ResolvedScanOptions } from "./scanRuntimeOptions";
 import {
   buildNativeBlockedPrefixes,
+  buildNativePermissionDeniedPrefixes,
   resolveNativeSkipBasenames,
   resolveNativeSkipDirSuffixes,
   resolveNativeSoftSkipPrefixes,
@@ -24,8 +25,8 @@ import {
 
 export interface NativeStageContext {
   cancelled: boolean;
-  optInProtected: boolean;
   options: ResolvedScanOptions;
+  permissionDeniedRoots: string[];
   paused: boolean;
   rootPath: string;
   scanId: string;
@@ -107,7 +108,10 @@ export class NativeScanOrchestrator {
         blockedPrefixes: buildNativeBlockedPrefixes(
           os.platform(),
           os.homedir(),
-          context.optInProtected,
+        ),
+        permissionPrefixes: buildNativePermissionDeniedPrefixes(
+          os.platform(),
+          context.permissionDeniedRoots,
         ),
       },
       {

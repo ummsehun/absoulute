@@ -5,15 +5,30 @@ import {
   getProtectedPaths,
   isSameOrChildPolicyPath,
   normalizePolicyPath,
+  pathIntersectsPolicyPath,
 } from "../../shared/domain/pathPolicy";
 import type { AppError } from "../../types/contracts";
 import { makeAppError } from "../utils/appError";
 
+export type PermissionState = "not_required" | "granted" | "required";
+export type PathBlockedReason = "scan_blocked" | "permission_required";
+
+export interface EffectivePathAccess {
+  grantedPermissionRoots: string[];
+  deniedPermissionRoots: string[];
+  nonRemovableRoots: string[];
+  scanBlockedRoots: string[];
+}
+
 export interface PathPolicyDecision {
-  allowed: boolean;
+  scanAllowed: boolean;
+  removeAllowed: boolean;
   normalizedPath: string;
-  requiresOptIn: boolean;
+  permissionState: PermissionState;
+  blockedReason?: PathBlockedReason;
+  matchedRoot?: string;
   error?: AppError;
+  effectiveAccess?: EffectivePathAccess;
 }
 
 export interface PathClassifierOptions {
@@ -28,25 +43,19 @@ export type PathPolicyClassifier = (
 
 export async function evaluateRootPath(
   inputPath: string,
-  optInProtected: boolean,
+  _optInProtected: boolean,
 ): Promise<PathPolicyDecision> {
+  void _optInProtected;
   const platform = os.platform();
   const homeDirectory = os.homedir();
-  const policy = getProtectedPaths(platform, homeDirectory);
-  const normalizedAbsoluteBlock = policy.absoluteBlock.map((item) =>
-    normalizeForComparison(item, platform),
-  );
-  const normalizedOptInRequired = policy.optInRequired.map((item) =>
-    normalizeForComparison(item, platform),
-  );
   const normalizedInput = await normalizeAndResolvePath(inputPath, platform);
-
-  return classifyNormalizedPath(
+  const effectiveAccess = await resolveEffectivePathAccess(
     normalizedInput,
-    optInProtected,
-    normalizedAbsoluteBlock,
-    normalizedOptInRequired,
+    platform,
+    homeDirectory,
   );
+
+  return classifyNormalizedPath(normalizedInput, effectiveAccess);
 }
 
 export function classifyPathByPolicy(
@@ -54,8 +63,14 @@ export function classifyPathByPolicy(
   optInProtected: boolean,
   platform: NodeJS.Platform = os.platform(),
   homeDirectory: string = os.homedir(),
+  effectiveAccess?: EffectivePathAccess,
 ): PathPolicyDecision {
-  return createPathPolicyClassifier(platform, homeDirectory)(
+  return createPathPolicyClassifier(
+    platform,
+    homeDirectory,
+    effectiveAccess ??
+      buildLegacyEffectivePathAccess(platform, homeDirectory, optInProtected),
+  )(
     inputPath,
     optInProtected,
   );
@@ -64,68 +79,139 @@ export function classifyPathByPolicy(
 export function createPathPolicyClassifier(
   platform: NodeJS.Platform = os.platform(),
   homeDirectory: string = os.homedir(),
+  effectiveAccess?: EffectivePathAccess,
 ): PathPolicyClassifier {
-  const policy = getProtectedPaths(platform, homeDirectory);
-  const normalizedAbsoluteBlock = policy.absoluteBlock.map((item) =>
-    normalizeForComparison(item, platform),
-  );
-  const normalizedOptInRequired = policy.optInRequired.map((item) =>
-    normalizeForComparison(item, platform),
-  );
-
   return (inputPath, optInProtected, options) => {
     const absoluteInput = options?.isResolved ? inputPath : path.resolve(inputPath);
     const normalizedInput = normalizeForComparison(absoluteInput, platform);
-
     return classifyNormalizedPath(
       normalizedInput,
-      optInProtected,
-      normalizedAbsoluteBlock,
-      normalizedOptInRequired,
+      effectiveAccess ??
+        buildLegacyEffectivePathAccess(platform, homeDirectory, optInProtected),
     );
   };
 }
 
 function classifyNormalizedPath(
   normalizedInput: string,
-  optInProtected: boolean,
-  normalizedAbsoluteBlock: string[],
-  normalizedOptInRequired: string[],
+  effectiveAccess: EffectivePathAccess,
 ): PathPolicyDecision {
-  const absoluteMatch = findMatch(normalizedInput, normalizedAbsoluteBlock);
-  if (absoluteMatch) {
+  const blockedMatch = findMatch(normalizedInput, effectiveAccess.scanBlockedRoots);
+  const nonRemovableMatch = findMatch(normalizedInput, effectiveAccess.nonRemovableRoots);
+  const deniedPermissionMatch = findMatch(
+    normalizedInput,
+    effectiveAccess.deniedPermissionRoots,
+  );
+  const grantedPermissionMatch = findMatch(
+    normalizedInput,
+    effectiveAccess.grantedPermissionRoots,
+  );
+
+  if (blockedMatch) {
     return {
-      allowed: false,
+      scanAllowed: false,
+      removeAllowed: false,
       normalizedPath: normalizedInput,
-      requiresOptIn: false,
+      permissionState: "not_required",
+      blockedReason: "scan_blocked",
+      matchedRoot: blockedMatch,
       error: makeAppError(
         "E_PROTECTED_PATH",
         "Path is in absolute protected zone",
         true,
-        { path: normalizedInput, matched: absoluteMatch },
+        { path: normalizedInput, matched: blockedMatch },
       ),
     };
   }
 
-  const optInMatch = findMatch(normalizedInput, normalizedOptInRequired);
-  if (optInMatch && !optInProtected) {
+  if (deniedPermissionMatch && !grantedPermissionMatch) {
     return {
-      allowed: false,
+      scanAllowed: false,
+      removeAllowed: false,
       normalizedPath: normalizedInput,
-      requiresOptIn: true,
+      permissionState: "required",
+      blockedReason: "permission_required",
+      matchedRoot: deniedPermissionMatch,
       error: makeAppError(
-        "E_OPTIN_REQUIRED",
-        "Path requires explicit opt-in",
+        "E_PERMISSION",
+        "Path requires system permission",
         true,
-        { path: normalizedInput, matched: optInMatch },
+        { path: normalizedInput, matched: deniedPermissionMatch },
       ),
     };
   }
 
   return {
-    allowed: true,
+    scanAllowed: true,
+    removeAllowed: !nonRemovableMatch,
     normalizedPath: normalizedInput,
-    requiresOptIn: Boolean(optInMatch),
+    permissionState: grantedPermissionMatch ? "granted" : "not_required",
+    matchedRoot: nonRemovableMatch ?? grantedPermissionMatch,
+    effectiveAccess,
+  };
+}
+
+export async function resolveEffectivePathAccess(
+  normalizedRootPath: string,
+  platform: NodeJS.Platform = os.platform(),
+  homeDirectory: string = os.homedir(),
+): Promise<EffectivePathAccess> {
+  const policy = getProtectedPaths(platform, homeDirectory);
+  const scanBlockedRoots = policy.scanBlocked.map((item) =>
+    normalizeForComparison(item, platform),
+  );
+  const nonRemovableRoots = policy.nonRemovable.map((item) =>
+    normalizeForComparison(item, platform),
+  );
+  const permissionRoots = policy.scanRequiresPermission
+    .map((item) => normalizeForComparison(item, platform))
+    .filter((permissionRoot) =>
+      pathIntersectsPolicyPath(normalizedRootPath, permissionRoot),
+    );
+
+  const grantedPermissionRoots: string[] = [];
+  const deniedPermissionRoots: string[] = [];
+
+  for (const permissionRoot of permissionRoots) {
+    const probeTarget = isSameOrChildPath(normalizedRootPath, permissionRoot)
+      ? normalizedRootPath
+      : permissionRoot;
+    const readable = await checkReadable(probeTarget);
+    if (readable) {
+      grantedPermissionRoots.push(permissionRoot);
+      continue;
+    }
+
+    deniedPermissionRoots.push(permissionRoot);
+  }
+
+  return {
+    grantedPermissionRoots,
+    deniedPermissionRoots,
+    nonRemovableRoots,
+    scanBlockedRoots,
+  };
+}
+
+function buildLegacyEffectivePathAccess(
+  platform: NodeJS.Platform,
+  homeDirectory: string,
+  optInProtected: boolean,
+): EffectivePathAccess {
+  const policy = getProtectedPaths(platform, homeDirectory);
+  return {
+    grantedPermissionRoots: optInProtected
+      ? policy.scanRequiresPermission.map((item) => normalizeForComparison(item, platform))
+      : [],
+    deniedPermissionRoots: optInProtected
+      ? []
+      : policy.scanRequiresPermission.map((item) => normalizeForComparison(item, platform)),
+    nonRemovableRoots: policy.nonRemovable.map((item) =>
+      normalizeForComparison(item, platform),
+    ),
+    scanBlockedRoots: policy.scanBlocked.map((item) =>
+      normalizeForComparison(item, platform),
+    ),
   };
 }
 
@@ -158,4 +244,13 @@ function normalizeForComparison(rawPath: string, platform: NodeJS.Platform): str
 
 function isSameOrChildPath(candidate: string, base: string): boolean {
   return isSameOrChildPolicyPath(candidate, base);
+}
+
+async function checkReadable(targetPath: string): Promise<boolean> {
+  try {
+    await fs.access(targetPath);
+    return true;
+  } catch {
+    return false;
+  }
 }

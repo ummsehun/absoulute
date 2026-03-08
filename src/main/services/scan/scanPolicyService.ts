@@ -31,19 +31,24 @@ export class ScanPolicyService {
       isResolved: true,
     });
 
-    if (decision.allowed) {
+    if (decision.scanAllowed) {
+      if (!decision.removeAllowed && decision.matchedRoot) {
+        job.visibleNonRemovableRoots.add(decision.matchedRoot);
+        this.deps.eventBus.emitCoverageUpdate(job, false);
+      }
       return true;
     }
 
     if (decision.error) {
-      job.blockedByPolicyCount += 1;
-      if (decision.requiresOptIn) {
+      if (decision.blockedReason === "permission_required") {
         job.elevationRequired = true;
         this.emitElevationRequired(
           job,
           decision.normalizedPath,
-          "Protected path requires explicit elevation/opt-in",
+          "Path requires Full Disk Access or Files and Folders permission",
         );
+      } else {
+        job.blockedByPolicyCount += 1;
       }
       this.deps.eventBus.emitCoverageUpdate(job, false);
       this.emitRecoverableError(job, decision.error);
@@ -133,6 +138,11 @@ export class ScanPolicyService {
     if (input?.deferredByBudget) {
       job.deferredByBudgetCount += 1;
     }
+    this.deps.eventBus.emitCoverageUpdate(job, false);
+  }
+
+  recordScopeSkip(job: ScanJob): void {
+    job.skippedByScopeCount += 1;
     this.deps.eventBus.emitCoverageUpdate(job, false);
   }
 

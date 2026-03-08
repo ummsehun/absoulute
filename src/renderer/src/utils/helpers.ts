@@ -4,9 +4,15 @@ export const MAP_WIDTH = 920;
 export const MAP_HEIGHT = 520;
 export const VISUAL_COMMIT_INTERVAL_MS = 300;
 export const VISUAL_DELTA_BURST = 3000;
-export const MAX_VISUAL_NODE_COUNT = 2800;
-export const MAX_RENDER_STATE_NODES = 18000;
-export const TARGET_RENDER_STATE_NODES = 12000;
+const MAX_VISUAL_NODE_COUNT = 1600;
+const MAX_VISUAL_NODE_COUNT_SHALLOW = 900;
+const MAX_VISUAL_NODE_COUNT_ROOT = 600;
+const MAX_RENDER_STATE_NODES = 12000;
+const MAX_RENDER_STATE_NODES_SHALLOW = 7000;
+const MAX_RENDER_STATE_NODES_ROOT = 4000;
+const TARGET_RENDER_STATE_NODES = 7000;
+const TARGET_RENDER_STATE_NODES_SHALLOW = 4200;
+const TARGET_RENDER_STATE_NODES_ROOT = 2200;
 
 export interface VizTreeNode {
     path: string;
@@ -72,7 +78,8 @@ export function getTopItemsForPath(
         const nodePath = normalizeFsPath(rawPath);
         if (
             nodePath === normalizedFocusPath ||
-            !isSameOrChildPath(nodePath, normalizedFocusPath)
+            !isSameOrChildPath(nodePath, normalizedFocusPath) ||
+            parentPathOf(nodePath) !== normalizedFocusPath
         ) {
             continue;
         }
@@ -98,23 +105,31 @@ export function pruneAggregateStateInPlace(
     focusPath: string,
 ): void {
     const keys = Object.keys(target);
-    if (keys.length <= MAX_RENDER_STATE_NODES) {
+    const maxNodeCount = resolveRenderStateLimit(basePath);
+    if (keys.length <= maxNodeCount) {
         return;
     }
 
     const normalizedBase = normalizeFsPath(basePath) || "/";
     const normalizedFocus = normalizeFsPath(focusPath) || normalizedBase;
+    const targetNodeCount = resolveRenderStateTarget(basePath);
     const keepNormalized = new Set<string>();
 
     addAncestorChain(keepNormalized, normalizedBase);
     addAncestorChain(keepNormalized, normalizedFocus);
 
-    if (!isFilesystemRootPath(normalizedFocus)) {
-        for (const rawPath of keys) {
-            const normalizedPath = normalizeFsPath(rawPath);
-            if (isSameOrChildPath(normalizedPath, normalizedFocus)) {
-                keepNormalized.add(normalizedPath);
-            }
+    for (const rawPath of keys) {
+        const normalizedPath = normalizeFsPath(rawPath);
+        if (parentPathOf(normalizedPath) === normalizedFocus) {
+            keepNormalized.add(normalizedPath);
+            continue;
+        }
+
+        if (
+            !isFilesystemRootPath(normalizedFocus) &&
+            isSameOrChildPath(normalizedPath, normalizedFocus)
+        ) {
+            keepNormalized.add(normalizedPath);
         }
     }
 
@@ -130,7 +145,7 @@ export function pruneAggregateStateInPlace(
             continue;
         }
 
-        pushTopN(topCandidates, [normalizedPath, size], TARGET_RENDER_STATE_NODES);
+        pushTopN(topCandidates, [normalizedPath, size], targetNodeCount);
     }
 
     for (const [normalizedPath] of topCandidates) {
@@ -276,7 +291,7 @@ export function buildVizTree(
 
     const prioritizedPaths = [...sizeMap.entries()]
         .sort((a, b) => b[1] - a[1])
-        .slice(0, MAX_VISUAL_NODE_COUNT)
+        .slice(0, resolveVisualNodeLimit(normalizedRoot))
         .map(([nodePath]) => nodePath);
     const prioritizedPathSet = new Set<string>(prioritizedPaths);
 
@@ -350,6 +365,23 @@ export function hydrateDerivedSizes(node: VizTreeNode): number {
     return node.size;
 }
 
+export function getDisplaySizeForPath(
+    aggregateSizes: Record<string, number>,
+    rootPath: string,
+): number {
+    const tree = buildVizTree(aggregateSizes, rootPath);
+    if (tree) {
+        return tree.size;
+    }
+
+    const normalizedRoot = normalizeFsPath(rootPath);
+    if (!normalizedRoot) {
+        return 0;
+    }
+
+    return aggregateSizes[normalizedRoot] ?? 0;
+}
+
 export function normalizeFsPath(rawPath: string): string {
     const trimmed = rawPath.trim();
     if (!trimmed) {
@@ -420,6 +452,57 @@ export function isSameOrChildPath(candidate: string, base: string): boolean {
     return normalizedCandidate.startsWith(`${normalizedBase}/`);
 }
 
+function resolveVisualNodeLimit(rootPath: string): number {
+    if (isFilesystemRootPath(rootPath)) {
+        return MAX_VISUAL_NODE_COUNT_ROOT;
+    }
+
+    if (pathDepth(rootPath) <= 2) {
+        return MAX_VISUAL_NODE_COUNT_SHALLOW;
+    }
+
+    return MAX_VISUAL_NODE_COUNT;
+}
+
+function resolveRenderStateLimit(rootPath: string): number {
+    const normalized = normalizeFsPath(rootPath);
+    if (isFilesystemRootPath(normalized)) {
+        return MAX_RENDER_STATE_NODES_ROOT;
+    }
+
+    if (pathDepth(normalized) <= 2) {
+        return MAX_RENDER_STATE_NODES_SHALLOW;
+    }
+
+    return MAX_RENDER_STATE_NODES;
+}
+
+function resolveRenderStateTarget(rootPath: string): number {
+    const normalized = normalizeFsPath(rootPath);
+    if (isFilesystemRootPath(normalized)) {
+        return TARGET_RENDER_STATE_NODES_ROOT;
+    }
+
+    if (pathDepth(normalized) <= 2) {
+        return TARGET_RENDER_STATE_NODES_SHALLOW;
+    }
+
+    return TARGET_RENDER_STATE_NODES;
+}
+
+function pathDepth(inputPath: string): number {
+    const normalized = normalizeFsPath(inputPath);
+    if (!normalized || normalized === "/") {
+        return 0;
+    }
+
+    if (/^[a-z]:\/$/i.test(normalized)) {
+        return 1;
+    }
+
+    return normalized.split("/").filter(Boolean).length;
+}
+
 export function isFilesystemRootPath(inputPath: string): boolean {
     const normalized = normalizeFsPath(inputPath);
     return normalized === "/" || /^[a-z]:\/$/i.test(normalized);
@@ -437,4 +520,25 @@ export function formatBytes(bytes: number): string {
     );
     const value = bytes / 1024 ** exponent;
     return `${value.toFixed(exponent === 0 ? 0 : 1)} ${units[exponent]}`;
+}
+
+const BUBBLE_PALETTE = [
+    { fill: 'rgba(182, 124, 255, 0.52)', stroke: 'rgba(233, 206, 255, 0.82)', text: 'rgba(255, 245, 255, 0.94)' },
+    { fill: 'rgba(140, 175, 255, 0.5)', stroke: 'rgba(206, 221, 255, 0.82)', text: 'rgba(247, 249, 255, 0.94)' },
+    { fill: 'rgba(219, 131, 255, 0.48)', stroke: 'rgba(248, 210, 255, 0.8)', text: 'rgba(255, 245, 255, 0.92)' },
+    { fill: 'rgba(124, 214, 255, 0.46)', stroke: 'rgba(203, 237, 255, 0.8)', text: 'rgba(243, 252, 255, 0.92)' },
+    { fill: 'rgba(128, 153, 255, 0.48)', stroke: 'rgba(204, 214, 255, 0.8)', text: 'rgba(245, 247, 255, 0.92)' },
+] as const;
+
+export function resolveBubbleTone(key: string) {
+    let hash = 0;
+    for (const char of key) {
+        hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
+    }
+
+    return BUBBLE_PALETTE[hash % BUBBLE_PALETTE.length];
+}
+
+export function formatCount(value: number): string {
+    return new Intl.NumberFormat('en-US').format(Math.max(0, Math.round(value)));
 }

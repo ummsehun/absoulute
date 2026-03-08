@@ -49,6 +49,7 @@ interface PortableScanDependencies {
     job: ScanJob,
     input?: { deferredByBudget?: boolean },
   ) => void;
+  recordScopeSkip: (job: ScanJob) => void;
   scheduleStatTask: (job: ScanJob, task: () => Promise<void>) => Promise<void>;
   syncExactTraversal: (job: ScanJob, targetPath: string) => void;
   toFilesystemError: (
@@ -141,7 +142,8 @@ export class PortableScanService {
     this.deps.eventBus.emitDiagnostics(job, "walking", deepQueue.length, true);
 
     let lastIncrementalChangeAt = 0;
-    const deepDeadlineAt: number | null = null;
+    const deepDeadlineAt =
+      job.options.deepBudgetMs > 0 ? Date.now() + job.options.deepBudgetMs : null;
     let deepBudgetExceeded = false;
     const watcher: IncrementalWatcherHandle | null = createMacOSIncrementalWatcher(
       job.rootPath,
@@ -308,6 +310,14 @@ export class PortableScanService {
       }
 
       if (entry.isDirectory()) {
+        if (
+          job.rootDeviceId !== null &&
+          !(await this.isSameDeviceDirectory(job, fullPath, job.rootDeviceId))
+        ) {
+          this.deps.recordScopeSkip(job);
+          continue;
+        }
+
         job.aggregator.ensureDirectory(fullPath, current.dirPath);
 
         if (
@@ -454,6 +464,23 @@ export class PortableScanService {
     }
 
     return score;
+  }
+
+  private async isSameDeviceDirectory(
+    job: ScanJob,
+    dirPath: string,
+    rootDeviceId: number,
+  ): Promise<boolean> {
+    try {
+      const stat = await fs.stat(dirPath);
+      return stat.dev === rootDeviceId;
+    } catch (error) {
+      this.deps.emitRecoverableError(
+        job,
+        this.deps.toFilesystemError(error, dirPath, "Failed to stat directory"),
+      );
+      return true;
+    }
   }
 }
 

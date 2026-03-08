@@ -42,6 +42,7 @@ fn main() -> Result<()> {
                         soft_skip_prefixes,
                         skip_dir_suffixes,
                         blocked_prefixes,
+                        permission_prefixes,
                     } => {
                         let request = StartRequest {
                             scan_id,
@@ -61,6 +62,7 @@ fn main() -> Result<()> {
                             soft_skip_prefixes,
                             skip_dir_suffixes,
                             blocked_prefixes,
+                            permission_prefixes,
                         };
                         if start_tx.send(request).is_err() {
                             break;
@@ -98,6 +100,7 @@ fn main() -> Result<()> {
             io_errors: 0,
             blocked_by_policy: 0,
             blocked_by_permission: 0,
+            skipped_by_scope: 0,
             elevation_required: false,
             elevation_signal_emitted: false,
             soft_skipped_by_policy: 0,

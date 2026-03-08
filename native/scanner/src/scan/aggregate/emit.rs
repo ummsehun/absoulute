@@ -120,6 +120,7 @@ pub(crate) fn maybe_emit_coverage<W: Write>(
             scanned: runtime.scanned_count,
             blocked_by_policy: runtime.blocked_by_policy,
             blocked_by_permission: runtime.blocked_by_permission,
+            skipped_by_scope: runtime.skipped_by_scope,
             elevation_required: runtime.elevation_required,
         },
     )?;
@@ -157,19 +158,28 @@ pub(crate) fn on_policy_block<W: Write>(
     reason: &str,
     kind: PolicyBlockKind,
 ) -> Result<()> {
-    runtime.blocked_by_policy += 1;
     match kind {
-        PolicyBlockKind::Hard => {}
+        PolicyBlockKind::Hard => {
+            runtime.blocked_by_policy += 1;
+        }
+        PolicyBlockKind::PermissionRequired => {
+            runtime.blocked_by_permission += 1;
+        }
         PolicyBlockKind::SoftSkip => {
+            runtime.blocked_by_policy += 1;
             runtime.soft_skipped_by_policy += 1;
         }
         PolicyBlockKind::DeferredByBudget => {
+            runtime.blocked_by_policy += 1;
             runtime.soft_skipped_by_policy += 1;
             runtime.deferred_by_budget += 1;
         }
+        PolicyBlockKind::ScopeExcluded => {
+            runtime.skipped_by_scope += 1;
+        }
     }
 
-    if matches!(kind, PolicyBlockKind::Hard) {
+    if matches!(kind, PolicyBlockKind::Hard | PolicyBlockKind::PermissionRequired) {
         runtime.elevation_required = true;
         maybe_emit_elevation_required(runtime, blocked_path, reason)?;
     }

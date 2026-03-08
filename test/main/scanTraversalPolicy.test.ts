@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import { resolveScanOptions } from "../../src/main/services/scan/scanRuntimeOptions";
 import {
   buildNativeBlockedPrefixes,
+  buildNativePermissionDeniedPrefixes,
   shouldEstimateDirectory,
   isKakaoTalkChatTagPath,
   shouldSkipDeepPackageTraversal,
@@ -96,15 +97,14 @@ describe("scanTraversalPolicy", () => {
     ).toBe(true);
   });
 
-  it("drops opt-in protected prefixes once the user has granted consent", () => {
-    const blockedWithoutOptIn = buildNativeBlockedPrefixes(
-      "darwin",
-      homeDirectory,
-      false,
-    );
-    const blockedWithOptIn = buildNativeBlockedPrefixes("darwin", homeDirectory, true);
+  it("separates hard blocked roots from permission-gated roots", () => {
+    const blockedRoots = buildNativeBlockedPrefixes("darwin", homeDirectory);
+    const permissionRoots = buildNativePermissionDeniedPrefixes("darwin", [
+      path.join(homeDirectory, "Documents"),
+    ]);
 
-    expect(blockedWithoutOptIn).toContain(path.join(homeDirectory, "Documents"));
-    expect(blockedWithOptIn).not.toContain(path.join(homeDirectory, "Documents"));
+    expect(blockedRoots).toContain("/dev");
+    expect(blockedRoots).not.toContain(path.join(homeDirectory, "Documents"));
+    expect(permissionRoots).toContain(path.join(homeDirectory, "Documents"));
   });
 });

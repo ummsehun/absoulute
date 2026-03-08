@@ -18,6 +18,7 @@ import {
   ScanQuickReadySchema,
   ScanDiagnosticsSchema,
   ScanCoverageSchema,
+  ScanCompletenessSchema,
   ScanDeepPolicyPresetSchema,
   ScanCoverageUpdateSchema,
   ScanTerminalEventSchema,
@@ -72,6 +73,7 @@ export type ScanProgressBatch = z.infer<typeof ScanProgressBatchSchema>;
 export type ScanQuickReady = z.infer<typeof ScanQuickReadySchema>;
 export type ScanDiagnostics = z.infer<typeof ScanDiagnosticsSchema>;
 export type ScanCoverage = z.infer<typeof ScanCoverageSchema>;
+export type ScanCompleteness = z.infer<typeof ScanCompletenessSchema>;
 export type ScanInflightStats = z.infer<typeof ScanInflightStatsSchema>;
 export type ScanCoverageUpdate = z.infer<typeof ScanCoverageUpdateSchema>;
 export type ScanTerminalStatus = z.infer<typeof ScanTerminalStatusSchema>;

@@ -1,4 +1,4 @@
-import { useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
+import { startTransition, useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
 import { resolveScanIntent } from "../../../shared/domain/scanIntent";
 import type {
     AggDelta,
@@ -83,7 +83,9 @@ export function useScanLogic() {
             normalizeFsPath(rootPathRef.current),
         );
         pendingDeltasRef.current.length = 0;
-        setAggregateSizes({ ...aggregateRef.current });
+        startTransition(() => {
+            setAggregateSizes({ ...aggregateRef.current });
+        });
         lastVisualCommitRef.current = Date.now();
     });
 
@@ -224,7 +226,7 @@ export function useScanLogic() {
 
     const startScanForPath = async (
         nextRootPath: string,
-        deepPolicyPreset: ScanDeepPolicyPreset = "responsive",
+        deepPolicyPreset: ScanDeepPolicyPreset = "exact",
     ) => {
         if (!electronAPI) return;
 
@@ -280,11 +282,11 @@ export function useScanLogic() {
             setElevationRequired(null);
             setError(null);
         } else {
-            if (result.error.code === "E_OPTIN_REQUIRED") {
+            if (result.error.code === "E_OPTIN_REQUIRED" || result.error.code === "E_PERMISSION") {
                 setElevationRequired({
                     scanId: "scan-preflight",
                     targetPath: normalizedRoot,
-                    reason: "선택한 경로는 명시적 권한 허용이 필요합니다. 설정에서 접근 권한을 허용해 주세요.",
+                    reason: "선택한 경로는 Full Disk Access 또는 파일 접근 권한이 필요합니다. 설정에서 접근 권한을 허용해 주세요.",
                     policy: "manual",
                 });
                 setError(null);
@@ -294,9 +296,9 @@ export function useScanLogic() {
         }
     };
 
-    const startScan = async () => await startScanForPath(rootPath, "responsive");
-    const oneClickScan = async () => await startScanForPath(rootPath, "responsive");
-    const scanTopRoot = async () => await startScanForPath(getTopRootPath(rootPath), "responsive");
+    const startScan = async () => await startScanForPath(rootPath, "exact");
+    const oneClickScan = async () => await startScanForPath(rootPath, "exact");
+    const scanTopRoot = async () => await startScanForPath(getTopRootPath(rootPath), "exact");
     const exactRecheck = async () =>
         await startScanForPath(scanBasePathRef.current || rootPathRef.current, "exact");
 

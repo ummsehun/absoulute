@@ -41,6 +41,16 @@ describe("ScanManager", () => {
         scanId: first.data.scanId,
         status: "done",
         finishedAt: Date.now(),
+        completeness: "exact",
+        coverage: {
+          scanned: 0,
+          blockedByPolicy: 0,
+          blockedByPermission: 0,
+          skippedByScope: 0,
+          nonRemovableVisible: 0,
+          elevationRequired: false,
+          completeness: "exact",
+        },
       });
     }
 

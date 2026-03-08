@@ -51,6 +51,12 @@ export const ScanEngineSchema = z.enum(["node", "native"]);
 export const ScanAccuracyModeSchema = z.enum(["preview", "full"]);
 export const ScanElevationPolicySchema = z.enum(["auto", "manual", "none"]);
 export const ScanDeepPolicyPresetSchema = z.enum(["responsive", "exact"]);
+export const ScanCompletenessSchema = z.enum([
+  "exact",
+  "partial_permission",
+  "partial_scope",
+  "partial_mixed",
+]);
 
 export const ScanEmitPolicySchema = z.object({
   aggBatchMaxItems: z.number().int().positive().max(20_000).optional(),
@@ -68,7 +74,10 @@ export const ScanCoverageSchema = z.object({
   scanned: z.number().int().nonnegative(),
   blockedByPolicy: z.number().int().nonnegative(),
   blockedByPermission: z.number().int().nonnegative(),
+  skippedByScope: z.number().int().nonnegative(),
+  nonRemovableVisible: z.number().int().nonnegative(),
   elevationRequired: z.boolean(),
+  completeness: ScanCompletenessSchema,
 });
 
 export const ScanInflightStatsSchema = z.object({
@@ -192,6 +201,8 @@ export const ScanTerminalEventSchema = z.object({
   scanId: z.string().min(1),
   status: ScanTerminalStatusSchema,
   finishedAt: z.number().int().positive(),
+  completeness: ScanCompletenessSchema,
+  coverage: ScanCoverageSchema,
 });
 
 export const ScanPerfSampleSchema = z.object({

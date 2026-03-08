@@ -94,6 +94,8 @@ describe("DiskScanService", () => {
       expect(quickReadyEvents.length).toBeGreaterThan(0);
       expect(diagnosticsEvents.length).toBeGreaterThan(0);
       expect(terminalEvents.at(-1)?.status).toBe("done");
+      expect(terminalEvents.at(-1)?.completeness).toBe("exact");
+      expect(terminalEvents.at(-1)?.coverage.completeness).toBe("exact");
       expect(errors).toEqual([]);
     } finally {
       stopProgress();

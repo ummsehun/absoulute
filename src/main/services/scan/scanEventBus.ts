@@ -2,6 +2,7 @@ import type {
   AggDelta,
   AppError,
   ScanConfidence,
+  ScanCompleteness,
   ScanCoverage,
   ScanCoverageUpdate,
   ScanDiagnostics,
@@ -44,6 +45,7 @@ export interface ScanEventJob extends ScanProgressLike {
   };
   blockedByPermissionCount: number;
   blockedByPolicyCount: number;
+  skippedByScopeCount: number;
   deferredByBudgetCount: number;
   diagnosticsLastEmitAt: number;
   elevationRequired: boolean;
@@ -68,6 +70,7 @@ export interface ScanEventJob extends ScanProgressLike {
   softSkippedByPolicyCount: number;
   stageStartedAt: number;
   startedAt: number;
+  visibleNonRemovableRoots: ReadonlySet<string>;
 }
 
 export class ScanEventBus {
@@ -342,11 +345,13 @@ export class ScanEventBus {
     }
   }
 
-  emitTerminal(scanId: string, status: ScanTerminalStatus): void {
+  emitTerminalEvent(job: ScanEventJob, status: ScanTerminalStatus): void {
     const event: ScanTerminalEvent = {
-      scanId,
+      scanId: job.scanId,
       status,
       finishedAt: Date.now(),
+      completeness: this.resolveCompleteness(job),
+      coverage: this.getCoverage(job),
     };
 
     for (const listener of this.terminalListeners) {
@@ -371,13 +376,45 @@ export class ScanEventBus {
     };
   }
 
-  private getCoverage(job: Pick<ScanEventJob, "blockedByPermissionCount" | "blockedByPolicyCount" | "elevationRequired" | "scannedCount">): ScanCoverage {
+  private getCoverage(
+    job: Pick<
+      ScanEventJob,
+      | "blockedByPermissionCount"
+      | "blockedByPolicyCount"
+      | "skippedByScopeCount"
+      | "elevationRequired"
+      | "scannedCount"
+      | "visibleNonRemovableRoots"
+    >,
+  ): ScanCoverage {
     return {
       scanned: job.scannedCount,
       blockedByPolicy: job.blockedByPolicyCount,
       blockedByPermission: job.blockedByPermissionCount,
+      skippedByScope: job.skippedByScopeCount,
+      nonRemovableVisible: job.visibleNonRemovableRoots.size,
       elevationRequired: job.elevationRequired,
+      completeness: this.resolveCompleteness(job),
     };
+  }
+
+  private resolveCompleteness(
+    job: Pick<ScanEventJob, "blockedByPermissionCount" | "skippedByScopeCount">,
+  ): ScanCompleteness {
+    const hasPermissionGap = job.blockedByPermissionCount > 0;
+    const hasScopeGap = job.skippedByScopeCount > 0;
+
+    if (hasPermissionGap && hasScopeGap) {
+      return "partial_mixed";
+    }
+    if (hasPermissionGap) {
+      return "partial_permission";
+    }
+    if (hasScopeGap) {
+      return "partial_scope";
+    }
+
+    return "exact";
   }
 
   private resolveConfidence(
