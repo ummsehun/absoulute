@@ -2,6 +2,8 @@ import React from 'react';
 import { formatBytes, truncateLabel, resolveBubbleTone } from '../utils/helpers';
 import { StackGlyph, ChevronRightIcon } from './icons';
 import type { ListRow } from './VisualizationView';
+import { Checkbox } from './ui/checkbox';
+import { Button } from './ui/button';
 
 export interface SidebarListProps {
     listRows: ListRow[];
@@ -49,11 +51,10 @@ export function SidebarList({
                             }}
                         >
                             <div className="flex items-center gap-3">
-                                <input
-                                    type="checkbox"
+                                <Checkbox
                                     checked={selected}
                                     onChange={() => toggleRowSelection(row.path)}
-                                    className="h-5 w-5 rounded border-white/30 bg-transparent accent-fuchsia-300"
+                                    className="border-white/30 data-[state=checked]:bg-fuchsia-400"
                                 />
 
                                 <div
@@ -85,13 +86,14 @@ export function SidebarList({
                                         {formatBytes(row.size)}
                                     </span>
                                     {row.interactive ? (
-                                        <button
-                                            type="button"
+                                        <Button
+                                            variant="outline"
+                                            size="icon"
                                             onClick={() => setActiveRootPath(row.path)}
-                                            className="flex h-8 w-8 items-center justify-center rounded-full border border-white/12 bg-white/6 text-white/78 transition hover:bg-white/12 hover:text-white"
+                                            className="h-8 w-8 rounded-full"
                                         >
                                             <ChevronRightIcon className="h-4 w-4" />
-                                        </button>
+                                        </Button>
                                     ) : null}
                                 </div>
                             </div>
