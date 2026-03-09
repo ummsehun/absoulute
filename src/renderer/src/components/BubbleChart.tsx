@@ -115,6 +115,7 @@ export function BubbleChart(props: BubbleChartProps) {
                                 backgroundColor: node.kind === 'other' ? 'rgba(0,0,0,0.3)' : undefined,
                                 // Color extraction from D3 payload
                                 color: node.text || 'white',
+                                boxShadow: hovered && !selected ? '0 10px 40px -10px rgba(0,0,0,0.5)' : undefined,
                             }}
                         >
                             <div className="flex flex-col items-center justify-center w-[85%] h-[85%] px-2">
@@ -150,16 +151,30 @@ export function BubbleChart(props: BubbleChartProps) {
                 {hoveredNode && (() => {
                     const maxR = Math.min(VIEWBOX_WIDTH, VIEWBOX_HEIGHT) * 0.35;
                     const displayR = hoveredNode.r > maxR ? maxR : hoveredNode.r;
+
+                    // Calculate positional pct
+                    const leftPct = ((hoveredNode.x) / VIEWBOX_WIDTH) * 100;
+                    const topPct = ((hoveredNode.y - displayR) / VIEWBOX_HEIGHT) * 100;
+
+                    // If the node is very close to the top edge (e.g. < 15%), we flip the tooltip to render below the bubble
+                    const isNearTop = topPct < 15;
+
+                    const clampedLeft = Math.min(Math.max(leftPct, 10), 90);
+                    const finalTop = isNearTop
+                        ? ((hoveredNode.y + displayR) / VIEWBOX_HEIGHT) * 100
+                        : topPct;
+
+                    const transform = isNearTop ? 'translate(-50%, 15px)' : 'translate(-50%, -100%)';
+                    const marginTop = isNearTop ? '0' : '-15px';
+
                     return (
                         <div
-                            className="pointer-events-none absolute z-50 flex w-56 flex-col gap-[2px] rounded-xl border border-white/10 bg-black/70 px-3 py-2.5 shadow-2xl backdrop-blur-xl transition-opacity duration-200"
+                            className="pointer-events-none absolute z-50 flex w-56 flex-col gap-[2px] rounded-xl border border-white/10 bg-black/75 px-3 py-2.5 shadow-[0_10px_40px_rgba(0,0,0,0.6)] backdrop-blur-xl transition-[opacity,transform] duration-200"
                             style={{
-                                left: `${Math.min(
-                                    Math.max(((hoveredNode.x) / VIEWBOX_WIDTH) * 100, 10),
-                                    90
-                                )}%`,
-                                top: `${Math.max(((hoveredNode.y - displayR) / VIEWBOX_HEIGHT) * 100, 5)}%`,
-                                transform: 'translate(-50%, -110%)',
+                                left: `${clampedLeft}%`,
+                                top: `${finalTop}%`,
+                                transform,
+                                marginTop,
                             }}
                         >
                             <h4 className="truncate text-[13px] font-semibold text-white/95">{hoveredNode.name}</h4>

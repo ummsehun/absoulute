@@ -122,7 +122,7 @@ export function useVisualizationTree({
 
         return pack<DrilldownBubbleNode>()
             .size([VIEWBOX_WIDTH, VIEWBOX_HEIGHT])
-            .padding(5)(
+            .padding(15)(
                 hierarchy(drilldownTree)
                     .sum((node) => node.selfSize)
                     .sort((left, right) => (right.value ?? 0) - (left.value ?? 0)),
