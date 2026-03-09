@@ -42,17 +42,9 @@ export function LandingView({
                 className="w-full flex-1 flex flex-col items-center justify-center"
                 style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
             >
-                {/* Real 3D Canvas Container */}
-                <div className={`relative w-80 h-80 mb-8 flex items-center justify-center overflow-visible group transition-transform duration-1000 ${isScanning ? 'scale-110' : ''}`}>
-                    {/* Animated Liquid Background Blobs behind 3D Canvas */}
-                    <div
-                        className="absolute inset-0 bg-gradient-to-tr from-purple-600 to-indigo-500 opacity-50 liquid-shape blur-2xl transition-all duration-700 ease-[cubic-bezier(0.34,1.56,0.64,1)] group-hover:scale-110"
-                    />
-                    <div
-                        className="absolute inset-0 bg-gradient-to-br from-cyan-400 to-blue-600 opacity-40 liquid-spin blur-xl mix-blend-screen transition-all duration-700 ease-[cubic-bezier(0.34,1.56,0.64,1)] group-hover:scale-125 group-hover:rotate-12"
-                        style={{ animationDuration: isScanning ? '4s' : '10s' }}
-                    />
-
+                <div className={`relative w-80 h-80 mb-8 flex items-center justify-center overflow-visible transition-transform duration-700 ${isScanning ? 'scale-[1.04]' : 'scale-100'}`}>
+                    <div className="absolute inset-8 rounded-full bg-[radial-gradient(circle,rgba(115,128,255,0.28)_0%,rgba(115,128,255,0.08)_44%,transparent_72%)] blur-3xl" />
+                    <div className="absolute inset-10 rounded-full bg-[radial-gradient(circle,rgba(255,200,243,0.18)_0%,transparent_62%)] blur-2xl" />
                     <div className="relative z-20 h-80 w-80">
                         <SpaceLens3D isScanning={isScanning} windowState={windowState} />
                     </div>
@@ -100,10 +92,9 @@ export function LandingView({
                             </div>
                         </div>
 
-                        {/* Liquid Scan Button */}
                         <div className="relative group mt-2 z-10">
                             <div
-                                className="absolute -inset-2 rounded-[40px] opacity-40 group-hover:opacity-100 transition duration-500 blur-lg liquid-shape bg-gradient-to-r from-cyan-400 via-purple-500 to-indigo-500"
+                                className="absolute -inset-2 rounded-[40px] opacity-50 group-hover:opacity-80 transition duration-500 blur-lg bg-gradient-to-r from-cyan-400/55 via-blue-500/45 to-fuchsia-400/55"
                             />
                             <button
                                 onClick={oneClickScan}

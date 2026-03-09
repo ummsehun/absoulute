@@ -1,6 +1,6 @@
 {
   "name": "disk-visualizer",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "description": "Cross-platform disk visualization tool with Electron + React + TypeScript",
   "main": "out/main/index.js",
   "type": "module",
@@ -11,7 +11,8 @@
     "preview": "electron-vite preview",
     "lint": "eslint \"src/**/*.{ts,tsx}\" \"test/**/*.ts\"",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "build:mac": "mkdir -p .cache/electron .cache/electron-builder && ELECTRON_CACHE=$PWD/.cache/electron ELECTRON_BUILDER_CACHE=$PWD/.cache/electron-builder pnpm build && electron-builder --mac dmg --arm64 --publish never"
   },
   "keywords": [
     "electron",

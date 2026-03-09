@@ -1,6 +1,8 @@
 {
-  "appId": "com.example.diskvisualizer",
+  "appId": "com.diskvisualizer.app",
   "productName": "DiskVisualizer",
+  "artifactName": "DiskVisualizer-${version}-mac-${arch}.${ext}",
+  "asar": true,
   "directories": {
     "output": "release"
   },
@@ -13,21 +15,18 @@
       "from": "resources/bin",
       "to": "bin",
       "filter": [
-        "scanner-macos",
-        "scanner-win.exe",
-        "scanner-linux",
-        "diskviz-scanner",
-        "diskviz-scanner.exe"
+        "scanner-macos"
       ]
     }
   ],
   "mac": {
-    "target": ["dmg"]
-  },
-  "win": {
-    "target": ["nsis"]
-  },
-  "linux": {
-    "target": ["AppImage"]
+    "target": [
+      {
+        "target": "dmg",
+        "arch": [
+          "arm64"
+        ]
+      }
+    ]
   }
 }
