@@ -20,6 +20,7 @@ function App() {
     apiReady,
     visualizationRoot,
     focusedTopItems,
+    windowState,
 
     // Actions
     oneClickScan,
@@ -44,6 +45,7 @@ function App() {
           isScanning={isScanning}
           progress={progress}
           perfSample={perfSample}
+          windowState={windowState}
         />
       ) : (
         <VisualizationView

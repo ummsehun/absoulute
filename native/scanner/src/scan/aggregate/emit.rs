@@ -179,7 +179,7 @@ pub(crate) fn on_policy_block<W: Write>(
         }
     }
 
-    if matches!(kind, PolicyBlockKind::Hard | PolicyBlockKind::PermissionRequired) {
+    if matches!(kind, PolicyBlockKind::PermissionRequired) {
         runtime.elevation_required = true;
         maybe_emit_elevation_required(runtime, blocked_path, reason)?;
     }

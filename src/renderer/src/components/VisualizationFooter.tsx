@@ -20,7 +20,7 @@ export function VisualizationFooter({
     clearSelection,
 }: VisualizationFooterProps) {
     return (
-        <footer className="flex items-center justify-between gap-4 border-t border-white/10 px-6 py-4 text-white/84">
+        <footer className="flex shrink-0 h-[68px] items-center justify-between gap-4 border-t border-white/10 px-6 text-white/84 bg-black/20 backdrop-blur-md">
             <div className="text-[15px] font-medium">
                 {selectedCount > 0 ? `${formatCount(selectedCount)} items selected` : 'No items selected'}
                 <span className="mx-3 text-white/26">|</span>

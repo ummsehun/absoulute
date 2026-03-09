@@ -11,7 +11,7 @@ mod walker;
 pub use emit::{emit_done, emit_message};
 pub use walker::run_bfs_scan;
 
-pub(crate) const FILE_METADATA_CHUNK_SIZE: usize = 64;
+pub(crate) const FILE_METADATA_CHUNK_SIZE: usize = 256;
 pub(crate) const MIN_AGG_BATCH_ITEMS: usize = 64;
 pub(crate) const MIN_AGG_BATCH_MS: u64 = 20;
 pub(crate) const MIN_PROGRESS_INTERVAL_MS: u64 = 80;

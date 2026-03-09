@@ -76,7 +76,6 @@ export function VisualizationView({
         displayScanRootSize,
         displayVisualizationSize,
         listRows,
-        drilldownTree,
         packedTree,
         circleNodes,
         VIEWBOX_WIDTH,
@@ -143,7 +142,7 @@ export function VisualizationView({
 
     return (
         <div
-            className="relative min-h-screen w-full self-stretch overflow-hidden text-white"
+            className="relative h-screen w-full self-stretch overflow-hidden text-white"
             style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
         >
             <div className="absolute inset-0 bg-[linear-gradient(180deg,#6028c7_0%,#33106b_58%,#22084f_100%)]" />
@@ -192,15 +191,6 @@ export function VisualizationView({
                                     setActiveRootPath={setActiveRootPath}
                                     onHoverChange={setHoveredPath}
                                 />
-                            </div>
-                            <div className="absolute top-0 right-0 z-50 bg-black text-white p-4 font-mono text-xs" style={{ whiteSpace: 'pre' }}>
-                                DEBUG INFO:
-                                circleNodes.length: {circleNodes.length}
-                                isTreePending: {isTreePending ? 'true' : 'false'}
-                                packedTree: {packedTree ? 'true' : 'false'}
-                                drilldownTree.size: {drilldownTree?.size ?? 'N/A'}
-                                displayVisualizationSize: {displayVisualizationSize}
-                                listRows.length: {listRows.length}
                             </div>
                         </div>
                     </section>

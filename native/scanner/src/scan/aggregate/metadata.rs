@@ -16,7 +16,7 @@ use super::path_utils::path_to_string;
 use super::policy::map_error_code;
 use super::{ScanExecutionOptions, ScanRuntime};
 
-const BATCH_HEARTBEAT_INTERVAL_MS: u64 = 250;
+const BATCH_HEARTBEAT_INTERVAL_MS: u64 = 120;
 
 pub(crate) enum BatchControl {
     Continue,
@@ -103,7 +103,7 @@ pub(crate) fn process_file_metadata_batch<W: Write>(
                 runtime,
                 accum,
                 queue_len.saturating_add(inflight),
-                Some(current_dir_label.clone()),
+                last_path.clone().or_else(|| Some(current_dir_label.clone())),
                 inflight,
                 false,
             )?;

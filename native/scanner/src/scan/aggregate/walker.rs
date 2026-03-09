@@ -74,7 +74,7 @@ pub fn run_bfs_scan<W: Write>(
     let _ = (&runtime.request.scan_id, runtime.request.concurrency);
 
     let mut estimated = options.default_estimated;
-    let mut policy_skipped = false;
+    let mut estimated_by_policy = false;
     let mut accum = EmitAccumulator::new(Instant::now());
     let use_bulk_estimate = matches!(runtime.request.mode, ScanMode::Quick)
         && matches!(runtime.request.accuracy_mode, AccuracyMode::Preview);
@@ -109,7 +109,6 @@ pub fn run_bfs_scan<W: Write>(
         }
 
         if is_blocked_path(&dir_path, &blocked_prefixes, is_windows) {
-            policy_skipped = true;
             on_policy_block(
                 runtime,
                 &mut accum,
@@ -128,7 +127,7 @@ pub fn run_bfs_scan<W: Write>(
             is_windows,
             deep_responsive_preset,
         ) {
-            policy_skipped = true;
+            estimated_by_policy = true;
             on_policy_block(
                 runtime,
                 &mut accum,
@@ -177,7 +176,7 @@ pub fn run_bfs_scan<W: Write>(
             if dir_budget_ms > 0
                 && dir_started_at.elapsed() >= Duration::from_millis(dir_budget_ms)
             {
-                policy_skipped = true;
+                estimated_by_policy = true;
                 estimated = true;
                 on_policy_block(
                     runtime,
@@ -216,7 +215,6 @@ pub fn run_bfs_scan<W: Write>(
                 continue;
             }
             if is_blocked_path(&path, &blocked_prefixes, is_windows) {
-                policy_skipped = true;
                 on_policy_block(
                     runtime,
                     &mut accum,
@@ -229,7 +227,7 @@ pub fn run_bfs_scan<W: Write>(
 
             if is_soft_skipped_by_prefix(&path, &soft_skip_prefixes, &root_normalized, is_windows)
             {
-                policy_skipped = true;
+                estimated_by_policy = true;
                 on_policy_block(
                     runtime,
                     &mut accum,
@@ -246,7 +244,7 @@ pub fn run_bfs_scan<W: Write>(
                 .unwrap_or("")
                 .to_ascii_lowercase();
             if skip_set.contains(&basename) {
-                policy_skipped = true;
+                estimated_by_policy = true;
                 on_policy_block(
                     runtime,
                     &mut accum,
@@ -303,7 +301,7 @@ pub fn run_bfs_scan<W: Write>(
                     &root_normalized,
                     is_windows,
                 ) {
-                    policy_skipped = true;
+                    estimated_by_policy = true;
                     on_policy_block(
                         runtime,
                         &mut accum,
@@ -370,7 +368,7 @@ pub fn run_bfs_scan<W: Write>(
         }
     }
 
-    if policy_skipped {
+    if estimated_by_policy {
         estimated = true;
     }
 

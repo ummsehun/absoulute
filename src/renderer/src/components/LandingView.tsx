@@ -2,7 +2,7 @@ import React from 'react';
 import { themeTokens } from '../theme/tokens';
 import { DriveSelector } from './DriveSelector';
 import { SpaceLens3D } from './SpaceLens3D';
-import type { ScanElevationRequired, ScanPerfSample, ScanProgressBatch } from '../../../types/contracts';
+import type { ScanElevationRequired, ScanPerfSample, ScanProgressBatch, WindowState } from '../../../types/contracts';
 
 interface LandingViewProps {
     apiReady: boolean;
@@ -15,6 +15,7 @@ interface LandingViewProps {
     isScanning?: boolean;
     progress?: ScanProgressBatch | null;
     perfSample?: ScanPerfSample | null;
+    windowState?: WindowState | null;
 }
 
 export function LandingView({
@@ -28,6 +29,7 @@ export function LandingView({
     isScanning,
     progress,
     perfSample,
+    windowState,
 }: LandingViewProps) {
     const phaseDetail = getPhaseDetail(progress);
     const inflight = perfSample?.inflightStats?.inFlight ?? perfSample?.queueDepth ?? 0;
@@ -41,7 +43,7 @@ export function LandingView({
                 style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
             >
                 {/* Real 3D Canvas Container */}
-                <div className={`relative w-80 h-80 mb-8 flex items-center justify-center group transition-transform duration-1000 ${isScanning ? 'scale-110' : ''}`}>
+                <div className={`relative w-80 h-80 mb-8 flex items-center justify-center overflow-visible group transition-transform duration-1000 ${isScanning ? 'scale-110' : ''}`}>
                     {/* Animated Liquid Background Blobs behind 3D Canvas */}
                     <div
                         className="absolute inset-0 bg-gradient-to-tr from-purple-600 to-indigo-500 opacity-50 liquid-shape blur-2xl transition-all duration-700 ease-[cubic-bezier(0.34,1.56,0.64,1)] group-hover:scale-110"
@@ -51,10 +53,8 @@ export function LandingView({
                         style={{ animationDuration: isScanning ? '4s' : '10s' }}
                     />
 
-                    <div className="relative w-72 h-72 z-10">
-                        <React.Suspense fallback={<div className="w-full h-full flex items-center justify-center text-white/50 text-sm">Loading 3D Engine...</div>}>
-                            <SpaceLens3D isScanning={isScanning} />
-                        </React.Suspense>
+                    <div className="relative z-20 h-80 w-80">
+                        <SpaceLens3D isScanning={isScanning} windowState={windowState} />
                     </div>
                 </div>
 

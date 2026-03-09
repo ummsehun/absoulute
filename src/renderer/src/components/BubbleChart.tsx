@@ -43,7 +43,7 @@ export function BubbleChart(props: BubbleChartProps) {
     return (
         <div className="flex h-full w-full items-center justify-center p-6 overflow-hidden">
             <div
-                className="relative border border-red-500"
+                className="relative"
                 style={{
                     width: '100%',
                     maxWidth: VIEWBOX_WIDTH,
@@ -55,11 +55,18 @@ export function BubbleChart(props: BubbleChartProps) {
                     const selected = selectedPaths.has(node.path);
                     const hovered = hoveredPath === node.path;
 
+                    let displayR = node.r;
+                    // Cap radius to prevent excessively large bubbles when there are very few items
+                    const maxR = Math.min(VIEWBOX_WIDTH, VIEWBOX_HEIGHT) * 0.35;
+                    if (displayR > maxR) {
+                        displayR = maxR;
+                    }
+
                     // Calculate perfect % based positioning
-                    const leftPct = ((node.x - node.r) / VIEWBOX_WIDTH) * 100;
-                    const topPct = ((node.y - node.r) / VIEWBOX_HEIGHT) * 100;
-                    const widthPct = ((node.r * 2) / VIEWBOX_WIDTH) * 100;
-                    const heightPct = ((node.r * 2) / VIEWBOX_HEIGHT) * 100;
+                    const leftPct = ((node.x - displayR) / VIEWBOX_WIDTH) * 100;
+                    const topPct = ((node.y - displayR) / VIEWBOX_HEIGHT) * 100;
+                    const widthPct = ((displayR * 2) / VIEWBOX_WIDTH) * 100;
+                    const heightPct = ((displayR * 2) / VIEWBOX_HEIGHT) * 100;
 
                     const isLarge = node.r >= 52;
                     const isMedium = node.r >= 40 && !isLarge;
@@ -140,30 +147,29 @@ export function BubbleChart(props: BubbleChartProps) {
                 })}
 
                 {/* Hover Tooltip Overlay */}
-                {hoveredNode && (
-                    <div
-                        className="pointer-events-none absolute z-50 flex w-64 flex-col gap-1 rounded-xl border border-white/20 bg-black/60 p-4 shadow-2xl backdrop-blur-xl transition-all"
-                        style={{
-                            left: `${Math.min(
-                                Math.max(((hoveredNode.x) / VIEWBOX_WIDTH) * 100, 5),
-                                70
-                            )}%`,
-                            top: `${Math.max(((hoveredNode.y - hoveredNode.r - 20) / VIEWBOX_HEIGHT) * 100, 5)}%`,
-                            transform: 'translate(-50%, -100%)',
-                        }}
-                    >
-                        <h4 className="truncate font-semibold text-white">{hoveredNode.name}</h4>
-                        <p className="text-xs text-white/60">
-                            {hoveredNode.kind === 'other'
-                                ? 'Grouped files and folders to keep the map clean'
-                                : 'Direct child in the current folder'}
-                        </p>
-                        <div className="mt-2 flex items-center justify-between font-mono text-sm text-fuchsia-300">
-                            <span>Size</span>
-                            <span>{formatBytes(hoveredNode.size)}</span>
+                {hoveredNode && (() => {
+                    const maxR = Math.min(VIEWBOX_WIDTH, VIEWBOX_HEIGHT) * 0.35;
+                    const displayR = hoveredNode.r > maxR ? maxR : hoveredNode.r;
+                    return (
+                        <div
+                            className="pointer-events-none absolute z-50 flex w-56 flex-col gap-[2px] rounded-xl border border-white/10 bg-black/70 px-3 py-2.5 shadow-2xl backdrop-blur-xl transition-opacity duration-200"
+                            style={{
+                                left: `${Math.min(
+                                    Math.max(((hoveredNode.x) / VIEWBOX_WIDTH) * 100, 10),
+                                    90
+                                )}%`,
+                                top: `${Math.max(((hoveredNode.y - displayR) / VIEWBOX_HEIGHT) * 100, 5)}%`,
+                                transform: 'translate(-50%, -110%)',
+                            }}
+                        >
+                            <h4 className="truncate text-[13px] font-semibold text-white/95">{hoveredNode.name}</h4>
+                            <div className="flex items-center justify-between text-[11px] font-medium text-white/50">
+                                <span>{hoveredNode.kind === 'other' ? 'Grouped Items' : 'Folder'}</span>
+                                <span className="font-mono text-fuchsia-300">{formatBytes(hoveredNode.size)}</span>
+                            </div>
                         </div>
-                    </div>
-                )}
+                    );
+                })()}
             </div>
         </div>
     );
