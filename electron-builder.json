@@ -22,7 +22,16 @@
     }
   ],
   "mac": {
-    "target": ["dmg"]
+    "target": ["dmg"],
+    "extraFiles": [
+      {
+        "from": "resources/helper/LaunchDaemons",
+        "to": "Library/LaunchDaemons",
+        "filter": [
+          "com.example.diskvisualizer.privileged-helper.plist"
+        ]
+      }
+    ]
   },
   "win": {
     "target": ["nsis"]
