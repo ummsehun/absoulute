@@ -1,18 +1,32 @@
 import Foundation
 
 struct HelperRequest: Decodable {
+    let schemaVersion: Int
     let requestId: String
+    let scanId: String
+    let stageId: String
+    let operation: String
+    let issuedAtMs: Int
+    let nonce: String
     let payload: Payload
 }
 
 struct Payload: Decodable {
     let root: String
+    let scanMode: String
+    let accuracyMode: String
+    let volumePolicy: String
+    let plannedRoots: [String]
     let maxDepth: Int
+    let sameDeviceOnly: Bool
+    let permissionPolicy: String
+    let traversalPolicyPlanId: String
     let emitPolicy: EmitPolicy
 }
 
 struct EmitPolicy: Decodable {
     let batchMaxItems: Int
+    let progressIntervalMs: Int
 }
 
 struct EntryEventItem: Encodable {
@@ -31,6 +45,7 @@ let input = FileHandle.standardInput.readDataToEndOfFile()
 
 do {
     let request = try JSONDecoder().decode(HelperRequest.self, from: input)
+    try validateRequest(request)
     emit([
         "type": "ready",
         "requestId": request.requestId,
@@ -38,9 +53,10 @@ do {
     ])
     try enumerate(request)
 } catch {
+    let requestId = decodeRequestId(from: input) ?? "unknown"
     emit([
         "type": "error",
-        "requestId": "unknown",
+        "requestId": requestId,
         "code": "E_INVALID_REQUEST",
         "message": "invalid helper enumerate request: \(error)",
     ])
@@ -54,6 +70,7 @@ func enumerate(_ request: HelperRequest) throws {
     var scannedCount = 0
     var permissionFailures = 0
     var ioFailures = 0
+    let rootDeviceId = try deviceIdForPath(root.path)
 
     guard let enumerator = FileManager.default.enumerator(
         at: root,
@@ -66,7 +83,7 @@ func enumerate(_ request: HelperRequest) throws {
             .isSymbolicLinkKey,
             .totalFileAllocatedSizeKey,
         ],
-        options: [.skipsPackageDescendants],
+        options: [],
         errorHandler: { url, error in
             permissionFailures += 1
             emitWarn(
@@ -96,7 +113,22 @@ func enumerate(_ request: HelperRequest) throws {
         }
 
         do {
-            let item = try makeEntryItem(url)
+            let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
+            let itemDeviceId = deviceId(from: attributes)
+            if request.payload.sameDeviceOnly && rootDeviceId != nil && itemDeviceId != rootDeviceId {
+                emitWarn(
+                    requestId: request.requestId,
+                    code: "E_SCOPE",
+                    path: url.path,
+                    message: "skipped cross-device entry"
+                )
+                if isDirectory(attributes) {
+                    enumerator.skipDescendants()
+                }
+                continue
+            }
+
+            let item = try makeEntryItem(url, attributes: attributes)
             batch.append(item)
             scannedCount += 1
         } catch {
@@ -124,7 +156,127 @@ func enumerate(_ request: HelperRequest) throws {
     emitDone(requestId: request.requestId)
 }
 
-func makeEntryItem(_ url: URL) throws -> [String: Any] {
+func validateRequest(_ request: HelperRequest) throws {
+    guard request.schemaVersion == 1 else {
+        throw ValidationError.invalidSchemaVersion
+    }
+    try validateId(request.requestId, field: "requestId")
+    try validateId(request.scanId, field: "scanId")
+    try validateId(request.stageId, field: "stageId")
+    guard request.issuedAtMs > 0 else {
+        throw ValidationError.invalidField("issuedAtMs")
+    }
+    guard request.nonce.count >= 16 && request.nonce.count <= 256 else {
+        throw ValidationError.invalidField("nonce")
+    }
+    guard request.operation == "scan.enumerate" else {
+        throw ValidationError.unsupportedOperation
+    }
+    guard request.payload.scanMode == "quick" || request.payload.scanMode == "deep" else {
+        throw ValidationError.invalidField("scanMode")
+    }
+    guard request.payload.accuracyMode == "preview" || request.payload.accuracyMode == "full" else {
+        throw ValidationError.invalidField("accuracyMode")
+    }
+    guard ["same-device", "root-cross-device", "explicit-volumes"].contains(request.payload.volumePolicy) else {
+        throw ValidationError.invalidField("volumePolicy")
+    }
+    if request.payload.volumePolicy == "root-cross-device" && request.payload.sameDeviceOnly {
+        throw ValidationError.invalidField("sameDeviceOnly")
+    }
+    if request.payload.volumePolicy != "root-cross-device" && !request.payload.sameDeviceOnly {
+        throw ValidationError.invalidField("sameDeviceOnly")
+    }
+    guard request.payload.permissionPolicy == "report-only" else {
+        throw ValidationError.invalidField("permissionPolicy")
+    }
+    try validateId(request.payload.traversalPolicyPlanId, field: "traversalPolicyPlanId")
+    guard request.payload.maxDepth >= 0 && request.payload.maxDepth <= 512 else {
+        throw ValidationError.invalidField("maxDepth")
+    }
+    guard request.payload.emitPolicy.batchMaxItems > 0 && request.payload.emitPolicy.batchMaxItems <= 20_000 else {
+        throw ValidationError.invalidField("emitPolicy.batchMaxItems")
+    }
+    guard request.payload.emitPolicy.progressIntervalMs > 0 && request.payload.emitPolicy.progressIntervalMs <= 5_000 else {
+        throw ValidationError.invalidField("emitPolicy.progressIntervalMs")
+    }
+    guard request.payload.plannedRoots.count >= 1 && request.payload.plannedRoots.count <= 256 else {
+        throw ValidationError.invalidField("plannedRoots")
+    }
+    guard isAbsoluteNormalizedPath(request.payload.root) else {
+        throw ValidationError.invalidField("root")
+    }
+    guard request.payload.plannedRoots.allSatisfy(isAbsoluteNormalizedPath) else {
+        throw ValidationError.invalidField("plannedRoots")
+    }
+
+    let root = normalizePath(request.payload.root)
+    let plannedRoots = request.payload.plannedRoots.map(normalizePath)
+
+    guard plannedRoots.contains(root) else {
+        throw ValidationError.rootOutsidePlannedRoots
+    }
+}
+
+enum ValidationError: Error, CustomStringConvertible {
+    case invalidField(String)
+    case invalidSchemaVersion
+    case unsupportedOperation
+    case rootOutsidePlannedRoots
+
+    var description: String {
+        switch self {
+        case .invalidField(let field):
+            return "invalid helper field: \(field)"
+        case .invalidSchemaVersion:
+            return "unsupported helper schema version"
+        case .unsupportedOperation:
+            return "unsupported helper operation"
+        case .rootOutsidePlannedRoots:
+            return "root must be included in plannedRoots"
+        }
+    }
+}
+
+func validateId(_ value: String, field: String) throws {
+    guard value.count >= 1 && value.count <= 128 else {
+        throw ValidationError.invalidField(field)
+    }
+}
+
+func isAbsoluteNormalizedPath(_ path: String) -> Bool {
+    if path.isEmpty || path.count > 4096 || !path.hasPrefix("/") || path.contains("\0") || path.contains("//") {
+        return false
+    }
+
+    let segments = path.split(separator: "/", omittingEmptySubsequences: false)
+    return !segments.contains(".") && !segments.contains("..")
+}
+
+func normalizePath(_ path: String) -> String {
+    var standardized = URL(fileURLWithPath: path).standardizedFileURL.path
+    while standardized.count > 1 && standardized.hasSuffix("/") {
+        standardized.removeLast()
+    }
+    return standardized
+}
+
+func decodeRequestId(from data: Data) -> String? {
+    struct RequestIdOnly: Decodable {
+        let requestId: String
+    }
+
+    return try? JSONDecoder().decode(RequestIdOnly.self, from: data).requestId
+        .nilIfEmpty
+}
+
+extension String {
+    var nilIfEmpty: String? {
+        isEmpty ? nil : self
+    }
+}
+
+func makeEntryItem(_ url: URL, attributes: [FileAttributeKey: Any]) throws -> [String: Any] {
     let values = try url.resourceValues(forKeys: [
         .contentModificationDateKey,
         .fileAllocatedSizeKey,
@@ -152,9 +304,25 @@ func makeEntryItem(_ url: URL) throws -> [String: Any] {
         "size": UInt64(values.totalFileAllocatedSize ?? values.fileAllocatedSize ?? 0),
         "mtimeMs": values.contentModificationDate.map { $0.timeIntervalSince1970 * 1000.0 } as Any,
         "inode": values.fileResourceIdentifier.map { "\($0)" } as Any,
-        "deviceId": "unknown",
+        "deviceId": deviceId(from: attributes) as Any,
         "estimated": false,
     ]
+}
+
+func deviceIdForPath(_ path: String) throws -> String? {
+    let attributes = try FileManager.default.attributesOfItem(atPath: path)
+    return deviceId(from: attributes)
+}
+
+func deviceId(from attributes: [FileAttributeKey: Any]) -> String? {
+    if let systemNumber = attributes[.systemNumber] as? NSNumber {
+        return systemNumber.stringValue
+    }
+    return nil
+}
+
+func isDirectory(_ attributes: [FileAttributeKey: Any]) -> Bool {
+    attributes[.type] as? FileAttributeType == .typeDirectory
 }
 
 func depth(of absolutePath: String) -> Int {
