@@ -18,6 +18,7 @@ pub(crate) const MIN_AGG_BATCH_ITEMS: usize = 64;
 pub(crate) const MIN_AGG_BATCH_MS: u64 = 20;
 pub(crate) const MIN_PROGRESS_INTERVAL_MS: u64 = 80;
 pub(crate) const DEEP_DIRECTORY_BUDGET_MS: u64 = 500;
+pub(crate) const MAX_POLICY_SKIP_SAMPLES: usize = 25;
 
 pub struct ControlState {
     pub paused: AtomicBool,
@@ -49,6 +50,7 @@ pub struct ScanRuntime<'a, W: Write> {
     pub elevation_signal_emitted: bool,
     pub soft_skipped_by_policy: u64,
     pub deferred_by_budget: u64,
+    pub policy_skip_samples: Vec<String>,
 }
 
 #[derive(Clone, Copy)]

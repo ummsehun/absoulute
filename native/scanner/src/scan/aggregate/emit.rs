@@ -8,7 +8,10 @@ use crate::protocol::{Confidence, ElevationPolicy, OutgoingMessage};
 
 use super::path_utils::path_to_string;
 use super::policy::PolicyBlockKind;
-use super::{ScanRuntime, MIN_AGG_BATCH_ITEMS, MIN_AGG_BATCH_MS, MIN_PROGRESS_INTERVAL_MS};
+use super::{
+    ScanRuntime, MAX_POLICY_SKIP_SAMPLES, MIN_AGG_BATCH_ITEMS, MIN_AGG_BATCH_MS,
+    MIN_PROGRESS_INTERVAL_MS,
+};
 
 pub(crate) struct EmitAccumulator {
     pub(crate) pending_agg: Vec<crate::protocol::AggBatchItem>,
@@ -96,6 +99,7 @@ pub(crate) fn maybe_emit_progress_and_diagnostics<W: Write>(
             hot_path: current_path,
             soft_skipped_by_policy: runtime.soft_skipped_by_policy,
             deferred_by_budget: runtime.deferred_by_budget,
+            policy_skip_samples: runtime.policy_skip_samples.clone(),
             inflight,
         },
     )?;
@@ -161,6 +165,7 @@ pub(crate) fn on_policy_block<W: Write>(
     match kind {
         PolicyBlockKind::Hard => {
             runtime.blocked_by_policy += 1;
+            record_policy_skip_sample(runtime, blocked_path);
         }
         PolicyBlockKind::PermissionRequired => {
             runtime.blocked_by_permission += 1;
@@ -168,11 +173,13 @@ pub(crate) fn on_policy_block<W: Write>(
         PolicyBlockKind::SoftSkip => {
             runtime.blocked_by_policy += 1;
             runtime.soft_skipped_by_policy += 1;
+            record_policy_skip_sample(runtime, blocked_path);
         }
         PolicyBlockKind::DeferredByBudget => {
             runtime.blocked_by_policy += 1;
             runtime.soft_skipped_by_policy += 1;
             runtime.deferred_by_budget += 1;
+            record_policy_skip_sample(runtime, blocked_path);
         }
         PolicyBlockKind::ScopeExcluded => {
             runtime.skipped_by_scope += 1;
@@ -184,6 +191,19 @@ pub(crate) fn on_policy_block<W: Write>(
         maybe_emit_elevation_required(runtime, blocked_path, reason)?;
     }
     maybe_emit_coverage(runtime, accum, false)
+}
+
+fn record_policy_skip_sample<W: Write>(runtime: &mut ScanRuntime<'_, W>, path: &Path) {
+    if runtime.policy_skip_samples.len() >= MAX_POLICY_SKIP_SAMPLES {
+        return;
+    }
+
+    let sample = path_to_string(path);
+    if runtime.policy_skip_samples.iter().any(|existing| existing == &sample) {
+        return;
+    }
+
+    runtime.policy_skip_samples.push(sample);
 }
 
 pub(crate) fn emit_warning<W: Write>(

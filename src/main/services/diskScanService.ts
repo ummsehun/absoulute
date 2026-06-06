@@ -23,6 +23,10 @@ import {
   evaluateRootPath,
 } from "../core/securityPolicy";
 import { makeAppError, unknownToAppError } from "../utils/appError";
+import {
+  appendNativeScannerLog,
+  getNativeScannerLogPath,
+} from "./diagnostics/nativeScannerLogger";
 import { buildQuickReadyPayload } from "./diagnostics/scanDiagnostics";
 import { ScanEventBus } from "./scan/scanEventBus";
 import { ScanAggregator } from "./scanAggregator";
@@ -260,6 +264,17 @@ export class DiskScanService {
       try {
         return await this.runNativeScan(job);
       } catch (error) {
+        appendNativeScannerLog({
+          event: "native_failure_wrapped_by_disk_scan_service",
+          level: "error",
+          scanId: job.scanId,
+          stage: job.scanStage,
+          details: {
+            rootPath: job.rootPath,
+            raw: String(error),
+            stack: error instanceof Error ? error.stack : undefined,
+          },
+        });
         const nativeFailure = makeAppError(
           "E_NATIVE_FAILURE",
           "Native scanner failed",
@@ -267,6 +282,7 @@ export class DiskScanService {
           {
             scanId: job.scanId,
             rootPath: job.rootPath,
+            logPath: getNativeScannerLogPath(),
             raw: String(error),
           },
         );

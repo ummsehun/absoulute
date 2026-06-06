@@ -316,6 +316,8 @@ pub enum OutgoingMessage {
         soft_skipped_by_policy: u64,
         #[serde(rename = "deferredByBudget")]
         deferred_by_budget: u64,
+        #[serde(rename = "policySkipSamples")]
+        policy_skip_samples: Vec<String>,
         inflight: usize,
     },
     #[serde(rename = "coverage")]

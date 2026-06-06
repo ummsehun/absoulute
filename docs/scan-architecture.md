@@ -81,9 +81,11 @@ for explicit exact rechecks instead of the default UI path.
 Filesystem-root scans are a special case. They still start through the preview
 flow, but the main process disables responsive deep soft-skips for `/` so app
 policy does not omit package-manager directories, cache prefixes, or bundle
-directories. Remaining omissions at `/` should come from OS permission failures,
-hard blocked roots, mounted-volume scope, or an explicit time budget, and must be
-reported through coverage counters.
+directories. Native root stages also disable the same-device restriction so
+mounted APFS/system volumes are not silently counted as scope skips. Normal
+directory scans keep the same-device restriction. Remaining omissions at `/`
+should come from OS permission failures, hard blocked roots, or an explicit time
+budget, and must be reported through coverage counters.
 
 ## Current Permission Model
 

@@ -12,6 +12,7 @@ interface NativeMessage {
   code?: string;
   elapsedMs?: number;
   estimated?: boolean;
+  policySkipSamples?: string[];
   targetPath?: string;
 }
 
@@ -56,14 +57,20 @@ describe("native scanner protocol", () => {
       });
 
       const coverageEvents = messages.filter((message) => message.type === "coverage");
+      const diagnosticsEvents = messages.filter((message) => message.type === "diagnostics");
       const done = messages.find((message) => message.type === "done");
 
       expect(coverageEvents.some((event) => (event.blockedByPolicy ?? 0) > 0)).toBe(true);
+      expect(
+        diagnosticsEvents.some((event) =>
+          event.policySkipSamples?.includes(skippedRoot),
+        ),
+      ).toBe(true);
       expect(done?.estimated).toBe(true);
     } finally {
       await fs.rm(root, { recursive: true, force: true });
     }
-  });
+  }, 20_000);
 
   it("emits elevation_required when a directory read fails with permission denied", async () => {
     const root = await fs.mkdtemp(path.join(process.cwd(), ".tmp-tests", "native-permission-"));
@@ -111,7 +118,7 @@ describe("native scanner protocol", () => {
       await fs.chmod(deniedRoot, 0o700).catch(() => undefined);
       await fs.rm(root, { recursive: true, force: true });
     }
-  });
+  }, 20_000);
 });
 
 async function runNativeScan(

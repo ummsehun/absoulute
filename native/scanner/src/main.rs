@@ -107,6 +107,7 @@ fn main() -> Result<()> {
             elevation_signal_emitted: false,
             soft_skipped_by_policy: 0,
             deferred_by_budget: 0,
+            policy_skip_samples: Vec::new(),
         };
 
         let summary = run_scan_loop(&mut runtime)?;
