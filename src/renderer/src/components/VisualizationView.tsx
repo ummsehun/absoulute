@@ -68,6 +68,7 @@ export function VisualizationView({
     visualizationRoot,
     focusedTopItems,
     coverageUpdate,
+    onExactRecheck,
     setActiveRootPath,
 }: VisualizationViewProps) {
     // 1. D3 Tree & Visualization Hook
@@ -203,6 +204,7 @@ export function VisualizationView({
                     skippedByScope={skippedByScope}
                     nonRemovableVisible={nonRemovableVisible}
                     clearSelection={clearSelection}
+                    onExactRecheck={onExactRecheck}
                 />
             </div>
         </div>

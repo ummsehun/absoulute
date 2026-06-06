@@ -9,6 +9,7 @@ interface VisualizationFooterProps {
     skippedByScope: number;
     nonRemovableVisible: number;
     clearSelection: () => void;
+    onExactRecheck?: () => void | Promise<void>;
 }
 
 export function VisualizationFooter({
@@ -18,6 +19,7 @@ export function VisualizationFooter({
     skippedByScope,
     nonRemovableVisible,
     clearSelection,
+    onExactRecheck,
 }: VisualizationFooterProps) {
     return (
         <footer className="flex shrink-0 h-[68px] items-center justify-between gap-4 border-t border-white/10 px-6 text-white/84 bg-black/20 backdrop-blur-md">
@@ -34,6 +36,17 @@ export function VisualizationFooter({
             </div>
 
             <div className="flex items-center gap-3">
+                {onExactRecheck ? (
+                    <Button
+                        variant="outline"
+                        onClick={() => {
+                            void onExactRecheck();
+                        }}
+                        className="rounded-full border border-cyan-200/24 bg-cyan-300/10 px-5 py-3 text-base font-semibold text-cyan-50 transition hover:bg-cyan-300/18 hover:text-white"
+                    >
+                        Exact Recheck
+                    </Button>
+                ) : null}
                 <Button
                     variant="outline"
                     onClick={clearSelection}
