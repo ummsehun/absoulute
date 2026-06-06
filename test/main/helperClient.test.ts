@@ -172,6 +172,43 @@ describe("helperClient", () => {
     });
   });
 
+  it("surfaces registration preflight blockers before reporting xpc readiness", async () => {
+    const transport = new MacOsXpcHelperTransport(
+      {
+        getStatus: async () => ({
+          state: "registered",
+          reason: "registered",
+        }),
+      },
+      {
+        identity: {
+          teamId: "ABCDE12345",
+          designatedRequirement:
+            'identifier "com.example.diskvisualizer" and anchor apple generic',
+        },
+        packagingEntitlementsReady: true,
+        fdaValidationMatrixReady: false,
+      },
+    );
+
+    await expect(transport.getStatus()).resolves.toMatchObject({
+      available: false,
+      lifecycle: {
+        state: "not-authorized",
+        reason: "registration-preflight-blocked:fda-validation-matrix-missing",
+        checks: {
+          "service-management": "pass",
+          "helper-install": "pass",
+          "caller-identity": "pass",
+          "full-disk-access": "fail",
+          "xpc-channel": "unknown",
+        },
+      },
+      reason: "registration-preflight-blocked:fda-validation-matrix-missing",
+      transport: "xpc",
+    });
+  });
+
   it("does not select xpc transport on non-macOS platforms", async () => {
     const transport = createDefaultHelperTransport(
       { [HELPER_TRANSPORT_ENV]: "xpc" },

@@ -21,6 +21,15 @@ export interface HelperLifecycleStatus {
 
 export interface MacOsXpcLifecycleInput {
   reason: string;
+  registrationPreflight?: {
+    blockers: Array<
+      | "team-id-missing"
+      | "designated-requirement-missing"
+      | "packaging-entitlements-missing"
+      | "fda-validation-matrix-missing"
+    >;
+    status: "blocked" | "ready";
+  };
   serviceManagement: {
     state: "not-implemented" | "not-installed" | "pending-approval" | "registered";
     reason: string;
@@ -54,9 +63,19 @@ export function createMacOsXpcStubLifecycle(reason: string): HelperLifecycleStat
 export function createMacOsXpcLifecycle(
   input: MacOsXpcLifecycleInput,
 ): HelperLifecycleStatus {
+  const preflightBlockers = input.registrationPreflight?.blockers ?? [];
+  const preflightBlocked =
+    input.serviceManagement.state === "registered"
+    && input.registrationPreflight?.status === "blocked";
+  const reason = preflightBlocked
+    ? `registration-preflight-blocked:${preflightBlockers.join(",")}`
+    : input.reason;
+
   return {
-    state: resolveMacOsXpcLifecycleState(input.serviceManagement.state),
-    reason: input.reason,
+    state: preflightBlocked
+      ? "not-authorized"
+      : resolveMacOsXpcLifecycleState(input.serviceManagement.state),
+    reason,
     checks: {
       "service-management": input.serviceManagement.state === "registered"
         ? "pass"
@@ -64,11 +83,36 @@ export function createMacOsXpcLifecycle(
       "helper-install": input.serviceManagement.state === "registered"
         ? "pass"
         : "unknown",
-      "caller-identity": "unknown",
-      "full-disk-access": "unknown",
-      "xpc-channel": "fail",
+      "caller-identity": preflightBlocked
+        ? resolveCallerIdentityCheck(preflightBlockers)
+        : "unknown",
+      "full-disk-access": preflightBlocked
+        ? resolveFullDiskAccessCheck(preflightBlockers)
+        : "unknown",
+      "xpc-channel": preflightBlocked ? "unknown" : "fail",
     },
   };
+}
+
+function resolveCallerIdentityCheck(
+  blockers: NonNullable<MacOsXpcLifecycleInput["registrationPreflight"]>["blockers"],
+): "pass" | "fail" | "unknown" {
+  if (blockers.includes("team-id-missing")
+    || blockers.includes("designated-requirement-missing")) {
+    return "fail";
+  }
+
+  return blockers.length > 0 ? "pass" : "unknown";
+}
+
+function resolveFullDiskAccessCheck(
+  blockers: NonNullable<MacOsXpcLifecycleInput["registrationPreflight"]>["blockers"],
+): "pass" | "fail" | "unknown" {
+  if (blockers.includes("fda-validation-matrix-missing")) {
+    return "fail";
+  }
+
+  return blockers.length > 0 ? "pass" : "unknown";
 }
 
 function resolveMacOsXpcLifecycleState(

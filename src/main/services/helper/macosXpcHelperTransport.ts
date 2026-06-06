@@ -10,6 +10,10 @@ import {
   type HelperTransport,
   type HelperTransportHandlers,
 } from "./helperTransport";
+import {
+  resolveHelperRegistrationPreflight,
+  type HelperRegistrationPreflightInput,
+} from "./helperRegistration";
 
 export const MACOS_XPC_HELPER_NOT_IMPLEMENTED_REASON =
   "xpc-transport-not-implemented";
@@ -18,18 +22,24 @@ export class MacOsXpcHelperTransport implements HelperTransport {
   constructor(
     private readonly serviceManagementProbe: MacOsServiceManagementProbe =
       new NotImplementedMacOsServiceManagementProbe(),
+    private readonly registrationPreflightInput: HelperRegistrationPreflightInput = {},
   ) {}
 
   async getStatus(): Promise<HelperClientStatus> {
     const serviceManagement = await this.serviceManagementProbe.getStatus();
+    const registrationPreflight = resolveHelperRegistrationPreflight(
+      this.registrationPreflightInput,
+    );
+    const lifecycle = createMacOsXpcLifecycle({
+      reason: MACOS_XPC_HELPER_NOT_IMPLEMENTED_REASON,
+      registrationPreflight,
+      serviceManagement,
+    });
 
     return {
       available: false,
-      lifecycle: createMacOsXpcLifecycle({
-        reason: MACOS_XPC_HELPER_NOT_IMPLEMENTED_REASON,
-        serviceManagement,
-      }),
-      reason: MACOS_XPC_HELPER_NOT_IMPLEMENTED_REASON,
+      lifecycle,
+      reason: lifecycle.reason,
       transport: "xpc",
     };
   }
