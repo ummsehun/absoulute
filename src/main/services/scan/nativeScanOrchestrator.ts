@@ -133,6 +133,13 @@ export class NativeScanOrchestrator {
         engine: helperPlan.engine,
         fallbackReason: helperPlan.reason,
         helperAvailable: helperStatus.available,
+        helperLifecycle: helperStatus.lifecycle
+          ? {
+              state: helperStatus.lifecycle.state,
+              reason: helperStatus.lifecycle.reason,
+              checks: helperStatus.lifecycle.checks,
+            }
+          : undefined,
         helperUnavailableReason: helperStatus.reason,
         helperTransport: helperStatus.transport,
         accuracyMode: context.options.accuracyMode,

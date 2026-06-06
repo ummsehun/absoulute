@@ -1,6 +1,8 @@
 /* @vitest-environment node */
 
 import os from "node:os";
+import fs from "node:fs/promises";
+import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { HelperClient } from "../../src/main/services/helper/helperClient";
 import {
@@ -13,8 +15,15 @@ import {
 import { resolveScanOptions } from "../../src/main/services/scan/scanRuntimeOptions";
 
 describe("nativeScanOrchestrator", () => {
+  const originalScanLogDir = process.env.SCAN_LOG_DIR;
+
   afterEach(() => {
     vi.restoreAllMocks();
+    if (originalScanLogDir === undefined) {
+      delete process.env.SCAN_LOG_DIR;
+    } else {
+      process.env.SCAN_LOG_DIR = originalScanLogDir;
+    }
   });
 
   it("allows filesystem-root scans to cross mounted system volumes", () => {
@@ -206,6 +215,93 @@ describe("nativeScanOrchestrator", () => {
         estimated: false,
       },
     ]);
+  });
+
+  it("logs helper lifecycle details in native helper scan planning", async () => {
+    vi.spyOn(os, "platform").mockReturnValue("darwin");
+    const logDir = await fs.mkdtemp(
+      path.join(process.cwd(), ".tmp-tests", "helper-plan-log-"),
+    );
+    process.env.SCAN_LOG_DIR = logDir;
+    const helperClient: HelperClient = {
+      getStatus: async () => ({
+        available: true,
+        lifecycle: {
+          state: "ready",
+          reason: "ready",
+          checks: {
+            "service-management": "pass",
+            "helper-install": "pass",
+            "caller-identity": "pass",
+            "full-disk-access": "unknown",
+            "xpc-channel": "pass",
+          },
+        },
+        transport: "xpc",
+      }),
+      getVersion: async () => "test-helper",
+      healthCheck: async () => ({ available: true, transport: "xpc" }),
+      enumerate: async (_input, handlers) => {
+        handlers.onEvent({
+          type: "done",
+          requestId: "request-1",
+          elapsedMs: 1,
+          estimated: false,
+        });
+      },
+    };
+
+    try {
+      await new NativeScanOrchestrator(helperClient).runStage(
+        {
+          scanId: "scan-log-1",
+          rootPath: "/Users/tester",
+          permissionDeniedRoots: [],
+          paused: false,
+          cancelled: false,
+          options: resolveScanOptions(
+            {
+              rootPath: "/Users/tester",
+              optInProtected: false,
+              accuracyMode: "full",
+            },
+            "/Users/tester",
+          ),
+        },
+        {
+          mode: "deep",
+          maxDepth: 128,
+          timeBudgetMs: 0,
+        },
+        createRecordingHandlers(),
+      );
+
+      const logPath = path.join(logDir, "native-scanner.jsonl");
+      const entries = (await fs.readFile(logPath, "utf8"))
+        .trim()
+        .split("\n")
+        .map((line) => JSON.parse(line) as Record<string, unknown>);
+      const helperPlan = entries.find(
+        (entry) => entry.event === "native_helper_scan_plan",
+      ) as { details?: Record<string, unknown> } | undefined;
+
+      expect(helperPlan?.details).toMatchObject({
+        engine: "helper",
+        helperLifecycle: {
+          state: "ready",
+          reason: "ready",
+          checks: {
+            "service-management": "pass",
+            "helper-install": "pass",
+            "caller-identity": "pass",
+            "full-disk-access": "unknown",
+            "xpc-channel": "pass",
+          },
+        },
+      });
+    } finally {
+      await fs.rm(logDir, { recursive: true, force: true });
+    }
   });
 });
 
