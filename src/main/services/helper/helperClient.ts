@@ -16,6 +16,7 @@ import {
   resolveHelperRegistrationPreflightInputFromEnv,
   type HelperRegistrationPreflight,
 } from "./helperRegistration";
+import { createMacOsServiceManagementProbeFromEnv } from "./macosServiceManagementProbe";
 import { MacOsXpcHelperTransport } from "./macosXpcHelperTransport";
 
 export const HELPER_DISABLED_REASON = "helper-phase-gate-unresolved";
@@ -121,7 +122,7 @@ export function createDefaultHelperTransport(
   }
 
   return new MacOsXpcHelperTransport(
-    undefined,
+    createMacOsServiceManagementProbeFromEnv(env, platform),
     resolveHelperRegistrationPreflightInputFromEnv(env),
   );
 }
