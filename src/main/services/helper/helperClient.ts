@@ -73,9 +73,11 @@ export class DisabledHelperClient implements HelperClient {
   }
 
   async enumerate(
-    _input: HelperEnumerateInput,
-    _handlers: HelperEnumerateHandlers,
+    input: HelperEnumerateInput,
+    handlers: HelperEnumerateHandlers,
   ): Promise<void> {
+    void input;
+    void handlers;
     throw new HelperUnavailableError(this.reason);
   }
 }
