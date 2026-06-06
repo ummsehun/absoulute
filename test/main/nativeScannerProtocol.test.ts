@@ -8,16 +8,84 @@ import { describe, expect, it } from "vitest";
 
 interface NativeMessage {
   type: string;
+  items?: Array<{
+    path?: string;
+  }>;
   blockedByPolicy?: number;
   code?: string;
   elapsedMs?: number;
   estimated?: boolean;
   permissionSamples?: string[];
   policySkipSamples?: string[];
+  path?: string;
   targetPath?: string;
 }
 
 describe("native scanner protocol", () => {
+  it("traverses responsive skip directories during exact deep scans", async () => {
+    const root = await fs.mkdtemp(path.join(process.cwd(), ".tmp-tests", "native-exact-"));
+    const fixturePaths = [
+      path.join(root, "node_modules", "pkg", "index.js"),
+      path.join(root, ".git", "objects", "00", "object"),
+      path.join(root, ".cache", "tool", "entry.bin"),
+      path.join(root, "Example.app", "Contents", "Info.plist"),
+    ];
+    await Promise.all(
+      fixturePaths.map(async (fixturePath) => {
+        await fs.mkdir(path.dirname(fixturePath), { recursive: true });
+        await fs.writeFile(fixturePath, "exact");
+      }),
+    );
+
+    try {
+      const messages = await runNativeScan({
+        type: "start",
+        scanId: "native-exact-fixture-test",
+        root,
+        mode: "deep",
+        platform: process.platform,
+        timeBudgetMs: 0,
+        maxDepth: 16,
+        sameDeviceOnly: true,
+        concurrency: 16,
+        accuracyMode: "full",
+        deepPolicyPreset: "exact",
+        elevationPolicy: "manual",
+        emitPolicy: {
+          aggBatchMaxItems: 64,
+          aggBatchMaxMs: 20,
+          progressIntervalMs: 80,
+        },
+        concurrencyPolicy: {
+          min: 4,
+          max: 16,
+          adaptive: true,
+        },
+        skipBasenames: [],
+        softSkipPathRules: [],
+        softSkipPrefixes: [],
+        skipDirSuffixes: [],
+        blockedPrefixes: [],
+        permissionPrefixes: [],
+      });
+
+      const emittedPaths = collectEmittedPaths(messages);
+      const coverageEvents = messages.filter((message) => message.type === "coverage");
+      const diagnosticsEvents = messages.filter((message) => message.type === "diagnostics");
+      const done = messages.find((message) => message.type === "done");
+
+      for (const fixturePath of fixturePaths) {
+        expect(emittedPaths.has(fixturePath)).toBe(true);
+      }
+      expect(coverageEvents.every((event) => (event.blockedByPolicy ?? 0) === 0)).toBe(true);
+      expect(diagnosticsEvents.every((event) => (event.policySkipSamples ?? []).length === 0))
+        .toBe(true);
+      expect(done?.estimated).toBe(false);
+    } finally {
+      await fs.rm(root, { recursive: true, force: true });
+    }
+  }, 20_000);
+
   it("honors softSkipPathRules sent through stdin start messages", async () => {
     const root = await fs.mkdtemp(path.join(process.cwd(), ".tmp-tests", "native-policy-"));
     const skippedRoot = path.join(root, "skip-me");
@@ -171,6 +239,21 @@ async function runNativeScan(
   child.stdin.end();
   lines.close();
   return messages;
+}
+
+function collectEmittedPaths(messages: NativeMessage[]): Set<string> {
+  const paths = new Set<string>();
+  for (const message of messages) {
+    if (typeof message.path === "string") {
+      paths.add(message.path);
+    }
+    for (const item of message.items ?? []) {
+      if (typeof item.path === "string") {
+        paths.add(item.path);
+      }
+    }
+  }
+  return paths;
 }
 
 function parseLine(line: string): NativeMessage | null {
