@@ -1,5 +1,6 @@
 import type { HelperRequestEnvelope } from "../../../shared/schemas/helperProtocol";
 import type { HelperClientStatus } from "./helperClient";
+import { createMacOsXpcStubLifecycle } from "./helperLifecycle";
 import {
   HelperTransportUnavailableError,
   type HelperTransport,
@@ -13,6 +14,9 @@ export class MacOsXpcHelperTransport implements HelperTransport {
   async getStatus(): Promise<HelperClientStatus> {
     return {
       available: false,
+      lifecycle: createMacOsXpcStubLifecycle(
+        MACOS_XPC_HELPER_NOT_IMPLEMENTED_REASON,
+      ),
       reason: MACOS_XPC_HELPER_NOT_IMPLEMENTED_REASON,
       transport: "xpc",
     };

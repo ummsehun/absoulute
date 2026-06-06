@@ -3,6 +3,7 @@ import type {
   HelperRequestEnvelope,
 } from "../../../shared/schemas/helperProtocol";
 import type { HelperClientStatus } from "./helperClient";
+import { createDisabledHelperLifecycle } from "./helperLifecycle";
 
 export interface HelperTransportHandlers {
   onEvent: (event: HelperEvent) => void;
@@ -31,6 +32,7 @@ export class DisabledHelperTransport implements HelperTransport {
   async getStatus(): Promise<HelperClientStatus> {
     return {
       available: false,
+      lifecycle: createDisabledHelperLifecycle(this.reason),
       reason: this.reason,
       transport: "disabled",
     };

@@ -22,12 +22,34 @@ describe("helperClient", () => {
 
     await expect(client.getStatus()).resolves.toEqual({
       available: false,
+      lifecycle: {
+        state: "disabled",
+        reason: HELPER_DISABLED_REASON,
+        checks: {
+          "service-management": "unknown",
+          "helper-install": "unknown",
+          "caller-identity": "unknown",
+          "full-disk-access": "unknown",
+          "xpc-channel": "unknown",
+        },
+      },
       reason: HELPER_DISABLED_REASON,
       transport: "disabled",
     });
     await expect(client.getVersion()).resolves.toBeNull();
     await expect(client.healthCheck()).resolves.toEqual({
       available: false,
+      lifecycle: {
+        state: "disabled",
+        reason: HELPER_DISABLED_REASON,
+        checks: {
+          "service-management": "unknown",
+          "helper-install": "unknown",
+          "caller-identity": "unknown",
+          "full-disk-access": "unknown",
+          "xpc-channel": "unknown",
+        },
+      },
       reason: HELPER_DISABLED_REASON,
       transport: "disabled",
     });
@@ -64,6 +86,17 @@ describe("helperClient", () => {
 
     await expect(transport.getStatus()).resolves.toEqual({
       available: false,
+      lifecycle: {
+        state: "disabled",
+        reason: HELPER_DISABLED_REASON,
+        checks: {
+          "service-management": "unknown",
+          "helper-install": "unknown",
+          "caller-identity": "unknown",
+          "full-disk-access": "unknown",
+          "xpc-channel": "unknown",
+        },
+      },
       reason: HELPER_DISABLED_REASON,
       transport: "disabled",
     });
@@ -77,12 +110,34 @@ describe("helperClient", () => {
 
     await expect(transport.getStatus()).resolves.toEqual({
       available: false,
+      lifecycle: {
+        state: "not-implemented",
+        reason: MACOS_XPC_HELPER_NOT_IMPLEMENTED_REASON,
+        checks: {
+          "service-management": "unknown",
+          "helper-install": "unknown",
+          "caller-identity": "unknown",
+          "full-disk-access": "unknown",
+          "xpc-channel": "fail",
+        },
+      },
       reason: MACOS_XPC_HELPER_NOT_IMPLEMENTED_REASON,
       transport: "xpc",
     });
     await expect(transport.getVersion()).resolves.toBeNull();
     await expect(transport.healthCheck()).resolves.toEqual({
       available: false,
+      lifecycle: {
+        state: "not-implemented",
+        reason: MACOS_XPC_HELPER_NOT_IMPLEMENTED_REASON,
+        checks: {
+          "service-management": "unknown",
+          "helper-install": "unknown",
+          "caller-identity": "unknown",
+          "full-disk-access": "unknown",
+          "xpc-channel": "fail",
+        },
+      },
       reason: MACOS_XPC_HELPER_NOT_IMPLEMENTED_REASON,
       transport: "xpc",
     });
@@ -96,6 +151,17 @@ describe("helperClient", () => {
 
     await expect(transport.getStatus()).resolves.toEqual({
       available: false,
+      lifecycle: {
+        state: "disabled",
+        reason: "xpc-transport-non-darwin",
+        checks: {
+          "service-management": "unknown",
+          "helper-install": "unknown",
+          "caller-identity": "unknown",
+          "full-disk-access": "unknown",
+          "xpc-channel": "unknown",
+        },
+      },
       reason: "xpc-transport-non-darwin",
       transport: "disabled",
     });

@@ -6,6 +6,7 @@ import {
   type HelperEvent,
   type HelperRequestEnvelope,
 } from "../../../shared/schemas/helperProtocol";
+import type { HelperLifecycleStatus } from "./helperLifecycle";
 import {
   DisabledHelperTransport,
   HelperTransportUnavailableError,
@@ -18,6 +19,7 @@ export const HELPER_TRANSPORT_ENV = "SCAN_HELPER_TRANSPORT";
 
 export interface HelperClientStatus {
   available: boolean;
+  lifecycle?: HelperLifecycleStatus;
   reason?: string;
   transport: "disabled" | "xpc";
 }
