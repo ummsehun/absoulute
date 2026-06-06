@@ -12,7 +12,10 @@ import {
   TransportHelperClient,
 } from "../../src/main/services/helper/helperClient";
 import { HelperTransportUnavailableError, type HelperTransport } from "../../src/main/services/helper/helperTransport";
-import { MACOS_XPC_HELPER_NOT_IMPLEMENTED_REASON } from "../../src/main/services/helper/macosXpcHelperTransport";
+import {
+  MACOS_XPC_HELPER_NOT_IMPLEMENTED_REASON,
+  MacOsXpcHelperTransport,
+} from "../../src/main/services/helper/macosXpcHelperTransport";
 import { resolveNativeVolumePlan } from "../../src/main/services/scan/nativeScanOrchestrator";
 import { resolveScanOptions } from "../../src/main/services/scan/scanRuntimeOptions";
 
@@ -114,7 +117,7 @@ describe("helperClient", () => {
         state: "not-implemented",
         reason: MACOS_XPC_HELPER_NOT_IMPLEMENTED_REASON,
         checks: {
-          "service-management": "unknown",
+          "service-management": "fail",
           "helper-install": "unknown",
           "caller-identity": "unknown",
           "full-disk-access": "unknown",
@@ -131,7 +134,33 @@ describe("helperClient", () => {
         state: "not-implemented",
         reason: MACOS_XPC_HELPER_NOT_IMPLEMENTED_REASON,
         checks: {
-          "service-management": "unknown",
+          "service-management": "fail",
+          "helper-install": "unknown",
+          "caller-identity": "unknown",
+          "full-disk-access": "unknown",
+          "xpc-channel": "fail",
+        },
+      },
+      reason: MACOS_XPC_HELPER_NOT_IMPLEMENTED_REASON,
+      transport: "xpc",
+    });
+  });
+
+  it("reflects ServiceManagement probe results in macOS xpc lifecycle status", async () => {
+    const transport = new MacOsXpcHelperTransport({
+      getStatus: async () => ({
+        state: "pending-approval",
+        reason: "admin-approval-required",
+      }),
+    });
+
+    await expect(transport.getStatus()).resolves.toEqual({
+      available: false,
+      lifecycle: {
+        state: "pending-approval",
+        reason: MACOS_XPC_HELPER_NOT_IMPLEMENTED_REASON,
+        checks: {
+          "service-management": "fail",
           "helper-install": "unknown",
           "caller-identity": "unknown",
           "full-disk-access": "unknown",
