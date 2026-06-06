@@ -100,6 +100,7 @@ pub(crate) fn maybe_emit_progress_and_diagnostics<W: Write>(
             soft_skipped_by_policy: runtime.soft_skipped_by_policy,
             deferred_by_budget: runtime.deferred_by_budget,
             policy_skip_samples: runtime.policy_skip_samples.clone(),
+            permission_samples: runtime.permission_samples.clone(),
             inflight,
         },
     )?;
@@ -169,6 +170,7 @@ pub(crate) fn on_policy_block<W: Write>(
         }
         PolicyBlockKind::PermissionRequired => {
             runtime.blocked_by_permission += 1;
+            record_permission_sample(runtime, blocked_path);
         }
         PolicyBlockKind::SoftSkip => {
             runtime.blocked_by_policy += 1;
@@ -194,16 +196,24 @@ pub(crate) fn on_policy_block<W: Write>(
 }
 
 fn record_policy_skip_sample<W: Write>(runtime: &mut ScanRuntime<'_, W>, path: &Path) {
-    if runtime.policy_skip_samples.len() >= MAX_POLICY_SKIP_SAMPLES {
+    record_sample(&mut runtime.policy_skip_samples, path);
+}
+
+fn record_permission_sample<W: Write>(runtime: &mut ScanRuntime<'_, W>, path: &Path) {
+    record_sample(&mut runtime.permission_samples, path);
+}
+
+fn record_sample(samples: &mut Vec<String>, path: &Path) {
+    if samples.len() >= MAX_POLICY_SKIP_SAMPLES {
         return;
     }
 
     let sample = path_to_string(path);
-    if runtime.policy_skip_samples.iter().any(|existing| existing == &sample) {
+    if samples.iter().any(|existing| existing == &sample) {
         return;
     }
 
-    runtime.policy_skip_samples.push(sample);
+    samples.push(sample);
 }
 
 pub(crate) fn emit_warning<W: Write>(
@@ -217,6 +227,7 @@ pub(crate) fn emit_warning<W: Write>(
         runtime.blocked_by_permission += 1;
         runtime.elevation_required = true;
         if let Some(target_path) = path.as_deref() {
+            record_permission_sample(runtime, Path::new(target_path));
             maybe_emit_elevation_required(
                 runtime,
                 Path::new(target_path),

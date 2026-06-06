@@ -96,6 +96,7 @@ export interface NativeDiagnosticsMessage {
   softSkippedByPolicy?: number;
   deferredByBudget?: number;
   policySkipSamples?: string[];
+  permissionSamples?: string[];
   inflight?: number;
 }
 
@@ -630,6 +631,7 @@ function parseNativeScannerLine(line: string): NativeScannerMessage | null {
         softSkippedByPolicy: toSafeOptionalNonNegative(message.softSkippedByPolicy),
         deferredByBudget: toSafeOptionalNonNegative(message.deferredByBudget),
         policySkipSamples: toSafeStringArray(message.policySkipSamples),
+        permissionSamples: toSafeStringArray(message.permissionSamples),
         inflight: toSafeOptionalNonNegative(message.inflight),
       };
     case "elevation_required":

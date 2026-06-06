@@ -51,6 +51,7 @@ pub struct ScanRuntime<'a, W: Write> {
     pub soft_skipped_by_policy: u64,
     pub deferred_by_budget: u64,
     pub policy_skip_samples: Vec<String>,
+    pub permission_samples: Vec<String>,
 }
 
 #[derive(Clone, Copy)]

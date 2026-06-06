@@ -108,6 +108,7 @@ fn main() -> Result<()> {
             soft_skipped_by_policy: 0,
             deferred_by_budget: 0,
             policy_skip_samples: Vec::new(),
+            permission_samples: Vec::new(),
         };
 
         let summary = run_scan_loop(&mut runtime)?;

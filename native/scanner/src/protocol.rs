@@ -318,6 +318,8 @@ pub enum OutgoingMessage {
         deferred_by_budget: u64,
         #[serde(rename = "policySkipSamples")]
         policy_skip_samples: Vec<String>,
+        #[serde(rename = "permissionSamples")]
+        permission_samples: Vec<String>,
         inflight: usize,
     },
     #[serde(rename = "coverage")]

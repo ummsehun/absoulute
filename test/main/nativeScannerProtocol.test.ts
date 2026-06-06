@@ -12,6 +12,7 @@ interface NativeMessage {
   code?: string;
   elapsedMs?: number;
   estimated?: boolean;
+  permissionSamples?: string[];
   policySkipSamples?: string[];
   targetPath?: string;
 }
@@ -111,9 +112,16 @@ describe("native scanner protocol", () => {
         permissionPrefixes: [],
       });
 
+      const diagnosticsEvents = messages.filter((message) => message.type === "diagnostics");
+
       expect(messages.some((message) => message.type === "warn" && message.code === "E_PERMISSION"))
         .toBe(true);
       expect(messages.some((message) => message.type === "elevation_required")).toBe(true);
+      expect(
+        diagnosticsEvents.some((event) =>
+          event.permissionSamples?.includes(deniedRoot),
+        ),
+      ).toBe(true);
     } finally {
       await fs.chmod(deniedRoot, 0o700).catch(() => undefined);
       await fs.rm(root, { recursive: true, force: true });
