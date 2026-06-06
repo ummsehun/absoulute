@@ -12,6 +12,7 @@ import {
   HelperTransportUnavailableError,
   type HelperTransport,
 } from "./helperTransport";
+import { resolveHelperRegistrationPreflightInputFromEnv } from "./helperRegistration";
 import { MacOsXpcHelperTransport } from "./macosXpcHelperTransport";
 
 export const HELPER_DISABLED_REASON = "helper-phase-gate-unresolved";
@@ -115,7 +116,10 @@ export function createDefaultHelperTransport(
     return new DisabledHelperTransport("xpc-transport-non-darwin");
   }
 
-  return new MacOsXpcHelperTransport();
+  return new MacOsXpcHelperTransport(
+    undefined,
+    resolveHelperRegistrationPreflightInputFromEnv(env),
+  );
 }
 
 export function buildHelperEnumerateRequest(

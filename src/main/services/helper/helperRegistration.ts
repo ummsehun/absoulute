@@ -31,6 +31,14 @@ export interface HelperRegistrationPreflight {
   blockers: HelperRegistrationBlocker[];
 }
 
+export const HELPER_TEAM_ID_ENV = "SCAN_HELPER_TEAM_ID";
+export const HELPER_DESIGNATED_REQUIREMENT_ENV =
+  "SCAN_HELPER_DESIGNATED_REQUIREMENT";
+export const HELPER_PACKAGING_ENTITLEMENTS_READY_ENV =
+  "SCAN_HELPER_PACKAGING_ENTITLEMENTS_READY";
+export const HELPER_FDA_VALIDATION_MATRIX_READY_ENV =
+  "SCAN_HELPER_FDA_VALIDATION_MATRIX_READY";
+
 export const DISK_VISUALIZER_APP_BUNDLE_IDENTIFIER =
   "com.example.diskvisualizer";
 
@@ -83,4 +91,33 @@ export function resolveHelperRegistrationPreflight(
     status: blockers.length > 0 ? "blocked" : "ready",
     blockers,
   };
+}
+
+export function resolveHelperRegistrationPreflightInputFromEnv(
+  env: NodeJS.ProcessEnv,
+): HelperRegistrationPreflightInput {
+  return {
+    identity: {
+      teamId: readNonEmptyEnv(env[HELPER_TEAM_ID_ENV]),
+      designatedRequirement: readNonEmptyEnv(
+        env[HELPER_DESIGNATED_REQUIREMENT_ENV],
+      ),
+    },
+    packagingEntitlementsReady: readBooleanEvidenceEnv(
+      env[HELPER_PACKAGING_ENTITLEMENTS_READY_ENV],
+    ),
+    fdaValidationMatrixReady: readBooleanEvidenceEnv(
+      env[HELPER_FDA_VALIDATION_MATRIX_READY_ENV],
+    ),
+  };
+}
+
+function readNonEmptyEnv(value: string | undefined): string | undefined {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : undefined;
+}
+
+function readBooleanEvidenceEnv(value: string | undefined): boolean {
+  const normalized = value?.trim().toLowerCase();
+  return normalized === "1" || normalized === "true";
 }
