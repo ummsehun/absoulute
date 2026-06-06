@@ -69,6 +69,23 @@ describe("helperPrototypeAuditSummary", () => {
             message: "denied",
             path: "/Library/Protected",
           },
+          {
+            type: "warn",
+            code: "E_PERMISSION",
+            message: "denied again",
+            path: "/Library/Protected",
+          },
+          {
+            type: "warn",
+            code: "E_IO",
+            message: "io failed",
+            path: "/Library/Broken",
+          },
+          {
+            type: "warn",
+            code: "E_IO",
+            message: "missing path warning",
+          },
         ],
         logEvents: [
           {
@@ -92,8 +109,14 @@ describe("helperPrototypeAuditSummary", () => {
       scanned: 2,
       blockedByPermission: 1,
       skippedByScope: 0,
-      warningCount: 1,
-      permissionWarningCount: 1,
+      warningCount: 4,
+      permissionWarningCount: 2,
+      warningSamples: [
+        "/Library/Protected",
+        "/Library/Broken",
+        "missing path warning",
+      ],
+      permissionWarningSamples: ["/Library/Protected"],
       doneElapsedMs: 42,
       fallbackUsed: false,
       helperAvailable: false,

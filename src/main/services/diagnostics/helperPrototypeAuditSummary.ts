@@ -41,6 +41,8 @@ export interface HelperPrototypeAuditSummary {
   skippedByScope: number;
   warningCount: number;
   permissionWarningCount: number;
+  warningSamples: string[];
+  permissionWarningSamples: string[];
   doneElapsedMs: number | null;
   fallbackUsed: boolean;
   helperAvailable: boolean | null;
@@ -74,6 +76,10 @@ export function summarizeHelperPrototypeAudit(
     skippedByScope: latestCoverage?.skippedByScope ?? 0,
     warningCount: input.warnings.length,
     permissionWarningCount: input.warnings.filter(isPermissionWarning).length,
+    warningSamples: collectWarningSamples(input.warnings),
+    permissionWarningSamples: collectWarningSamples(
+      input.warnings.filter(isPermissionWarning),
+    ),
     doneElapsedMs: latestDone?.elapsedMs ?? null,
     fallbackUsed: input.logEvents.some(
       (entry) => entry.event === "native_helper_scan_fallback",
@@ -86,6 +92,24 @@ export function summarizeHelperPrototypeAudit(
 
 function isPermissionWarning(message: NativeWarnMessage): boolean {
   return message.code === "E_PERMISSION" || message.code === "E_TCC_PERMISSION";
+}
+
+function collectWarningSamples(
+  warnings: NativeWarnMessage[],
+  limit = 5,
+): string[] {
+  const samples = new Set<string>();
+  for (const warning of warnings) {
+    const sample = warning.path ?? warning.message;
+    if (!sample) {
+      continue;
+    }
+    samples.add(sample);
+    if (samples.size >= limit) {
+      break;
+    }
+  }
+  return [...samples];
 }
 
 function readBooleanDetail(
