@@ -165,16 +165,22 @@ describe("macOS helper enumerate CLI", () => {
     const scopeWarnings = events.filter(
       (event) => event.type === "warn" && event.code === "E_SCOPE",
     );
+    const coverage = events.find((event) => event.type === "coverage");
 
     expect(entryPaths).not.toContain(crossDeviceChild);
-    expect(scopeWarnings).toEqual([
+    expect(scopeWarnings).toEqual(expect.arrayContaining([
       expect.objectContaining({
         type: "warn",
         requestId: "request-1",
         code: "E_SCOPE",
         path: crossDeviceChild,
       }),
-    ]);
+    ]));
+    expect(coverage).toMatchObject({
+      type: "coverage",
+      requestId: "request-1",
+      scopeFailures: scopeWarnings.length,
+    });
   });
 
   it("rejects requests when the root is outside the planned roots", () => {

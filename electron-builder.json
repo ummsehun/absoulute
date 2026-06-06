@@ -25,12 +25,22 @@
   ],
   "mac": {
     "target": ["dmg"],
+    "hardenedRuntime": true,
+    "entitlements": "resources/entitlements/mac.plist",
+    "entitlementsInherit": "resources/entitlements/mac.inherit.plist",
     "extraFiles": [
       {
         "from": "resources/helper/LaunchDaemons",
         "to": "Library/LaunchDaemons",
         "filter": [
           "com.example.diskvisualizer.privileged-helper.plist"
+        ]
+      },
+      {
+        "from": "resources/helper/LaunchServices",
+        "to": "Library/LaunchServices",
+        "filter": [
+          "com.example.diskvisualizer.privileged-helper"
         ]
       }
     ]

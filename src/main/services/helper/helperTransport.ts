@@ -13,6 +13,8 @@ export interface HelperTransport {
   getStatus: () => Promise<HelperClientStatus>;
   getVersion: () => Promise<string | null>;
   healthCheck: () => Promise<HelperClientStatus>;
+  register: () => Promise<HelperClientStatus>;
+  unregister: () => Promise<HelperClientStatus>;
   enumerate: (
     request: HelperRequestEnvelope,
     handlers: HelperTransportHandlers,
@@ -44,6 +46,14 @@ export class DisabledHelperTransport implements HelperTransport {
 
   async healthCheck(): Promise<HelperClientStatus> {
     return await this.getStatus();
+  }
+
+  async register(): Promise<HelperClientStatus> {
+    throw new HelperTransportUnavailableError(this.reason);
+  }
+
+  async unregister(): Promise<HelperClientStatus> {
+    throw new HelperTransportUnavailableError(this.reason);
   }
 
   async enumerate(

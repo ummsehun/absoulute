@@ -74,6 +74,7 @@ describe("helperEventAdapter", () => {
         scannedCount: 12,
         permissionFailures: 2,
         ioFailures: 1,
+        scopeFailures: 3,
       }),
     ).toEqual([
       {
@@ -81,7 +82,7 @@ describe("helperEventAdapter", () => {
         scanned: 12,
         blockedByPolicy: 0,
         blockedByPermission: 2,
-        skippedByScope: 0,
+        skippedByScope: 3,
         elevationRequired: true,
       },
     ]);

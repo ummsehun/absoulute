@@ -23,6 +23,16 @@ describe("macOS ServiceManagement probe CLI", () => {
     expect(source).toContain("service.status");
   });
 
+  it("supports explicit SMAppService register and unregister commands", () => {
+    const source = fs.readFileSync(sourcePath, "utf8");
+
+    expect(source).toContain("CommandLine.arguments.dropFirst()");
+    expect(source).toContain("try service.register()");
+    expect(source).toContain("try service.unregister()");
+    expect(source).toContain('emit(state: serviceState(service.status), reason: "register-succeeded"');
+    expect(source).toContain('emit(state: serviceState(service.status), reason: "unregister-succeeded"');
+  });
+
   it("maps SMAppService statuses to the main process probe schema", () => {
     const source = fs.readFileSync(sourcePath, "utf8");
 

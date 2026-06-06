@@ -17,6 +17,12 @@ export interface MacOsServiceManagementProbe {
   getStatus: () => Promise<MacOsServiceManagementProbeResult>;
 }
 
+export interface MacOsServiceManagementControl
+  extends MacOsServiceManagementProbe {
+  register: () => Promise<MacOsServiceManagementProbeResult>;
+  unregister: () => Promise<MacOsServiceManagementProbeResult>;
+}
+
 export const MACOS_SERVICE_MANAGEMENT_PROBE_NOT_IMPLEMENTED_REASON =
   "service-management-probe-not-implemented";
 export const HELPER_SERVICE_MANAGEMENT_PROBE_BIN_ENV =
@@ -91,6 +97,32 @@ export class CommandMacOsServiceManagementProbe
   }
 }
 
+export class CommandMacOsServiceManagementController
+  extends CommandMacOsServiceManagementProbe
+  implements MacOsServiceManagementControl
+{
+  private readonly commandOptions: CommandMacOsServiceManagementProbeOptions;
+
+  constructor(options: CommandMacOsServiceManagementProbeOptions) {
+    super(options);
+    this.commandOptions = options;
+  }
+
+  async register(): Promise<MacOsServiceManagementProbeResult> {
+    return await new CommandMacOsServiceManagementProbe({
+      ...this.commandOptions,
+      args: ["register"],
+    }).getStatus();
+  }
+
+  async unregister(): Promise<MacOsServiceManagementProbeResult> {
+    return await new CommandMacOsServiceManagementProbe({
+      ...this.commandOptions,
+      args: ["unregister"],
+    }).getStatus();
+  }
+}
+
 export function createMacOsServiceManagementProbeFromEnv(
   env: NodeJS.ProcessEnv = process.env,
   platform: NodeJS.Platform = process.platform,
@@ -111,6 +143,28 @@ export function createMacOsServiceManagementProbeFromEnv(
   }
 
   return new CommandMacOsServiceManagementProbe({ commandPath });
+}
+
+export function createMacOsServiceManagementControllerFromEnv(
+  env: NodeJS.ProcessEnv = process.env,
+  platform: NodeJS.Platform = process.platform,
+  resourcesPath: string | null = typeof process.resourcesPath === "string"
+    ? process.resourcesPath
+    : null,
+): MacOsServiceManagementControl | null {
+  if (platform !== "darwin") {
+    return null;
+  }
+
+  const commandPath = resolveMacOsServiceManagementProbeBinary(
+    env,
+    resourcesPath,
+  );
+  if (!commandPath) {
+    return null;
+  }
+
+  return new CommandMacOsServiceManagementController({ commandPath });
 }
 
 export function resolveMacOsServiceManagementProbeBinary(

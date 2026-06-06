@@ -145,6 +145,8 @@ describe("nativeScanOrchestrator", () => {
       getStatus: async () => ({ available: true, transport: "xpc" }),
       getVersion: async () => "test-helper",
       healthCheck: async () => ({ available: true, transport: "xpc" }),
+      register: async () => ({ available: false, transport: "xpc" }),
+      unregister: async () => ({ available: false, transport: "xpc" }),
       enumerate: async (input, handlers) => {
         helperInputs.push(input);
         handlers.onEvent({
@@ -259,6 +261,8 @@ describe("nativeScanOrchestrator", () => {
       getStatus: async () => ({ available: true, transport: "xpc" }),
       getVersion: async () => "test-helper",
       healthCheck: async () => ({ available: true, transport: "xpc" }),
+      register: async () => ({ available: false, transport: "xpc" }),
+      unregister: async () => ({ available: false, transport: "xpc" }),
       enumerate: async (input) => {
         helperInputs.push(input);
         throw new Error("helper-enumerate-failed:exit-1:test-failure");
@@ -342,6 +346,8 @@ describe("nativeScanOrchestrator", () => {
       }),
       getVersion: async () => "test-helper",
       healthCheck: async () => ({ available: false, transport: "xpc" }),
+      register: async () => ({ available: false, transport: "xpc" }),
+      unregister: async () => ({ available: false, transport: "xpc" }),
       enumerate: async (input, handlers) => {
         helperInputs.push(input);
         handlers.onEvent({
@@ -451,6 +457,8 @@ describe("nativeScanOrchestrator", () => {
           contract: {
             appBundleIdentifier: "com.example.diskvisualizer",
             helperLabel: "com.example.diskvisualizer.privileged-helper",
+            helperExecutableBundleRelativePath:
+              "Contents/Library/LaunchServices/com.example.diskvisualizer.privileged-helper",
             launchDaemonPlistName:
               "com.example.diskvisualizer.privileged-helper.plist",
             launchDaemonBundleRelativePath:
@@ -464,6 +472,8 @@ describe("nativeScanOrchestrator", () => {
       }),
       getVersion: async () => "test-helper",
       healthCheck: async () => ({ available: true, transport: "xpc" }),
+      register: async () => ({ available: false, transport: "xpc" }),
+      unregister: async () => ({ available: false, transport: "xpc" }),
       enumerate: async (_input, handlers) => {
         handlers.onEvent({
           type: "done",
@@ -526,6 +536,8 @@ describe("nativeScanOrchestrator", () => {
           blockers: [],
           contract: {
             helperLabel: "com.example.diskvisualizer.privileged-helper",
+            helperExecutableBundleRelativePath:
+              "Contents/Library/LaunchServices/com.example.diskvisualizer.privileged-helper",
             launchDaemonPlistName:
               "com.example.diskvisualizer.privileged-helper.plist",
             serviceManagementModel: "smappservice-daemon",

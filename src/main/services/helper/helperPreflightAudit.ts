@@ -1,0 +1,320 @@
+import fs from "node:fs";
+import path from "node:path";
+import {
+  DISK_SCAN_HELPER_EXECUTABLE_SOURCE_RELATIVE_PATH,
+  DISK_SCAN_HELPER_FDA_MATRIX_SOURCE_RELATIVE_PATH,
+  DISK_SCAN_HELPER_REQUIRED_FDA_SCENARIOS,
+  DISK_SCAN_HELPER_REQUIREMENT_METADATA_SOURCE_RELATIVE_PATH,
+  HELPER_FDA_VALIDATION_MATRIX_READY_ENV,
+  HELPER_PACKAGING_ENTITLEMENTS_READY_ENV,
+  HELPER_PRIVILEGED_EXECUTABLE_READY_ENV,
+  getHelperRegistrationContract,
+  isConcreteMacOsVersion,
+  isValidAppleTeamId,
+  isValidDesignatedRequirement,
+  resolveFdaValidationMatrixEvidence,
+  resolveHelperRegistrationPreflight,
+  resolveHelperRegistrationPreflightInputFromEnv,
+  resolvePackagingEntitlementsEvidence,
+  resolvePrivilegedHelperExecutableEvidence,
+  resolvePrivilegedHelperListenerRequirementEvidence,
+  type HelperRegistrationBlocker,
+  type HelperRegistrationContract,
+  type HelperRegistrationPreflightInput,
+} from "./helperRegistration";
+
+export { DISK_SCAN_HELPER_EXECUTABLE_SOURCE_RELATIVE_PATH };
+
+export interface HelperPreflightAuditEvidence {
+  teamId: boolean;
+  designatedRequirement: boolean;
+  packagingEntitlements: boolean;
+  privilegedHelperExecutable: boolean;
+  privilegedHelperListenerRequirement: boolean;
+  fdaValidationMatrix: boolean;
+}
+
+export interface HelperPreflightAudit {
+  contract: HelperRegistrationContract;
+  status: "blocked" | "ready";
+  blockers: HelperRegistrationBlocker[];
+  artifactEvidence: HelperPreflightAuditEvidence;
+  confirmations: HelperPreflightAuditEvidence;
+  effectiveEvidence: HelperPreflightAuditEvidence;
+  readiness: HelperPreflightAuditReadiness;
+  details: HelperPreflightAuditDetails;
+}
+
+export interface HelperPreflightAuditReadiness {
+  enumerateReady: boolean;
+  installBlockers: HelperRegistrationBlocker[];
+  installReady: boolean;
+}
+
+export interface HelperPreflightAuditDetails {
+  privilegedHelperListenerRequirement: HelperListenerRequirementAuditDetails;
+  fdaValidationMatrix: HelperFdaValidationMatrixAuditDetails;
+}
+
+export interface HelperListenerRequirementAuditDetails {
+  metadataFound: boolean;
+  ready?: boolean;
+  teamId?: string;
+  requirement?: string;
+}
+
+export interface HelperFdaValidationMatrixAuditDetails {
+  matrixFound: boolean;
+  targetMacOS?: string;
+  targetMacOSReady: boolean;
+  failedScenarios: string[];
+  missingPassedScenarios: string[];
+  scenariosMissingEvidence: string[];
+}
+
+export interface BuildHelperPreflightAuditOptions {
+  env?: NodeJS.ProcessEnv;
+  projectRoot?: string;
+}
+
+export type HelperPreflightAuditStrictMode = "enumerate" | "install";
+
+export function buildHelperPreflightAudit(
+  options: BuildHelperPreflightAuditOptions = {},
+): HelperPreflightAudit {
+  const env = options.env ?? process.env;
+  const projectRoot = options.projectRoot ?? process.cwd();
+  const input = resolveHelperRegistrationPreflightInputFromEnv(
+    env,
+    projectRoot,
+  );
+  const preflight = resolveHelperRegistrationPreflight(input);
+  const installBlockers = preflight.blockers.filter(
+    (blocker) => blocker !== "fda-validation-matrix-missing",
+  );
+
+  return {
+    contract: getHelperRegistrationContract(),
+    status: preflight.status,
+    blockers: preflight.blockers,
+    artifactEvidence: buildArtifactEvidence(input, projectRoot),
+    confirmations: buildConfirmations(env, input),
+    effectiveEvidence: buildEffectiveEvidence(input, preflight.blockers),
+    readiness: {
+      enumerateReady: preflight.status === "ready",
+      installBlockers,
+      installReady: installBlockers.length === 0,
+    },
+    details: {
+      privilegedHelperListenerRequirement:
+        readListenerRequirementDetails(projectRoot),
+      fdaValidationMatrix: readFdaValidationMatrixDetails(projectRoot),
+    },
+  };
+}
+
+export function resolveHelperPreflightAuditStrictExitCode(
+  audit: HelperPreflightAudit,
+  mode: HelperPreflightAuditStrictMode,
+): 0 | 1 {
+  if (mode === "install") {
+    return audit.readiness.installReady ? 0 : 1;
+  }
+
+  return audit.readiness.enumerateReady ? 0 : 1;
+}
+
+export function resolveHelperPreflightAuditStrictMode(
+  value: string | undefined,
+): HelperPreflightAuditStrictMode {
+  if (value === "install" || value === "enumerate") {
+    return value;
+  }
+
+  return "enumerate";
+}
+
+function buildArtifactEvidence(
+  input: HelperRegistrationPreflightInput,
+  projectRoot: string,
+): HelperPreflightAuditEvidence {
+  const teamIdReady = isValidAppleTeamId(input.identity?.teamId);
+  const designatedRequirementReady = isValidDesignatedRequirement(
+    input.identity?.designatedRequirement,
+    input.identity?.teamId,
+  );
+
+  return {
+    teamId: teamIdReady,
+    designatedRequirement: designatedRequirementReady,
+    packagingEntitlements: resolvePackagingEntitlementsEvidence(projectRoot),
+    privilegedHelperExecutable:
+      resolvePrivilegedHelperExecutableEvidence(projectRoot),
+    privilegedHelperListenerRequirement:
+      resolvePrivilegedHelperListenerRequirementEvidence(
+        projectRoot,
+        input.identity?.teamId,
+      ),
+    fdaValidationMatrix: resolveFdaValidationMatrixEvidence(projectRoot),
+  };
+}
+
+function buildConfirmations(
+  env: NodeJS.ProcessEnv,
+  input: HelperRegistrationPreflightInput,
+): HelperPreflightAuditEvidence {
+  const teamIdReady = isValidAppleTeamId(input.identity?.teamId);
+  const designatedRequirementReady = isValidDesignatedRequirement(
+    input.identity?.designatedRequirement,
+    input.identity?.teamId,
+  );
+
+  return {
+    teamId: teamIdReady,
+    designatedRequirement: designatedRequirementReady,
+    packagingEntitlements:
+      readBooleanEvidenceEnv(env[HELPER_PACKAGING_ENTITLEMENTS_READY_ENV]),
+    privilegedHelperExecutable:
+      readBooleanEvidenceEnv(env[HELPER_PRIVILEGED_EXECUTABLE_READY_ENV]),
+    privilegedHelperListenerRequirement:
+      input.privilegedHelperListenerRequirementReady === true,
+    fdaValidationMatrix:
+      readBooleanEvidenceEnv(env[HELPER_FDA_VALIDATION_MATRIX_READY_ENV]),
+  };
+}
+
+function buildEffectiveEvidence(
+  input: HelperRegistrationPreflightInput,
+  blockers: HelperRegistrationBlocker[],
+): HelperPreflightAuditEvidence {
+  return {
+    teamId: !blockers.includes("team-id-missing"),
+    designatedRequirement: !blockers.includes("designated-requirement-missing"),
+    packagingEntitlements: input.packagingEntitlementsReady === true,
+    privilegedHelperExecutable: input.privilegedHelperExecutableReady === true,
+    privilegedHelperListenerRequirement:
+      input.privilegedHelperListenerRequirementReady === true,
+    fdaValidationMatrix: input.fdaValidationMatrixReady === true,
+  };
+}
+
+function readBooleanEvidenceEnv(value: string | undefined): boolean {
+  const normalized = value?.trim().toLowerCase();
+  return normalized === "1" || normalized === "true";
+}
+
+function readListenerRequirementDetails(
+  projectRoot: string,
+): HelperListenerRequirementAuditDetails {
+  try {
+    const metadata = JSON.parse(fs.readFileSync(
+      path.join(
+        projectRoot,
+        DISK_SCAN_HELPER_REQUIREMENT_METADATA_SOURCE_RELATIVE_PATH,
+      ),
+      "utf8",
+    )) as {
+      ready?: boolean;
+      requirement?: string;
+      teamId?: string;
+    };
+
+    return {
+      metadataFound: true,
+      ...(typeof metadata.ready === "boolean" ? { ready: metadata.ready } : {}),
+      ...(typeof metadata.teamId === "string" ? { teamId: metadata.teamId } : {}),
+      ...(typeof metadata.requirement === "string"
+        ? { requirement: metadata.requirement }
+        : {}),
+    };
+  } catch {
+    return {
+      metadataFound: false,
+    };
+  }
+}
+
+function readFdaValidationMatrixDetails(
+  projectRoot: string,
+): HelperFdaValidationMatrixAuditDetails {
+  try {
+    const matrix = JSON.parse(fs.readFileSync(
+      path.join(projectRoot, DISK_SCAN_HELPER_FDA_MATRIX_SOURCE_RELATIVE_PATH),
+      "utf8",
+    )) as {
+      scenarios?: Array<{
+        id?: string;
+        notes?: string;
+        status?: string;
+        validatedAt?: string;
+        validator?: string;
+      }>;
+      targetMacOS?: string;
+    };
+    const passedScenarioIds = new Set(
+      matrix.scenarios
+        ?.filter((scenario) =>
+          scenario.status === "passed" && hasFdaScenarioEvidence(scenario)
+        )
+        .map((scenario) => scenario.id)
+        .filter((id): id is string => typeof id === "string"),
+    );
+    const scenarioById = new Map(
+      matrix.scenarios
+        ?.filter((scenario) => typeof scenario.id === "string")
+        .map((scenario) => [scenario.id as string, scenario]),
+    );
+
+    return {
+      matrixFound: true,
+      ...(typeof matrix.targetMacOS === "string"
+        ? { targetMacOS: matrix.targetMacOS }
+        : {}),
+      targetMacOSReady: isConcreteMacOsVersion(matrix.targetMacOS),
+      failedScenarios: DISK_SCAN_HELPER_REQUIRED_FDA_SCENARIOS.filter(
+        (scenarioId) => scenarioById.get(scenarioId)?.status === "failed",
+      ),
+      missingPassedScenarios: DISK_SCAN_HELPER_REQUIRED_FDA_SCENARIOS.filter(
+        (scenarioId) => !passedScenarioIds.has(scenarioId),
+      ),
+      scenariosMissingEvidence: DISK_SCAN_HELPER_REQUIRED_FDA_SCENARIOS.filter(
+        (scenarioId) => !hasFdaScenarioEvidence(scenarioById.get(scenarioId)),
+      ),
+    };
+  } catch {
+    return {
+      matrixFound: false,
+      targetMacOSReady: false,
+      failedScenarios: [],
+      missingPassedScenarios: [...DISK_SCAN_HELPER_REQUIRED_FDA_SCENARIOS],
+      scenariosMissingEvidence: [...DISK_SCAN_HELPER_REQUIRED_FDA_SCENARIOS],
+    };
+  }
+}
+
+function hasFdaScenarioEvidence(
+  scenario:
+    | {
+      notes?: string;
+      validatedAt?: string;
+      validator?: string;
+    }
+    | undefined,
+): boolean {
+  return isIsoDateTime(scenario?.validatedAt)
+    && hasNonEmptyText(scenario?.validator)
+    && hasNonEmptyText(scenario?.notes);
+}
+
+function hasNonEmptyText(value: string | undefined): value is string {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+function isIsoDateTime(value: string | undefined): value is string {
+  if (!hasNonEmptyText(value)) {
+    return false;
+  }
+
+  const timestamp = Date.parse(value);
+  return Number.isFinite(timestamp) && value.includes("T");
+}

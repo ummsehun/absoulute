@@ -346,6 +346,9 @@ Facts:
   `com.example.diskvisualizer.privileged-helper.plist`.
 - The plist must be bundled at
   `Contents/Library/LaunchDaemons/com.example.diskvisualizer.privileged-helper.plist`.
+- The LaunchDaemon plist uses `BundleProgram` to point at the app-bundle
+  relative helper executable path
+  `Contents/Library/LaunchServices/com.example.diskvisualizer.privileged-helper`.
 
 Apple documentation basis:
 
@@ -355,6 +358,13 @@ Apple documentation basis:
   `Contents/Library/LaunchDaemons` directory.
 - `SMAppService.register()` registers the service, but a LaunchDaemon is not
   bootstrapped until an admin approves it in System Settings.
+- The ServiceManagement helper control binary supports explicit `status`,
+  `register`, and `unregister` commands. The main process wrapper maps
+  `register` and `unregister` through this command boundary instead of shelling
+  out to `launchctl` or writing daemon plists directly.
+- Apple DTS describes `SMAppService` daemon executable resolution as
+  bundle-relative when using the `BundleProgram` launchd key; this avoids
+  hard-coding `/Library/PrivilegedHelperTools` for the modern SMAppService path.
 
 Remaining blockers:
 
@@ -362,8 +372,16 @@ Remaining blockers:
   `com.example.diskvisualizer` value is a development identifier.
 - Team ID is not configured.
 - Expected designated requirement is not configured.
-- Hardened runtime, helper entitlements, and packaging are not configured.
-- FDA behavior matrix is not validated on target macOS versions.
+- A production privileged helper executable stub is built and packaged under
+  `Contents/Library/LaunchServices`, but its XPC listener signing requirement
+  still uses a placeholder Team ID. The
+  `privileged-helper-listener-requirement-missing` preflight blocker must remain
+  active until the helper is rebuilt with the real Team ID requirement.
+- FDA behavior matrix is tracked in `docs/helper-fda-validation-matrix.json`,
+  but all required scenarios remain pending. The
+  `fda-validation-matrix-missing` preflight blocker must remain active until all
+  required helper/FDA scenarios are recorded as passed for the target macOS
+  version.
 
 Direction:
 

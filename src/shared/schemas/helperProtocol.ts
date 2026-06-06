@@ -140,6 +140,7 @@ export const HelperCoverageEventSchema = z.object({
   scannedCount: z.number().int().nonnegative().optional(),
   permissionFailures: z.number().int().nonnegative(),
   ioFailures: z.number().int().nonnegative(),
+  scopeFailures: z.number().int().nonnegative().optional(),
 });
 
 export const HelperWarnEventSchema = z.object({

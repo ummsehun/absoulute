@@ -5,10 +5,8 @@
 <dict>
   <key>Label</key>
   <string>com.example.diskvisualizer.privileged-helper</string>
-  <key>ProgramArguments</key>
-  <array>
-    <string>/Library/PrivilegedHelperTools/com.example.diskvisualizer.privileged-helper</string>
-  </array>
+  <key>BundleProgram</key>
+  <string>Contents/Library/LaunchServices/com.example.diskvisualizer.privileged-helper</string>
   <key>MachServices</key>
   <dict>
     <key>com.example.diskvisualizer.privileged-helper</key>

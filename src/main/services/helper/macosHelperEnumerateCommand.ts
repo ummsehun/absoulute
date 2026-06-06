@@ -43,6 +43,7 @@ export interface CommandMacOsHelperEnumeratorOptions {
 
 export class CommandMacOsHelperEnumerator implements MacOsHelperEnumerator {
   private readonly commandPath: string;
+  private readonly replayedRequestKeys = new Set<string>();
   private readonly run: CommandMacOsHelperEnumeratorRunner;
   private readonly timeoutMs: number;
 
@@ -56,6 +57,12 @@ export class CommandMacOsHelperEnumerator implements MacOsHelperEnumerator {
     request: HelperRequestEnvelope,
     handlers: HelperTransportHandlers,
   ): Promise<void> {
+    const replayKey = buildReplayKey(request);
+    if (this.replayedRequestKeys.has(replayKey)) {
+      throw new Error("helper-enumerate-replayed-request");
+    }
+    this.replayedRequestKeys.add(replayKey);
+
     const result = await this.run(
       {
         commandPath: this.commandPath,
@@ -69,6 +76,10 @@ export class CommandMacOsHelperEnumerator implements MacOsHelperEnumerator {
       throw new Error(buildFailedEnumeratorReason(result.exitCode, result.stderr));
     }
   }
+}
+
+function buildReplayKey(request: HelperRequestEnvelope): string {
+  return `${request.scanId}\0${request.stageId}\0${request.nonce}`;
 }
 
 export function createMacOsHelperEnumeratorFromEnv(

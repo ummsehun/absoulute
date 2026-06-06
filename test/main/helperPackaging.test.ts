@@ -3,7 +3,10 @@
 import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { getHelperRegistrationContract } from "../../src/main/services/helper/helperRegistration";
+import {
+  DISK_SCAN_HELPER_EXECUTABLE_SOURCE_RELATIVE_PATH,
+  getHelperRegistrationContract,
+} from "../../src/main/services/helper/helperRegistration";
 
 const projectRoot = process.cwd();
 const electronBuilderConfigPath = path.join(projectRoot, "electron-builder.json");
@@ -21,9 +24,12 @@ describe("helper packaging", () => {
     const plist = fs.readFileSync(launchDaemonSourcePath, "utf8");
 
     expect(plist).toContain(`<string>${contract.helperLabel}</string>`);
+    expect(plist).toContain("<key>BundleProgram</key>");
     expect(plist).toContain(
-      `<string>/Library/PrivilegedHelperTools/${contract.helperLabel}</string>`,
+      `<string>${contract.helperExecutableBundleRelativePath}</string>`,
     );
+    expect(plist).not.toContain("/Library/PrivilegedHelperTools/");
+    expect(plist).not.toContain("<key>ProgramArguments</key>");
   });
 
   it("copies the helper LaunchDaemon plist into the macOS app bundle content directory", () => {
@@ -45,6 +51,51 @@ describe("helper packaging", () => {
       to: "Library/LaunchDaemons",
       filter: [contract.launchDaemonPlistName],
     });
+  });
+
+  it("copies the privileged helper executable into the macOS app bundle content directory", () => {
+    const contract = getHelperRegistrationContract();
+    const config = JSON.parse(
+      fs.readFileSync(electronBuilderConfigPath, "utf8"),
+    ) as {
+      mac?: {
+        extraFiles?: Array<{
+          filter?: string[];
+          from?: string;
+          to?: string;
+        }>;
+      };
+    };
+
+    expect(config.mac?.extraFiles).toContainEqual({
+      from: path.dirname(DISK_SCAN_HELPER_EXECUTABLE_SOURCE_RELATIVE_PATH),
+      to: "Library/LaunchServices",
+      filter: [contract.helperLabel],
+    });
+  });
+
+  it("defines macOS hardened runtime and entitlements before packaging evidence is accepted", () => {
+    const config = JSON.parse(
+      fs.readFileSync(electronBuilderConfigPath, "utf8"),
+    ) as {
+      mac?: {
+        entitlements?: string;
+        entitlementsInherit?: string;
+        hardenedRuntime?: boolean;
+      };
+    };
+
+    expect(config.mac).toMatchObject({
+      hardenedRuntime: true,
+      entitlements: "resources/entitlements/mac.plist",
+      entitlementsInherit: "resources/entitlements/mac.inherit.plist",
+    });
+    expect(
+      fs.existsSync(path.join(projectRoot, "resources", "entitlements", "mac.plist")),
+    ).toBe(true);
+    expect(
+      fs.existsSync(path.join(projectRoot, "resources", "entitlements", "mac.inherit.plist")),
+    ).toBe(true);
   });
 
   it("packages the ServiceManagement probe binary as a native resource", () => {

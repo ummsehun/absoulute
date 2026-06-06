@@ -70,6 +70,7 @@ func enumerate(_ request: HelperRequest) throws {
     var scannedCount = 0
     var permissionFailures = 0
     var ioFailures = 0
+    var scopeFailures = 0
     let rootDeviceId = try deviceIdForPath(root.path)
 
     guard let enumerator = FileManager.default.enumerator(
@@ -101,7 +102,7 @@ func enumerate(_ request: HelperRequest) throws {
             path: root.path,
             message: "failed to create directory enumerator"
         )
-        emitCoverage(requestId: request.requestId, scannedCount: scannedCount, permissionFailures: permissionFailures, ioFailures: 1)
+        emitCoverage(requestId: request.requestId, scannedCount: scannedCount, permissionFailures: permissionFailures, ioFailures: 1, scopeFailures: scopeFailures)
         emitDone(requestId: request.requestId)
         return
     }
@@ -116,6 +117,7 @@ func enumerate(_ request: HelperRequest) throws {
             let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
             let itemDeviceId = deviceId(from: attributes)
             if request.payload.sameDeviceOnly && rootDeviceId != nil && itemDeviceId != rootDeviceId {
+                scopeFailures += 1
                 emitWarn(
                     requestId: request.requestId,
                     code: "E_SCOPE",
@@ -152,7 +154,7 @@ func enumerate(_ request: HelperRequest) throws {
         emitEntryBatch(requestId: request.requestId, items: batch)
     }
     emitProgress(requestId: request.requestId, scannedCount: scannedCount, currentPath: root.path)
-    emitCoverage(requestId: request.requestId, scannedCount: scannedCount, permissionFailures: permissionFailures, ioFailures: ioFailures)
+    emitCoverage(requestId: request.requestId, scannedCount: scannedCount, permissionFailures: permissionFailures, ioFailures: ioFailures, scopeFailures: scopeFailures)
     emitDone(requestId: request.requestId)
 }
 
@@ -346,13 +348,14 @@ func emitProgress(requestId: String, scannedCount: Int, currentPath: String) {
     ])
 }
 
-func emitCoverage(requestId: String, scannedCount: Int, permissionFailures: Int, ioFailures: Int) {
+func emitCoverage(requestId: String, scannedCount: Int, permissionFailures: Int, ioFailures: Int, scopeFailures: Int) {
     emit([
         "type": "coverage",
         "requestId": requestId,
         "scannedCount": scannedCount,
         "permissionFailures": permissionFailures,
         "ioFailures": ioFailures,
+        "scopeFailures": scopeFailures,
     ])
 }
 

@@ -6,6 +6,8 @@ import os from "node:os";
 import path from "node:path";
 import {
   CommandMacOsServiceManagementProbe,
+  CommandMacOsServiceManagementController,
+  createMacOsServiceManagementControllerFromEnv,
   createMacOsServiceManagementProbeFromEnv,
 } from "../../src/main/services/helper/macosServiceManagementProbe";
 
@@ -32,6 +34,46 @@ describe("macosServiceManagementProbe", () => {
       state: "registered",
       reason: "enabled",
     });
+  });
+
+  it("runs explicit register and unregister commands through the ServiceManagement controller", async () => {
+    const calls: unknown[] = [];
+    const controller = new CommandMacOsServiceManagementController({
+      commandPath: "/tmp/control-sm-service",
+      run: async (request) => {
+        calls.push(request);
+        return {
+          exitCode: 0,
+          stderr: "",
+          stdout: JSON.stringify({
+            action: request.args[0],
+            state: request.args[0] === "register" ? "pending-approval" : "not-installed",
+            reason: `${request.args[0]}-succeeded`,
+          }),
+        };
+      },
+    });
+
+    await expect(controller.register()).resolves.toEqual({
+      state: "pending-approval",
+      reason: "register-succeeded",
+    });
+    await expect(controller.unregister()).resolves.toEqual({
+      state: "not-installed",
+      reason: "unregister-succeeded",
+    });
+    expect(calls).toEqual([
+      {
+        commandPath: "/tmp/control-sm-service",
+        args: ["register"],
+        timeoutMs: 2_000,
+      },
+      {
+        commandPath: "/tmp/control-sm-service",
+        args: ["unregister"],
+        timeoutMs: 2_000,
+      },
+    ]);
   });
 
   it("turns failed probe commands into explicit not-implemented status", async () => {
@@ -80,6 +122,22 @@ describe("macosServiceManagementProbe", () => {
         "linux",
       ).constructor.name,
     ).toBe("NotImplementedMacOsServiceManagementProbe");
+  });
+
+  it("selects the command controller only on darwin with an explicit ServiceManagement binary", () => {
+    expect(
+      createMacOsServiceManagementControllerFromEnv(
+        { SCAN_HELPER_SM_PROBE_BIN: "/tmp/control-sm-service" },
+        "darwin",
+      ),
+    ).toBeInstanceOf(CommandMacOsServiceManagementController);
+
+    expect(
+      createMacOsServiceManagementControllerFromEnv(
+        { SCAN_HELPER_SM_PROBE_BIN: "/tmp/control-sm-service" },
+        "linux",
+      ),
+    ).toBeNull();
   });
 
   it("falls back to the packaged probe binary in Electron resources on macOS", () => {

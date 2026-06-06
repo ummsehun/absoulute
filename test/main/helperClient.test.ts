@@ -16,6 +16,7 @@ import {
   TransportHelperClient,
 } from "../../src/main/services/helper/helperClient";
 import { HelperTransportUnavailableError, type HelperTransport } from "../../src/main/services/helper/helperTransport";
+import { CommandMacOsHelperEnumerator } from "../../src/main/services/helper/macosHelperEnumerateCommand";
 import {
   MACOS_XPC_HELPER_NOT_IMPLEMENTED_REASON,
   MacOsXpcHelperTransport,
@@ -88,6 +89,19 @@ describe("helperClient", () => {
     ).rejects.toBeInstanceOf(HelperUnavailableError);
   });
 
+  it("fails helper registration actions explicitly when the helper is disabled", async () => {
+    const client = new DisabledHelperClient("phase-gate");
+
+    await expect(client.register()).rejects.toMatchObject({
+      name: "HelperUnavailableError",
+      reason: "phase-gate",
+    });
+    await expect(client.unregister()).rejects.toMatchObject({
+      name: "HelperUnavailableError",
+      reason: "phase-gate",
+    });
+  });
+
   it("keeps helper transport disabled unless xpc is explicitly requested", async () => {
     const transport = createDefaultHelperTransport({}, "darwin");
 
@@ -134,10 +148,14 @@ describe("helperClient", () => {
           "team-id-missing",
           "designated-requirement-missing",
           "packaging-entitlements-missing",
+          "privileged-helper-executable-missing",
+          "privileged-helper-listener-requirement-missing",
           "fda-validation-matrix-missing",
         ],
         contract: {
           appBundleIdentifier: "com.example.diskvisualizer",
+          helperExecutableBundleRelativePath:
+            "Contents/Library/LaunchServices/com.example.diskvisualizer.privileged-helper",
           helperLabel: "com.example.diskvisualizer.privileged-helper",
           launchDaemonBundleRelativePath:
             "Contents/Library/LaunchDaemons/com.example.diskvisualizer.privileged-helper.plist",
@@ -169,10 +187,14 @@ describe("helperClient", () => {
           "team-id-missing",
           "designated-requirement-missing",
           "packaging-entitlements-missing",
+          "privileged-helper-executable-missing",
+          "privileged-helper-listener-requirement-missing",
           "fda-validation-matrix-missing",
         ],
         contract: {
           appBundleIdentifier: "com.example.diskvisualizer",
+          helperExecutableBundleRelativePath:
+            "Contents/Library/LaunchServices/com.example.diskvisualizer.privileged-helper",
           helperLabel: "com.example.diskvisualizer.privileged-helper",
           launchDaemonBundleRelativePath:
             "Contents/Library/LaunchDaemons/com.example.diskvisualizer.privileged-helper.plist",
@@ -248,7 +270,10 @@ describe("helperClient", () => {
 
     try {
       const transport = createDefaultHelperTransport(
-        { [HELPER_TRANSPORT_ENV]: "xpc" },
+        {
+          [HELPER_TRANSPORT_ENV]: "xpc",
+          SCAN_HELPER_PROTOTYPE_ENUMERATE: "1",
+        },
         "darwin",
         resourcesRoot,
       );
@@ -297,6 +322,196 @@ describe("helperClient", () => {
     ]);
   });
 
+  it("blocks helper enumeration when registration preflight is not ready", async () => {
+    let enumerateCalled = false;
+    const transport = new MacOsXpcHelperTransport(
+      {
+        getStatus: async () => ({
+          state: "registered",
+          reason: "registered",
+        }),
+      },
+      {},
+      {
+        enumerator: {
+          enumerate: async () => {
+            enumerateCalled = true;
+          },
+        },
+      },
+    );
+
+    await expect(
+      transport.enumerate(
+        buildHelperEnumerateRequest({
+          rootPath: "/Users/tester",
+          scanId: "scan-1",
+          stageId: "deep",
+          scanMode: "deep",
+          options: resolveScanOptions(
+            {
+              rootPath: "/Users/tester",
+              optInProtected: false,
+              accuracyMode: "full",
+            },
+            "/Users/tester",
+          ),
+          volumePlan: resolveNativeVolumePlan(
+            { rootPath: "/Users/tester" },
+            "darwin",
+          ),
+          maxDepth: 128,
+          issuedAtMs: 1_765_000_000_000,
+          nonce: "0123456789abcdef",
+          requestId: "request-1",
+        }),
+        { onEvent: () => undefined },
+      ),
+    ).rejects.toMatchObject({
+      reason: "registration-preflight-blocked:team-id-missing,designated-requirement-missing,packaging-entitlements-missing,privileged-helper-executable-missing,privileged-helper-listener-requirement-missing,fda-validation-matrix-missing",
+    });
+    expect(enumerateCalled).toBe(false);
+  });
+
+  it("blocks helper registration before install safety evidence is ready", async () => {
+    let registerCalled = false;
+    const transport = new MacOsXpcHelperTransport(
+      {
+        getStatus: async () => ({
+          state: "not-installed",
+          reason: "not-installed",
+        }),
+      },
+      {},
+      {
+        serviceManagementControl: {
+          getStatus: async () => ({
+            state: "not-installed",
+            reason: "not-installed",
+          }),
+          register: async () => {
+            registerCalled = true;
+            return {
+              state: "pending-approval",
+              reason: "register-succeeded",
+            };
+          },
+          unregister: async () => ({
+            state: "not-installed",
+            reason: "unregister-succeeded",
+          }),
+        },
+      },
+    );
+
+    await expect(transport.register()).rejects.toMatchObject({
+      reason: "registration-install-preflight-blocked:team-id-missing,designated-requirement-missing,packaging-entitlements-missing,privileged-helper-executable-missing,privileged-helper-listener-requirement-missing",
+    });
+    expect(registerCalled).toBe(false);
+  });
+
+  it("allows helper registration when only FDA validation remains unresolved", async () => {
+    let registerCalled = false;
+    const transport = new MacOsXpcHelperTransport(
+      {
+        getStatus: async () => ({
+          state: "not-installed",
+          reason: "not-installed",
+        }),
+      },
+      {
+        identity: {
+          teamId: "ABCDE12345",
+          designatedRequirement:
+            'identifier "com.example.diskvisualizer" and anchor apple generic and certificate leaf[subject.OU] = "ABCDE12345"',
+        },
+        packagingEntitlementsReady: true,
+        privilegedHelperExecutableReady: true,
+        privilegedHelperListenerRequirementReady: true,
+        fdaValidationMatrixReady: false,
+      },
+      {
+        serviceManagementControl: {
+          getStatus: async () => ({
+            state: "not-installed",
+            reason: "not-installed",
+          }),
+          register: async () => {
+            registerCalled = true;
+            return {
+              state: "pending-approval",
+              reason: "register-succeeded",
+            };
+          },
+          unregister: async () => ({
+            state: "not-installed",
+            reason: "unregister-succeeded",
+          }),
+        },
+      },
+    );
+
+    await expect(transport.register()).resolves.toMatchObject({
+      available: false,
+      lifecycle: {
+        state: "pending-approval",
+        reason: "register-succeeded",
+      },
+      registrationPreflight: {
+        status: "blocked",
+        blockers: ["fda-validation-matrix-missing"],
+      },
+      reason: "register-succeeded",
+      transport: "xpc",
+    });
+    expect(registerCalled).toBe(true);
+  });
+
+  it("rejects replayed helper enumerate requests before invoking the command transport", async () => {
+    let runCount = 0;
+    const enumerator = new CommandMacOsHelperEnumerator({
+      commandPath: "/test/helper-enumerate-macos",
+      run: async (request, handlers) => {
+        runCount += 1;
+        handlers.onEvent({
+          type: "done",
+          requestId: request.request.requestId,
+          estimated: false,
+          elapsedMs: 1,
+        });
+        return { exitCode: 0, stderr: "" };
+      },
+    });
+    const request = buildHelperEnumerateRequest({
+      rootPath: "/Users/tester",
+      scanId: "scan-1",
+      stageId: "deep",
+      scanMode: "deep",
+      options: resolveScanOptions(
+        {
+          rootPath: "/Users/tester",
+          optInProtected: false,
+          accuracyMode: "full",
+        },
+        "/Users/tester",
+      ),
+      volumePlan: resolveNativeVolumePlan(
+        { rootPath: "/Users/tester" },
+        "darwin",
+      ),
+      maxDepth: 128,
+      issuedAtMs: 1_765_000_000_000,
+      nonce: "0123456789abcdef",
+      requestId: "request-1",
+    });
+
+    await enumerator.enumerate(request, { onEvent: () => undefined });
+    await expect(
+      enumerator.enumerate(request, { onEvent: () => undefined }),
+    ).rejects.toThrow("helper-enumerate-replayed-request");
+    expect(runCount).toBe(1);
+  });
+
   it("reflects ServiceManagement probe results in macOS xpc lifecycle status", async () => {
     const transport = new MacOsXpcHelperTransport({
       getStatus: async () => ({
@@ -324,10 +539,14 @@ describe("helperClient", () => {
           "team-id-missing",
           "designated-requirement-missing",
           "packaging-entitlements-missing",
+          "privileged-helper-executable-missing",
+          "privileged-helper-listener-requirement-missing",
           "fda-validation-matrix-missing",
         ],
         contract: {
           appBundleIdentifier: "com.example.diskvisualizer",
+          helperExecutableBundleRelativePath:
+            "Contents/Library/LaunchServices/com.example.diskvisualizer.privileged-helper",
           helperLabel: "com.example.diskvisualizer.privileged-helper",
           launchDaemonBundleRelativePath:
             "Contents/Library/LaunchDaemons/com.example.diskvisualizer.privileged-helper.plist",
@@ -366,9 +585,11 @@ describe("helperClient", () => {
         identity: {
           teamId: "ABCDE12345",
           designatedRequirement:
-            'identifier "com.example.diskvisualizer" and anchor apple generic',
+            'identifier "com.example.diskvisualizer" and anchor apple generic and certificate leaf[subject.OU] = "ABCDE12345"',
         },
         packagingEntitlementsReady: true,
+        privilegedHelperExecutableReady: true,
+        privilegedHelperListenerRequirementReady: true,
         fdaValidationMatrixReady: true,
       },
       { enumerateBinaryPath: helperPath },
@@ -428,9 +649,11 @@ describe("helperClient", () => {
         identity: {
           teamId: "ABCDE12345",
           designatedRequirement:
-            'identifier "com.example.diskvisualizer" and anchor apple generic',
+            'identifier "com.example.diskvisualizer" and anchor apple generic and certificate leaf[subject.OU] = "ABCDE12345"',
         },
         packagingEntitlementsReady: true,
+        privilegedHelperExecutableReady: true,
+        privilegedHelperListenerRequirementReady: true,
         fdaValidationMatrixReady: false,
       },
     );
@@ -537,6 +760,8 @@ describe("helperClient", () => {
       getStatus: async () => ({ available: true, transport: "xpc" }),
       getVersion: async () => "test-helper",
       healthCheck: async () => ({ available: true, transport: "xpc" }),
+      register: async () => ({ available: false, transport: "xpc" }),
+      unregister: async () => ({ available: false, transport: "xpc" }),
       enumerate: async (request, handlers) => {
         receivedRequests.push(request);
         handlers.onEvent({
@@ -595,11 +820,44 @@ describe("helperClient", () => {
     ]);
   });
 
+  it("delegates helper registration actions to the configured transport", async () => {
+    const calls: string[] = [];
+    const transport: HelperTransport = {
+      getStatus: async () => ({ available: true, transport: "xpc" }),
+      getVersion: async () => "test-helper",
+      healthCheck: async () => ({ available: true, transport: "xpc" }),
+      register: async () => {
+        calls.push("register");
+        return { available: false, reason: "register-succeeded", transport: "xpc" };
+      },
+      unregister: async () => {
+        calls.push("unregister");
+        return { available: false, reason: "unregister-succeeded", transport: "xpc" };
+      },
+      enumerate: async () => undefined,
+    };
+    const client = new TransportHelperClient(transport);
+
+    await expect(client.register()).resolves.toMatchObject({
+      reason: "register-succeeded",
+    });
+    await expect(client.unregister()).resolves.toMatchObject({
+      reason: "unregister-succeeded",
+    });
+    expect(calls).toEqual(["register", "unregister"]);
+  });
+
   it("maps unavailable transport errors to helper client errors", async () => {
     const transport: HelperTransport = {
       getStatus: async () => ({ available: false, transport: "disabled" }),
       getVersion: async () => null,
       healthCheck: async () => ({ available: false, transport: "disabled" }),
+      register: async () => {
+        throw new HelperTransportUnavailableError("xpc-not-registered");
+      },
+      unregister: async () => {
+        throw new HelperTransportUnavailableError("xpc-not-registered");
+      },
       enumerate: async () => {
         throw new HelperTransportUnavailableError("xpc-not-registered");
       },

@@ -63,7 +63,7 @@ function mapCoverage(
     scanned: event.scannedCount ?? 0,
     blockedByPolicy: 0,
     blockedByPermission: event.permissionFailures,
-    skippedByScope: 0,
+    skippedByScope: event.scopeFailures ?? 0,
     elevationRequired: event.permissionFailures > 0,
   };
 }

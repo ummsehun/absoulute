@@ -17,11 +17,16 @@ import {
   type HelperRegistrationPreflight,
 } from "./helperRegistration";
 import { createMacOsHelperEnumeratorFromEnv } from "./macosHelperEnumerateCommand";
-import { createMacOsServiceManagementProbeFromEnv } from "./macosServiceManagementProbe";
+import {
+  createMacOsServiceManagementControllerFromEnv,
+  createMacOsServiceManagementProbeFromEnv,
+} from "./macosServiceManagementProbe";
 import { MacOsXpcHelperTransport } from "./macosXpcHelperTransport";
 
 export const HELPER_DISABLED_REASON = "helper-phase-gate-unresolved";
 export const HELPER_TRANSPORT_ENV = "SCAN_HELPER_TRANSPORT";
+export const HELPER_PROTOTYPE_ENUMERATE_ENV =
+  "SCAN_HELPER_PROTOTYPE_ENUMERATE";
 
 export interface HelperClientStatus {
   available: boolean;
@@ -56,6 +61,8 @@ export interface HelperClient {
   getStatus: () => Promise<HelperClientStatus>;
   getVersion: () => Promise<string | null>;
   healthCheck: () => Promise<HelperClientStatus>;
+  register: () => Promise<HelperClientStatus>;
+  unregister: () => Promise<HelperClientStatus>;
   enumerate: (
     input: HelperEnumerateInput,
     handlers: HelperEnumerateHandlers,
@@ -82,6 +89,28 @@ export class TransportHelperClient implements HelperClient {
 
   async healthCheck(): Promise<HelperClientStatus> {
     return await this.transport.healthCheck();
+  }
+
+  async register(): Promise<HelperClientStatus> {
+    try {
+      return await this.transport.register();
+    } catch (error) {
+      if (error instanceof HelperTransportUnavailableError) {
+        throw new HelperUnavailableError(error.reason);
+      }
+      throw error;
+    }
+  }
+
+  async unregister(): Promise<HelperClientStatus> {
+    try {
+      return await this.transport.unregister();
+    } catch (error) {
+      if (error instanceof HelperTransportUnavailableError) {
+        throw new HelperUnavailableError(error.reason);
+      }
+      throw error;
+    }
   }
 
   async enumerate(
@@ -129,7 +158,15 @@ export function createDefaultHelperTransport(
     createMacOsServiceManagementProbeFromEnv(env, platform, resourcesPath),
     resolveHelperRegistrationPreflightInputFromEnv(env),
     {
+      allowPrototypeEnumerate: readBooleanEnv(
+        env[HELPER_PROTOTYPE_ENUMERATE_ENV],
+      ),
       enumerator: createMacOsHelperEnumeratorFromEnv(
+        env,
+        platform,
+        resourcesPath,
+      ) ?? undefined,
+      serviceManagementControl: createMacOsServiceManagementControllerFromEnv(
         env,
         platform,
         resourcesPath,
@@ -168,4 +205,9 @@ export function buildHelperEnumerateRequest(
   };
 
   return HelperRequestEnvelopeSchema.parse(request);
+}
+
+function readBooleanEnv(value: string | undefined): boolean {
+  const normalized = value?.trim().toLowerCase();
+  return normalized === "1" || normalized === "true" || normalized === "yes";
 }

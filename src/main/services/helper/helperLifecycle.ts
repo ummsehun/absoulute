@@ -1,3 +1,5 @@
+import type { HelperRegistrationBlocker } from "./helperRegistration";
+
 export type HelperLifecycleState =
   | "disabled"
   | "not-implemented"
@@ -22,12 +24,7 @@ export interface HelperLifecycleStatus {
 export interface MacOsXpcLifecycleInput {
   reason: string;
   registrationPreflight?: {
-    blockers: Array<
-      | "team-id-missing"
-      | "designated-requirement-missing"
-      | "packaging-entitlements-missing"
-      | "fda-validation-matrix-missing"
-    >;
+    blockers: HelperRegistrationBlocker[];
     status: "blocked" | "ready";
   };
   serviceManagement: {

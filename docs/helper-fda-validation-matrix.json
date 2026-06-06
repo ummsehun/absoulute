@@ -1,0 +1,47 @@
+{
+  "targetMacOS": "pending",
+  "scenarios": [
+    {
+      "id": "unsigned-dev-app-without-fda",
+      "status": "pending",
+      "validatedAt": null,
+      "validator": null,
+      "notes": "Run unsigned development app without Full Disk Access and confirm protected paths remain denied with explicit permission coverage."
+    },
+    {
+      "id": "signed-dev-app-without-fda",
+      "status": "pending",
+      "validatedAt": null,
+      "validator": null,
+      "notes": "Run signed development app without Full Disk Access and confirm protected paths remain denied with explicit permission coverage."
+    },
+    {
+      "id": "signed-dev-app-with-fda",
+      "status": "pending",
+      "validatedAt": null,
+      "validator": null,
+      "notes": "Run signed development app with Full Disk Access and confirm protected path enumeration behavior on the target macOS version."
+    },
+    {
+      "id": "installed-helper-without-fda",
+      "status": "pending",
+      "validatedAt": null,
+      "validator": null,
+      "notes": "Install the helper without granting Full Disk Access and confirm helper access remains bounded and reports denial coverage."
+    },
+    {
+      "id": "installed-helper-with-app-fda",
+      "status": "pending",
+      "validatedAt": null,
+      "validator": null,
+      "notes": "Install the helper with app Full Disk Access and record whether helper requests inherit, fail, or require separate authorization."
+    },
+    {
+      "id": "installed-helper-with-helper-specific-fda",
+      "status": "pending",
+      "validatedAt": null,
+      "validator": null,
+      "notes": "Record helper-specific Full Disk Access behavior, including whether System Settings exposes or requires a separate helper entry."
+    }
+  ]
+}
