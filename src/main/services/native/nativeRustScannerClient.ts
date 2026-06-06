@@ -35,10 +35,16 @@ export interface NativeScannerStartRequest {
   emitPolicy: NativeEmitPolicy;
   concurrencyPolicy: NativeConcurrencyPolicy;
   skipBasenames: string[];
+  softSkipPathRules: NativeSoftSkipPathRule[];
   softSkipPrefixes: string[];
   skipDirSuffixes: string[];
   blockedPrefixes: string[];
   permissionPrefixes: string[];
+}
+
+export interface NativeSoftSkipPathRule {
+  all: readonly string[];
+  any?: readonly string[];
 }
 
 export interface NativeAggMessage {
@@ -312,6 +318,7 @@ export function createNativeScannerSession(): NativeScannerSession {
         emitPolicy: request.emitPolicy,
         concurrencyPolicy: request.concurrencyPolicy,
         skipBasenames: request.skipBasenames,
+        softSkipPathRules: request.softSkipPathRules,
         softSkipPrefixes: request.softSkipPrefixes,
         skipDirSuffixes: request.skipDirSuffixes,
         blockedPrefixes: request.blockedPrefixes,

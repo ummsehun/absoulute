@@ -150,9 +150,8 @@ pub fn estimate_dir_size_getattrlistbulk(dir_path: &Path) -> io::Result<Option<u
                 offset = record_end;
                 continue;
             }
-            let attrs = unsafe {
-                (buffer.as_ptr().add(cursor) as *const AttributeSet).read_unaligned()
-            };
+            let attrs =
+                unsafe { (buffer.as_ptr().add(cursor) as *const AttributeSet).read_unaligned() };
             cursor += size_of::<AttributeSet>();
 
             if cursor + size_of::<AttrReference>() > record_end {

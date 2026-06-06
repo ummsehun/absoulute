@@ -45,6 +45,7 @@ export interface ScanJob {
   inflightCount: number;
   rootDeviceId: number | null;
   deniedPermissionRoots: string[];
+  pendingPermissionRescanRoots: Set<string>;
   nonRemovableRoots: string[];
   visibleNonRemovableRoots: Set<string>;
   options: ResolvedScanOptions;

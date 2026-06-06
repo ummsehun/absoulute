@@ -34,6 +34,7 @@ import {
 } from "./scan/nativeScanOrchestrator";
 import { PortableScanService } from "./scan/portableScanService";
 import { ScanPolicyService } from "./scan/scanPolicyService";
+import { refreshScanJobPathAccess } from "./scan/scanPermissionAccess";
 import {
   isFilesystemRoot,
   resolveScanOptions,
@@ -57,6 +58,10 @@ export class DiskScanService {
     maxRecoverableErrors: MAX_RECOVERABLE_ERRORS,
     emitError: (error) => this.emitError(error),
     scanHistoryStore: this.scanHistoryStore,
+    refreshPathAccess: async (job) => {
+      await refreshScanJobPathAccess(job);
+      this.eventBus.emitCoverageUpdate(job, true);
+    },
   });
   private readonly portableScanService = new PortableScanService({
     classifyPathOrEmit: (job, targetPath) =>
@@ -171,6 +176,7 @@ export class DiskScanService {
           : null,
       deniedPermissionRoots:
         rootDecision.effectiveAccess?.deniedPermissionRoots ?? [],
+      pendingPermissionRescanRoots: new Set<string>(),
       nonRemovableRoots: rootDecision.effectiveAccess?.nonRemovableRoots ?? [],
       visibleNonRemovableRoots: new Set<string>(),
       options,
@@ -337,6 +343,10 @@ export class DiskScanService {
         if (!job.cancelled) {
           job.estimatedResult = deepResult.estimated;
         }
+      }
+
+      if (!job.cancelled) {
+        await this.runPermissionRescanStages(job);
       }
 
       if (job.cancelled) {
@@ -516,10 +526,42 @@ export class DiskScanService {
     };
   }
 
-  private toNativeStageContext(job: ScanJob): NativeStageContext {
+  private async runPermissionRescanStages(job: ScanJob): Promise<void> {
+    const roots = [...job.pendingPermissionRescanRoots];
+    if (roots.length === 0) {
+      return;
+    }
+
+    job.pendingPermissionRescanRoots.clear();
+    for (const rootPath of roots) {
+      if (job.cancelled) {
+        return;
+      }
+
+      job.scanStage = "deep";
+      const stageStartedAt = Date.now();
+      job.stageStartedAt = stageStartedAt;
+      this.eventBus.emitProgressBatch(job, "walking", true);
+      this.eventBus.emitDiagnostics(job, "walking", 0, true);
+
+      const result = await this.nativeScanOrchestrator.runStage(
+        this.toNativeStageContext(job, rootPath),
+        {
+          mode: "deep",
+          maxDepth: NATIVE_DEEP_MAX_DEPTH,
+          timeBudgetMs: job.options.deepBudgetMs,
+        },
+        this.createNativeStageHandlers(job, stageStartedAt),
+      );
+
+      job.estimatedResult = job.estimatedResult || result.estimated;
+    }
+  }
+
+  private toNativeStageContext(job: ScanJob, rootPath = job.rootPath): NativeStageContext {
     return {
       scanId: job.scanId,
-      rootPath: job.rootPath,
+      rootPath,
       permissionDeniedRoots: job.deniedPermissionRoots,
       paused: job.paused,
       cancelled: job.cancelled,

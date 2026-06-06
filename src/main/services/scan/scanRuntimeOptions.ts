@@ -117,11 +117,11 @@ export function resolveScanOptions(
   const allowNodeFallback =
     Boolean(input.allowNodeFallback) || process.env.SCAN_ALLOW_NODE_FALLBACK === "1";
   const deepSkipPackageManagers =
-    deepPolicyPreset === "responsive" && DEEP_SKIP_PACKAGE_MANAGERS_DEFAULT;
+    !isRoot && deepPolicyPreset === "responsive" && DEEP_SKIP_PACKAGE_MANAGERS_DEFAULT;
   const deepSkipCachePrefixes =
-    deepPolicyPreset === "responsive" && DEEP_SKIP_CACHE_PREFIXES_DEFAULT;
+    !isRoot && deepPolicyPreset === "responsive" && DEEP_SKIP_CACHE_PREFIXES_DEFAULT;
   const deepSkipBundleDirs =
-    deepPolicyPreset === "responsive" && DEEP_SKIP_BUNDLE_DIRS_DEFAULT;
+    !isRoot && deepPolicyPreset === "responsive" && DEEP_SKIP_BUNDLE_DIRS_DEFAULT;
   const deepSoftSkipPrefixes = resolveDeepSoftSkipPrefixes(
     os.platform(),
     os.homedir(),

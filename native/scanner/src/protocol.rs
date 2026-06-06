@@ -16,10 +16,19 @@ pub struct StartRequest {
     pub emit_policy: EmitPolicy,
     pub concurrency_policy: ConcurrencyPolicy,
     pub skip_basenames: Vec<String>,
+    pub soft_skip_path_rules: Vec<SoftSkipPathRule>,
     pub soft_skip_prefixes: Vec<String>,
     pub skip_dir_suffixes: Vec<String>,
     pub blocked_prefixes: Vec<String>,
     pub permission_prefixes: Vec<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct SoftSkipPathRule {
+    #[serde(default)]
+    pub all: Vec<String>,
+    #[serde(default)]
+    pub any: Vec<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -170,6 +179,9 @@ pub enum IncomingMessage {
         concurrency_policy: ConcurrencyPolicy,
         #[serde(rename = "skipBasenames")]
         skip_basenames: Vec<String>,
+        #[serde(rename = "softSkipPathRules")]
+        #[serde(default)]
+        soft_skip_path_rules: Vec<SoftSkipPathRule>,
         #[serde(rename = "softSkipPrefixes")]
         #[serde(default)]
         soft_skip_prefixes: Vec<String>,
@@ -209,6 +221,7 @@ impl IncomingMessage {
                 emit_policy,
                 concurrency_policy,
                 skip_basenames,
+                soft_skip_path_rules,
                 soft_skip_prefixes,
                 skip_dir_suffixes,
                 blocked_prefixes,
@@ -228,6 +241,7 @@ impl IncomingMessage {
                 emit_policy,
                 concurrency_policy,
                 skip_basenames,
+                soft_skip_path_rules,
                 soft_skip_prefixes,
                 skip_dir_suffixes,
                 blocked_prefixes,
@@ -274,9 +288,7 @@ pub enum OutgoingMessage {
         estimated: bool,
     },
     #[serde(rename = "agg_batch")]
-    AggBatch {
-        items: Vec<AggBatchItem>,
-    },
+    AggBatch { items: Vec<AggBatchItem> },
     #[serde(rename = "progress")]
     Progress {
         #[serde(rename = "scannedCount")]
@@ -353,4 +365,71 @@ pub enum Confidence {
     Low,
     Medium,
     High,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::IncomingMessage;
+
+    #[test]
+    fn parses_start_without_soft_skip_path_rules_for_backward_compatibility() {
+        let raw = r#"{
+            "type":"start",
+            "scanId":"scan-1",
+            "root":"/Users/tester",
+            "mode":"deep",
+            "platform":"darwin",
+            "timeBudgetMs":1000,
+            "maxDepth":3,
+            "sameDeviceOnly":true,
+            "concurrency":16,
+            "skipBasenames":[],
+            "softSkipPrefixes":[],
+            "skipDirSuffixes":[],
+            "blockedPrefixes":[],
+            "permissionPrefixes":[]
+        }"#;
+
+        let request = serde_json::from_str::<IncomingMessage>(raw)
+            .expect("start message should parse")
+            .into_start()
+            .expect("message should be start");
+
+        assert!(request.soft_skip_path_rules.is_empty());
+    }
+
+    #[test]
+    fn parses_start_with_soft_skip_path_rules() {
+        let raw = r#"{
+            "type":"start",
+            "scanId":"scan-1",
+            "root":"/Users/tester",
+            "mode":"deep",
+            "platform":"darwin",
+            "timeBudgetMs":1000,
+            "maxDepth":3,
+            "sameDeviceOnly":true,
+            "concurrency":16,
+            "skipBasenames":[],
+            "softSkipPathRules":[
+              { "all":["/.rustup/toolchains/"], "any":["/share/doc/"] }
+            ],
+            "softSkipPrefixes":[],
+            "skipDirSuffixes":[],
+            "blockedPrefixes":[],
+            "permissionPrefixes":[]
+        }"#;
+
+        let request = serde_json::from_str::<IncomingMessage>(raw)
+            .expect("start message should parse")
+            .into_start()
+            .expect("message should be start");
+
+        assert_eq!(request.soft_skip_path_rules.len(), 1);
+        assert_eq!(
+            request.soft_skip_path_rules[0].all,
+            vec!["/.rustup/toolchains/"]
+        );
+        assert_eq!(request.soft_skip_path_rules[0].any, vec!["/share/doc/"]);
+    }
 }

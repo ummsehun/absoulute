@@ -3,7 +3,9 @@ import path from "node:path";
 import { getProtectedPaths } from "../../../shared/domain/pathPolicy";
 import {
   getScanTraversalContract,
+  matchesSoftSkipPathRules,
   resolveDeepSoftSkipPolicyPrefixes,
+  type ScanSoftSkipPathRule,
 } from "../../../shared/domain/scanPolicyContract";
 import type { ScanMode } from "../../../types/contracts";
 import type { NativeScanPhaseMode } from "../native/nativeRustScannerClient";
@@ -179,14 +181,7 @@ export function shouldSkipDeepPackageTraversal(input: {
     return true;
   }
   if (
-    isRustupDocOrSourcePath(normalizedPath, platform) ||
-    isNvmVersionsPath(normalizedPath, platform) ||
-    isPyenvVersionsPath(normalizedPath, platform) ||
-    isPythonVenvPackagesPath(normalizedPath, platform) ||
-    isKakaoTalkChatTagPath(normalizedPath, platform) ||
-    isBrowserExtensionsPath(normalizedPath, platform) ||
-    isBrowserStoragePath(normalizedPath, platform) ||
-    isBrowserWebAppResourcesPath(normalizedPath, platform)
+    matchesSoftSkipPathRules(normalizedPath, SCAN_TRAVERSAL_CONTRACT.softSkipPathRules)
   ) {
     return true;
   }
@@ -242,157 +237,11 @@ export function pathMatchesAnyPrefix(
   return false;
 }
 
-export function isRustupDocOrSourcePath(
-  normalizedPath: string,
-  platform: NodeJS.Platform,
-): boolean {
-  const candidate = platform === "win32" ? normalizedPath.toLowerCase() : normalizedPath;
-  if (!candidate.includes("/.rustup/toolchains/")) {
-    return false;
-  }
-  return candidate.includes("/share/doc/") || candidate.includes("/lib/rustlib/src/");
-}
-
-export function isNvmVersionsPath(
-  normalizedPath: string,
-  platform: NodeJS.Platform,
-): boolean {
-  const candidate = platform === "win32" ? normalizedPath.toLowerCase() : normalizedPath;
-  return candidate.includes("/.nvm/versions/");
-}
-
-export function isPyenvVersionsPath(
-  normalizedPath: string,
-  platform: NodeJS.Platform,
-): boolean {
-  const candidate = platform === "win32" ? normalizedPath.toLowerCase() : normalizedPath;
-  return candidate.includes("/.pyenv/versions/");
-}
-
-export function isPythonVenvPackagesPath(
-  normalizedPath: string,
-  platform: NodeJS.Platform,
-): boolean {
-  const candidate = platform === "win32" ? normalizedPath.toLowerCase() : normalizedPath;
-  const inVenv = candidate.includes("/venv/") || candidate.includes("/.venv/");
-  if (!inVenv) {
-    return false;
-  }
-  return candidate.includes("/site-packages/") || candidate.includes("/dist-packages/");
-}
-
-export function isBrowserExtensionsPath(
-  normalizedPath: string,
-  platform: NodeJS.Platform,
-): boolean {
-  const candidate = platform === "win32" ? normalizedPath.toLowerCase() : normalizedPath;
-  const lower = candidate.toLowerCase();
-  if (!lower.includes("/extensions/")) {
-    return false;
-  }
-
-  const browserRoots = [
-    "/library/application support/google/chrome/",
-    "/library/application support/google/chrome beta/",
-    "/library/application support/google/chrome canary/",
-    "/library/application support/bravesoftware/brave-browser/",
-    "/library/application support/microsoft edge/",
-    "/library/application support/vivaldi/",
-    "/library/application support/opera",
-    "/library/application support/zen/",
-    "/library/application support/firefox/",
-    "/library/application support/librewolf/",
-  ];
-
-  return browserRoots.some((prefix) => lower.includes(prefix));
-}
-
-export function isBrowserStoragePath(
-  normalizedPath: string,
-  platform: NodeJS.Platform,
-): boolean {
-  const candidate = platform === "win32" ? normalizedPath.toLowerCase() : normalizedPath;
-  const lower = candidate.toLowerCase();
-  const browserRoots = [
-    "/library/application support/google/chrome/",
-    "/library/application support/google/chrome beta/",
-    "/library/application support/google/chrome canary/",
-    "/library/application support/bravesoftware/brave-browser/",
-    "/library/application support/microsoft edge/",
-    "/library/application support/vivaldi/",
-    "/library/application support/opera",
-    "/library/application support/zen/",
-    "/library/application support/firefox/",
-    "/library/application support/librewolf/",
-  ];
-  const inBrowserRoot = browserRoots.some((prefix) => lower.includes(prefix));
-  if (!inBrowserRoot) {
-    return false;
-  }
-
-  if (lower.includes("/storage/ext/")) {
-    return true;
-  }
-  if (lower.includes("/shared dictionary/cache/")) {
-    return true;
-  }
-  const isProfileStorage =
-    lower.includes("/profiles/") &&
-    (lower.includes("/storage/default/") ||
-      lower.includes("/storage/temporary/") ||
-      lower.includes("/storage/permanent/"));
-  if (
-    isProfileStorage &&
-    (lower.includes("/cache/") || lower.includes("/cache2/") || lower.includes("/morgue/"))
-  ) {
-    return true;
-  }
-
-  return false;
-}
-
-export function isBrowserWebAppResourcesPath(
-  normalizedPath: string,
-  platform: NodeJS.Platform,
-): boolean {
-  const candidate = platform === "win32" ? normalizedPath.toLowerCase() : normalizedPath;
-  const lower = candidate.toLowerCase();
-  const browserRoots = [
-    "/library/application support/google/chrome/",
-    "/library/application support/google/chrome beta/",
-    "/library/application support/google/chrome canary/",
-    "/library/application support/bravesoftware/brave-browser/",
-    "/library/application support/microsoft edge/",
-    "/library/application support/vivaldi/",
-    "/library/application support/opera",
-  ];
-  const inBrowserRoot = browserRoots.some((prefix) => lower.includes(prefix));
-  if (!inBrowserRoot) {
-    return false;
-  }
-
-  if (lower.includes("/web applications/")) {
-    return true;
-  }
-  if (lower.includes("/manifest resources/")) {
-    return true;
-  }
-  if (lower.includes("/shortcuts menu icons/")) {
-    return true;
-  }
-
-  return false;
-}
-
 export function isKakaoTalkChatTagPath(
   normalizedPath: string,
-  platform: NodeJS.Platform,
+  _platform: NodeJS.Platform,
 ): boolean {
-  const candidate = platform === "win32" ? normalizedPath.toLowerCase() : normalizedPath;
-  const lower = candidate.toLowerCase();
-  return lower.includes(
-    "/library/containers/com.kakao.kakaotalkmac/data/library/application support/com.kakao.kakaotalkmac/",
-  ) && lower.includes("/commonresource/mychattag");
+  return matchesSoftSkipPathRules(normalizedPath, SCAN_TRAVERSAL_CONTRACT.softSkipPathRules);
 }
 
 export function isHeavyTraversalDirectory(dirPath: string): boolean {
@@ -405,6 +254,19 @@ export function isHeavyTraversalDirectory(dirPath: string): boolean {
   }
 
   return false;
+}
+
+export function resolveNativeSoftSkipPathRules(
+  options: ResolvedScanOptions,
+  mode: NativeScanPhaseMode,
+): ScanSoftSkipPathRule[] {
+  if (mode !== "deep" || options.deepPolicyPreset !== "responsive") {
+    return [];
+  }
+  return SCAN_TRAVERSAL_CONTRACT.softSkipPathRules.map((rule) => ({
+    all: [...rule.all],
+    any: rule.any ? [...rule.any] : undefined,
+  }));
 }
 
 export function buildNativeBlockedPrefixes(

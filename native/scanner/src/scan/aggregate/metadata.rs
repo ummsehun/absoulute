@@ -4,7 +4,7 @@ use std::sync::atomic::Ordering;
 use std::time::{Duration, Instant};
 
 use anyhow::Result;
-use crossbeam_channel::{RecvTimeoutError, unbounded};
+use rayon::prelude::*;
 
 use crate::scan::macos_fast;
 
@@ -37,24 +37,19 @@ pub(crate) fn process_file_metadata_batch<W: Write>(
     }
 
     let batch = std::mem::take(file_candidates);
-    let total_items = batch.len();
-    let (tx, rx) = unbounded::<(PathBuf, std::io::Result<u64>)>();
-    for file_path in batch {
-        let tx_cloned = tx.clone();
-        rayon::spawn(move || {
-            let size_result = macos_fast::file_len(&file_path);
-            let _ = tx_cloned.send((file_path, size_result));
-        });
-    }
-    drop(tx);
-
-    let mut processed_items = 0usize;
     let mut last_path: Option<String> = None;
-    let heartbeat_interval = Duration::from_millis(BATCH_HEARTBEAT_INTERVAL_MS);
     let mut last_heartbeat_emit = Instant::now();
     let current_dir_label = path_to_string(current_dir);
 
-    while processed_items < total_items {
+    for results in batch
+        .into_par_iter()
+        .map(|file_path| {
+            let size_result = macos_fast::file_len(&file_path);
+            (file_path, size_result)
+        })
+        .collect::<Vec<_>>()
+        .chunks(64)
+    {
         if options.time_budget_ms > 0
             && runtime.started_at.elapsed() >= Duration::from_millis(options.time_budget_ms)
         {
@@ -67,44 +62,40 @@ pub(crate) fn process_file_metadata_batch<W: Write>(
             return Ok(BatchControl::Cancelled);
         }
 
-        match rx.recv_timeout(Duration::from_millis(40)) {
-            Ok((file_path, size_result)) => {
-                processed_items += 1;
-                let path_label = path_to_string(&file_path);
-                last_path = Some(path_label.clone());
-                match size_result {
-                    Ok(size) => {
-                        accum.pending_agg.push(crate::protocol::AggBatchItem {
-                            path: path_label,
-                            size_delta: size,
-                            count_delta: 1,
-                            estimated: false,
-                        });
-                        flush_agg_batch(runtime, accum, false)?;
-                    }
-                    Err(error) => {
-                        emit_warning(
-                            runtime,
-                            map_error_code(&error),
-                            "Failed to read file metadata",
-                            Some(path_label),
-                        )?;
-                        maybe_emit_coverage(runtime, accum, false)?;
-                    }
+        for (file_path, size_result) in results {
+            let path_label = path_to_string(file_path);
+            last_path = Some(path_label.clone());
+            match size_result {
+                Ok(size) => {
+                    accum.pending_agg.push(crate::protocol::AggBatchItem {
+                        path: path_label,
+                        size_delta: *size,
+                        count_delta: 1,
+                        estimated: false,
+                    });
+                    flush_agg_batch(runtime, accum, false)?;
+                }
+                Err(error) => {
+                    emit_warning(
+                        runtime,
+                        map_error_code(error),
+                        "Failed to read file metadata",
+                        Some(path_label),
+                    )?;
+                    maybe_emit_coverage(runtime, accum, false)?;
                 }
             }
-            Err(RecvTimeoutError::Timeout) => {}
-            Err(RecvTimeoutError::Disconnected) => break,
         }
 
-        if last_heartbeat_emit.elapsed() >= heartbeat_interval {
-            let inflight = total_items.saturating_sub(processed_items);
+        if last_heartbeat_emit.elapsed() >= Duration::from_millis(BATCH_HEARTBEAT_INTERVAL_MS) {
             maybe_emit_progress_and_diagnostics(
                 runtime,
                 accum,
-                queue_len.saturating_add(inflight),
-                last_path.clone().or_else(|| Some(current_dir_label.clone())),
-                inflight,
+                queue_len,
+                last_path
+                    .clone()
+                    .or_else(|| Some(current_dir_label.clone())),
+                0,
                 false,
             )?;
             last_heartbeat_emit = Instant::now();

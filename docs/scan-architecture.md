@@ -67,14 +67,23 @@ native stage is considered complete only after `done`.
 - `preview`: `accuracyMode = preview`, `deepPolicyPreset = responsive`.
 - `exact`: `accuracyMode = full`, `deepPolicyPreset = exact`.
 
-The renderer currently calls `startScanForPath(..., "exact")` for normal scan
-actions and always sends `scanMode = native_rust`, `elevationPolicy = manual`,
-and `allowNodeFallback = false`.
+The renderer builds scan requests through `scanRequestFactory.ts`.
+Normal scan actions use `buildPreviewScanRequest`, which sends
+`performanceProfile = preview-first`, `accuracyMode = preview`, and
+`deepPolicyPreset = responsive`. Explicit recheck actions use
+`buildExactScanRequest`, which sends `accuracyMode = full` and
+`deepPolicyPreset = exact`.
 
-That makes the common path an exact native scan. In exact mode,
-`resolveScanOptions` sets `deepBudgetMs = 0`, and the Rust scanner only enforces
-a time limit when `timeBudgetMs > 0`. Therefore the current common path has an
-unbounded deep stage.
+Exact mode still sets `deepBudgetMs = 0`, and the Rust scanner only enforces a
+time limit when `timeBudgetMs > 0`. That unbounded deep stage is now reserved
+for explicit exact rechecks instead of the default UI path.
+
+Filesystem-root scans are a special case. They still start through the preview
+flow, but the main process disables responsive deep soft-skips for `/` so app
+policy does not omit package-manager directories, cache prefixes, or bundle
+directories. Remaining omissions at `/` should come from OS permission failures,
+hard blocked roots, mounted-volume scope, or an explicit time budget, and must be
+reported through coverage counters.
 
 ## Current Permission Model
 
@@ -94,9 +103,24 @@ The preflight gate computes `EffectivePathAccess`, including
 Rust as `permissionPrefixes`. Rust treats those prefixes as blocked and emits
 permission coverage/elevation events.
 
+Native warnings with `E_PERMISSION` also mark coverage as elevation-required and
+emit the same elevation-required event. This matters for filesystem-root scans:
+some protected directories are only discovered when traversal reaches them, so
+they cannot all be represented as preflight `permissionPrefixes`.
+
+Traversal policy constants now start in `src/shared/domain/scanPolicyContract.ts`.
+TypeScript traversal code consumes heavy directory names, package manager skip
+names, bundle suffixes, cache prefixes, and responsive soft-skip path rules from
+that contract. Native start messages carry `softSkipPathRules` to Rust, so the
+Rust scanner no longer owns a separate hard-coded copy of the responsive path
+rules.
+
 The current helper can open macOS Full Disk Access settings and can report
-whether a target is readable. It does not update an active native stage after
-permission is granted.
+whether a target is readable. When permission is granted, main process refreshes
+effective access, rebuilds the path classifier, replaces `deniedPermissionRoots`,
+and queues roots whose permission block was removed for a native deep rescan
+stage. The native stage currently receives the refreshed plan only at a stage
+boundary; it does not mutate an already running Rust queue in place.
 
 ## Current State Ownership
 
@@ -119,10 +143,13 @@ Code graph inspection identified these current hotspots:
 - `DiskScanService`: scan creation, engine selection, fallback, native event
   handling, portable dependencies, stat task scheduling, finalization.
 - `native/scanner/src/scan/aggregate/walker.rs::run_bfs_scan`: queue walking,
-  policy checks, metadata dispatch, estimate handling, event emission, timeout,
+  directory-level policy checks, estimate handling, event flush, timeout,
   pause, and cancel.
-- `scanTraversalPolicy.ts` and Rust `policy.rs`: duplicated skip and protected
-  traversal rules.
+- `native/scanner/src/scan/aggregate/entry.rs`: entry-level policy checks and
+  file/directory action classification.
+- `scanTraversalPolicy.ts` and Rust `policy.rs`: policy execution is split by
+  language, but responsive path-rule data is centralized in the shared contract
+  and passed over the native protocol.
 - `useScanLogic`: renderer state, start request shaping, event ingestion,
   visual batching, elevation handling, and window actions.
 
@@ -167,16 +194,41 @@ must not keep using stale `deniedPermissionRoots`.
 2. Keep `preview` and `exact` behavior explicit in tests.
 3. Move policy constants into a shared contract before deleting duplicate logic.
 4. Keep Rust protocol backward compatible until both sides are changed.
-5. Split Rust `run_bfs_scan` by extracting pure planning/policy helpers first,
-   then move side-effecting walker/metadata/emitter responsibilities.
+5. Continue shrinking Rust `run_bfs_scan` after the first split into planner,
+   policy, entry classifier, metadata reader, and emitter modules.
 6. Treat macOS permission behavior as a state transition:
    `required -> settings opened -> readable probe -> access plan refreshed`.
 7. Do not claim performance improvement from structural changes without a
    measured benchmark or smoke run.
 
+## Performance Baseline
+
+`scripts/bench-native-scan.ts` creates a repeatable local fixture under
+`.tmp-tests/native-bench-fixture` and runs the native scanner against it. Use:
+
+```bash
+SCAN_BENCH_RUNS=3 bun run bench:native-scan
+```
+
+By default the benchmark builds the debug native scanner first. Set
+`SCAN_BENCH_SKIP_BUILD=1` only when intentionally measuring an existing binary.
+
+Current local smoke result after the metadata and entry-classifier pass:
+
+- Binary: `native/scanner/target/debug/diskviz-scanner`
+- Fixture entries scanned: `4344`
+- Three-run wall time: average `111ms`, median `50ms`
+- Rust reported elapsed time: `34-48ms`
+- Result: exact, not estimated
+
+This is a local regression baseline only. It does not prove parity with
+CleanMyMac or any external scanner.
+
 ## Known Gaps
 
 - No current benchmark proves parity with CleanMyMac or any external tool.
-- No current unit tests cover the Rust scanner protocol end to end.
-- No current test proves permission approval recomputes `deniedPermissionRoots`.
-- No current architecture test prevents the renderer from forcing exact scans.
+- Permission refresh is verified at the access-plan level, but no integration
+  test simulates macOS granting permission while a native stage is already
+  running.
+- The benchmark fixture is synthetic and small; it is useful for regression, not
+  for real whole-disk performance claims.

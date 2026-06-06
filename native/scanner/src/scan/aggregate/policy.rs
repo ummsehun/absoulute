@@ -1,5 +1,7 @@
 use std::path::Path;
 
+use crate::protocol::SoftSkipPathRule;
+
 use super::path_utils::{is_same_or_child_path, normalize_for_compare};
 
 #[derive(Clone, Copy)]
@@ -29,6 +31,7 @@ pub(crate) fn is_soft_skipped_dir(
     path: &Path,
     soft_skip_prefixes: &[String],
     skip_dir_suffixes: &[String],
+    soft_skip_path_rules: &[SoftSkipPathRule],
     root_normalized: &str,
     is_windows: bool,
     enable_path_rules: bool,
@@ -36,14 +39,12 @@ pub(crate) fn is_soft_skipped_dir(
     is_soft_skipped_by_prefix(path, soft_skip_prefixes, root_normalized, is_windows)
         || is_soft_skipped_by_suffix(path, skip_dir_suffixes, root_normalized, is_windows)
         || (enable_path_rules
-            && (is_rustup_doc_or_source_path(path, root_normalized, is_windows)
-                || is_nvm_versions_path(path, root_normalized, is_windows)
-                || is_pyenv_versions_path(path, root_normalized, is_windows)
-                || is_python_venv_packages_path(path, root_normalized, is_windows)
-                || is_kakao_talk_chat_tag_path(path, root_normalized, is_windows)
-                || is_browser_extensions_path(path, root_normalized, is_windows)
-                || is_browser_storage_path(path, root_normalized, is_windows)
-                || is_browser_web_app_resources_path(path, root_normalized, is_windows)))
+            && is_soft_skipped_by_path_rule(
+                path,
+                soft_skip_path_rules,
+                root_normalized,
+                is_windows,
+            ))
 }
 
 pub(crate) fn is_soft_skipped_by_prefix(
@@ -90,142 +91,60 @@ pub(crate) fn is_soft_skipped_by_suffix(
         .any(|suffix| basename.ends_with(suffix))
 }
 
-fn is_rustup_doc_or_source_path(path: &Path, root_normalized: &str, is_windows: bool) -> bool {
-    let candidate = normalize_for_compare(&path.to_string_lossy(), is_windows);
-    if candidate == root_normalized {
+fn is_soft_skipped_by_path_rule(
+    path: &Path,
+    rules: &[SoftSkipPathRule],
+    root_normalized: &str,
+    is_windows: bool,
+) -> bool {
+    if rules.is_empty() {
         return false;
     }
-    if !candidate.contains("/.rustup/toolchains/") {
-        return false;
-    }
-    candidate.contains("/share/doc/") || candidate.contains("/lib/rustlib/src/")
-}
-
-fn is_nvm_versions_path(path: &Path, root_normalized: &str, is_windows: bool) -> bool {
-    let candidate = normalize_for_compare(&path.to_string_lossy(), is_windows);
-    if candidate == root_normalized {
-        return false;
-    }
-    candidate.contains("/.nvm/versions/")
-}
-
-fn is_pyenv_versions_path(path: &Path, root_normalized: &str, is_windows: bool) -> bool {
-    let candidate = normalize_for_compare(&path.to_string_lossy(), is_windows);
-    if candidate == root_normalized {
-        return false;
-    }
-    candidate.contains("/.pyenv/versions/")
-}
-
-fn is_python_venv_packages_path(path: &Path, root_normalized: &str, is_windows: bool) -> bool {
-    let candidate = normalize_for_compare(&path.to_string_lossy(), is_windows);
-    if candidate == root_normalized {
-        return false;
-    }
-    let in_venv = candidate.contains("/venv/") || candidate.contains("/.venv/");
-    if !in_venv {
-        return false;
-    }
-    candidate.contains("/site-packages/") || candidate.contains("/dist-packages/")
-}
-
-fn is_kakao_talk_chat_tag_path(path: &Path, root_normalized: &str, is_windows: bool) -> bool {
     let candidate = normalize_for_compare(&path.to_string_lossy(), is_windows);
     if candidate == root_normalized {
         return false;
     }
     let lower = candidate.to_ascii_lowercase();
-    lower.contains(
-        "/library/containers/com.kakao.kakaotalkmac/data/library/application support/com.kakao.kakaotalkmac/",
-    ) && lower.contains("/commonresource/mychattag")
+    rules.iter().any(|rule| {
+        if rule.all.is_empty() || !rule.all.iter().all(|fragment| lower.contains(fragment)) {
+            return false;
+        }
+        rule.any.is_empty() || rule.any.iter().any(|fragment| lower.contains(fragment))
+    })
 }
 
-fn is_browser_extensions_path(path: &Path, root_normalized: &str, is_windows: bool) -> bool {
-    let candidate = normalize_for_compare(&path.to_string_lossy(), is_windows);
-    if candidate == root_normalized {
-        return false;
-    }
-    let lower = candidate.to_ascii_lowercase();
-    if !lower.contains("/extensions/") {
-        return false;
-    }
+#[cfg(test)]
+mod tests {
+    use std::path::Path;
 
-    let browser_roots = [
-        "/library/application support/google/chrome/",
-        "/library/application support/google/chrome beta/",
-        "/library/application support/google/chrome canary/",
-        "/library/application support/bravesoftware/brave-browser/",
-        "/library/application support/microsoft edge/",
-        "/library/application support/vivaldi/",
-        "/library/application support/opera",
-        "/library/application support/zen/",
-        "/library/application support/firefox/",
-        "/library/application support/librewolf/",
-    ];
+    use crate::protocol::SoftSkipPathRule;
 
-    browser_roots.iter().any(|prefix| lower.contains(prefix))
-}
+    use super::is_soft_skipped_dir;
 
-fn is_browser_storage_path(path: &Path, root_normalized: &str, is_windows: bool) -> bool {
-    let candidate = normalize_for_compare(&path.to_string_lossy(), is_windows);
-    if candidate == root_normalized {
-        return false;
-    }
-    let lower = candidate.to_ascii_lowercase();
-    let browser_roots = [
-        "/library/application support/google/chrome/",
-        "/library/application support/google/chrome beta/",
-        "/library/application support/google/chrome canary/",
-        "/library/application support/bravesoftware/brave-browser/",
-        "/library/application support/microsoft edge/",
-        "/library/application support/vivaldi/",
-        "/library/application support/opera",
-        "/library/application support/zen/",
-        "/library/application support/firefox/",
-        "/library/application support/librewolf/",
-    ];
-    let in_browser_root = browser_roots.iter().any(|prefix| lower.contains(prefix));
-    if !in_browser_root {
-        return false;
-    }
+    #[test]
+    fn uses_shared_soft_skip_path_rules() {
+        let rules = vec![SoftSkipPathRule {
+            all: vec!["/.rustup/toolchains/".to_string()],
+            any: vec!["/share/doc/".to_string(), "/lib/rustlib/src/".to_string()],
+        }];
 
-    if lower.contains("/storage/ext/") || lower.contains("/shared dictionary/cache/") {
-        return true;
+        assert!(is_soft_skipped_dir(
+            Path::new("/Users/tester/.rustup/toolchains/stable/share/doc/rust"),
+            &[],
+            &[],
+            &rules,
+            "/Users/tester",
+            false,
+            true,
+        ));
+        assert!(!is_soft_skipped_dir(
+            Path::new("/Users/tester/.rustup/toolchains/stable/bin/rustc"),
+            &[],
+            &[],
+            &rules,
+            "/Users/tester",
+            false,
+            true,
+        ));
     }
-    let is_profile_storage = lower.contains("/profiles/")
-        && (lower.contains("/storage/default/")
-            || lower.contains("/storage/temporary/")
-            || lower.contains("/storage/permanent/"));
-    if is_profile_storage
-        && (lower.contains("/cache/") || lower.contains("/cache2/") || lower.contains("/morgue/"))
-    {
-        return true;
-    }
-
-    false
-}
-
-fn is_browser_web_app_resources_path(path: &Path, root_normalized: &str, is_windows: bool) -> bool {
-    let candidate = normalize_for_compare(&path.to_string_lossy(), is_windows);
-    if candidate == root_normalized {
-        return false;
-    }
-    let lower = candidate.to_ascii_lowercase();
-    let browser_roots = [
-        "/library/application support/google/chrome/",
-        "/library/application support/google/chrome beta/",
-        "/library/application support/google/chrome canary/",
-        "/library/application support/bravesoftware/brave-browser/",
-        "/library/application support/microsoft edge/",
-        "/library/application support/vivaldi/",
-        "/library/application support/opera",
-    ];
-    let in_browser_root = browser_roots.iter().any(|prefix| lower.contains(prefix));
-    if !in_browser_root {
-        return false;
-    }
-
-    lower.contains("/web applications/")
-        || lower.contains("/manifest resources/")
-        || lower.contains("/shortcuts menu icons/")
 }

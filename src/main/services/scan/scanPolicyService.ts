@@ -11,6 +11,7 @@ interface ScanPolicyServiceDependencies {
   maxRecoverableErrors: number;
   emitError: (error: AppError) => void;
   scanHistoryStore: ScanHistoryStore;
+  refreshPathAccess?: (job: ScanJob) => Promise<void>;
 }
 
 export class ScanPolicyService {
@@ -83,12 +84,16 @@ export class ScanPolicyService {
     ) {
       job.elevationAttempted = true;
       void requestElevationByHelper(targetPath)
-        .then((result) => {
+        .then(async (result) => {
           if (!result.granted || job.cancelled) {
             return;
           }
 
           job.optInProtected = true;
+          if (this.deps.refreshPathAccess) {
+            await this.deps.refreshPathAccess(job);
+            return;
+          }
           job.elevationRequired = false;
           this.deps.eventBus.emitCoverageUpdate(job, true);
         })

@@ -3,6 +3,7 @@ use std::sync::atomic::AtomicBool;
 use std::time::Instant;
 
 mod emit;
+mod entry;
 mod metadata;
 mod path_utils;
 mod planner;
@@ -12,7 +13,7 @@ mod walker;
 pub use emit::{emit_done, emit_message};
 pub use walker::run_bfs_scan;
 
-pub(crate) const FILE_METADATA_CHUNK_SIZE: usize = 256;
+pub(crate) const MIN_FILE_METADATA_CHUNK_SIZE: usize = 256;
 pub(crate) const MIN_AGG_BATCH_ITEMS: usize = 64;
 pub(crate) const MIN_AGG_BATCH_MS: u64 = 20;
 pub(crate) const MIN_PROGRESS_INTERVAL_MS: u64 = 80;

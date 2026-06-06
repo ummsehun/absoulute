@@ -20,8 +20,10 @@ import {
   buildNativePermissionDeniedPrefixes,
   resolveNativeSkipBasenames,
   resolveNativeSkipDirSuffixes,
+  resolveNativeSoftSkipPathRules,
   resolveNativeSoftSkipPrefixes,
 } from "./scanTraversalPolicy";
+import { isFilesystemRoot } from "./scanRuntimeOptions";
 
 export interface NativeStageContext {
   cancelled: boolean;
@@ -91,7 +93,7 @@ export class NativeScanOrchestrator {
         platform: os.platform(),
         timeBudgetMs: input.timeBudgetMs,
         maxDepth: input.maxDepth,
-        sameDeviceOnly: true,
+        sameDeviceOnly: resolveNativeSameDeviceOnly(context),
         concurrency: context.options.statConcurrency,
         accuracyMode: context.options.accuracyMode,
         deepPolicyPreset: context.options.deepPolicyPreset,
@@ -99,6 +101,7 @@ export class NativeScanOrchestrator {
         emitPolicy: context.options.emitPolicy,
         concurrencyPolicy: context.options.concurrencyPolicy,
         skipBasenames: resolveNativeSkipBasenames(context.options, input.mode),
+        softSkipPathRules: resolveNativeSoftSkipPathRules(context.options, input.mode),
         softSkipPrefixes: resolveNativeSoftSkipPrefixes(
           context.options,
           input.mode,
@@ -170,4 +173,8 @@ export class NativeScanOrchestrator {
     this.sessions.set(scanId, created);
     return created;
   }
+}
+
+export function resolveNativeSameDeviceOnly(context: Pick<NativeStageContext, "rootPath">): boolean {
+  return !isFilesystemRoot(context.rootPath, os.platform());
 }

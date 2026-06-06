@@ -76,4 +76,21 @@ describe("scanRuntimeOptions", () => {
 
     expect(rootOptions.deepBudgetMs).toBeLessThan(userOptions.deepBudgetMs);
   });
+
+  it("does not apply responsive deep soft-skips to filesystem roots", () => {
+    const options = resolveScanOptions(
+      {
+        rootPath: "/",
+        optInProtected: false,
+        deepPolicyPreset: "responsive",
+      },
+      "/",
+    );
+
+    expect(options.deepSkipPackageManagers).toBe(false);
+    expect(options.deepSkipCachePrefixes).toBe(false);
+    expect(options.deepSkipBundleDirs).toBe(false);
+    expect(options.deepSoftSkipPrefixes).toEqual([]);
+    expect(options.deepSkipDirSuffixes).toEqual([]);
+  });
 });

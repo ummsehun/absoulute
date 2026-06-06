@@ -10,5 +10,5 @@ release
 dist
 out
 .env
-/target
+target
 bun.lock

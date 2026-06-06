@@ -196,6 +196,13 @@ pub(crate) fn emit_warning<W: Write>(
         runtime.permission_errors += 1;
         runtime.blocked_by_permission += 1;
         runtime.elevation_required = true;
+        if let Some(target_path) = path.as_deref() {
+            maybe_emit_elevation_required(
+                runtime,
+                Path::new(target_path),
+                "Path requires system permission",
+            )?;
+        }
     } else {
         runtime.io_errors += 1;
     }

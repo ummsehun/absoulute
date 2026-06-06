@@ -3,8 +3,8 @@ mod protocol;
 mod scan;
 
 use std::io::{BufRead, BufReader, BufWriter, Write};
-use std::sync::Arc;
 use std::sync::atomic::Ordering;
+use std::sync::Arc;
 use std::time::Instant;
 
 use anyhow::Result;
@@ -39,6 +39,7 @@ fn main() -> Result<()> {
                         emit_policy,
                         concurrency_policy,
                         skip_basenames,
+                        soft_skip_path_rules,
                         soft_skip_prefixes,
                         skip_dir_suffixes,
                         blocked_prefixes,
@@ -59,6 +60,7 @@ fn main() -> Result<()> {
                             emit_policy,
                             concurrency_policy,
                             skip_basenames,
+                            soft_skip_path_rules,
                             soft_skip_prefixes,
                             skip_dir_suffixes,
                             blocked_prefixes,
