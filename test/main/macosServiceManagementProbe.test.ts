@@ -1,6 +1,9 @@
 /* @vitest-environment node */
 
 import { describe, expect, it } from "vitest";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import {
   CommandMacOsServiceManagementProbe,
   createMacOsServiceManagementProbeFromEnv,
@@ -77,5 +80,30 @@ describe("macosServiceManagementProbe", () => {
         "linux",
       ).constructor.name,
     ).toBe("NotImplementedMacOsServiceManagementProbe");
+  });
+
+  it("falls back to the packaged probe binary in Electron resources on macOS", () => {
+    const resourcesRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "diskviz-sm-probe-resources-"),
+    );
+    const probePath = path.join(
+      resourcesRoot,
+      "bin",
+      "service-management-probe-macos",
+    );
+    fs.mkdirSync(path.dirname(probePath), { recursive: true });
+    fs.writeFileSync(probePath, "");
+
+    try {
+      expect(
+        createMacOsServiceManagementProbeFromEnv(
+          {},
+          "darwin",
+          resourcesRoot,
+        ),
+      ).toBeInstanceOf(CommandMacOsServiceManagementProbe);
+    } finally {
+      fs.rmSync(resourcesRoot, { force: true, recursive: true });
+    }
   });
 });

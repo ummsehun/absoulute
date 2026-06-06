@@ -1,4 +1,6 @@
 import { execFile } from "node:child_process";
+import fs from "node:fs";
+import path from "node:path";
 
 export type MacOsServiceManagementProbeState =
   | "not-implemented"
@@ -19,6 +21,8 @@ export const MACOS_SERVICE_MANAGEMENT_PROBE_NOT_IMPLEMENTED_REASON =
   "service-management-probe-not-implemented";
 export const HELPER_SERVICE_MANAGEMENT_PROBE_BIN_ENV =
   "SCAN_HELPER_SM_PROBE_BIN";
+export const MACOS_SERVICE_MANAGEMENT_PROBE_BINARY_NAME =
+  "service-management-probe-macos";
 
 export interface CommandMacOsServiceManagementProbeRunRequest {
   commandPath: string;
@@ -90,13 +94,46 @@ export class CommandMacOsServiceManagementProbe
 export function createMacOsServiceManagementProbeFromEnv(
   env: NodeJS.ProcessEnv = process.env,
   platform: NodeJS.Platform = process.platform,
+  resourcesPath: string | null = typeof process.resourcesPath === "string"
+    ? process.resourcesPath
+    : null,
 ): MacOsServiceManagementProbe {
-  const commandPath = env[HELPER_SERVICE_MANAGEMENT_PROBE_BIN_ENV]?.trim();
-  if (platform !== "darwin" || !commandPath) {
+  if (platform !== "darwin") {
+    return new NotImplementedMacOsServiceManagementProbe();
+  }
+
+  const commandPath = resolveMacOsServiceManagementProbeBinary(
+    env,
+    resourcesPath,
+  );
+  if (!commandPath) {
     return new NotImplementedMacOsServiceManagementProbe();
   }
 
   return new CommandMacOsServiceManagementProbe({ commandPath });
+}
+
+export function resolveMacOsServiceManagementProbeBinary(
+  env: NodeJS.ProcessEnv = process.env,
+  resourcesPath: string | null = typeof process.resourcesPath === "string"
+    ? process.resourcesPath
+    : null,
+): string | null {
+  const envPath = env[HELPER_SERVICE_MANAGEMENT_PROBE_BIN_ENV]?.trim();
+  if (envPath) {
+    return envPath;
+  }
+
+  if (!resourcesPath) {
+    return null;
+  }
+
+  const bundledCandidate = path.resolve(
+    resourcesPath,
+    "bin",
+    MACOS_SERVICE_MANAGEMENT_PROBE_BINARY_NAME,
+  );
+  return fs.existsSync(bundledCandidate) ? bundledCandidate : null;
 }
 
 function parseProbeOutput(output: string): MacOsServiceManagementProbeResult {
