@@ -125,6 +125,24 @@ describe("helperClient", () => {
         },
       },
       reason: MACOS_XPC_HELPER_NOT_IMPLEMENTED_REASON,
+      registrationPreflight: {
+        blockers: [
+          "team-id-missing",
+          "designated-requirement-missing",
+          "packaging-entitlements-missing",
+          "fda-validation-matrix-missing",
+        ],
+        contract: {
+          appBundleIdentifier: "com.example.diskvisualizer",
+          helperLabel: "com.example.diskvisualizer.privileged-helper",
+          launchDaemonBundleRelativePath:
+            "Contents/Library/LaunchDaemons/com.example.diskvisualizer.privileged-helper.plist",
+          launchDaemonPlistName:
+            "com.example.diskvisualizer.privileged-helper.plist",
+          serviceManagementModel: "smappservice-daemon",
+        },
+        status: "blocked",
+      },
       transport: "xpc",
     });
     await expect(transport.getVersion()).resolves.toBeNull();
@@ -142,6 +160,24 @@ describe("helperClient", () => {
         },
       },
       reason: MACOS_XPC_HELPER_NOT_IMPLEMENTED_REASON,
+      registrationPreflight: {
+        blockers: [
+          "team-id-missing",
+          "designated-requirement-missing",
+          "packaging-entitlements-missing",
+          "fda-validation-matrix-missing",
+        ],
+        contract: {
+          appBundleIdentifier: "com.example.diskvisualizer",
+          helperLabel: "com.example.diskvisualizer.privileged-helper",
+          launchDaemonBundleRelativePath:
+            "Contents/Library/LaunchDaemons/com.example.diskvisualizer.privileged-helper.plist",
+          launchDaemonPlistName:
+            "com.example.diskvisualizer.privileged-helper.plist",
+          serviceManagementModel: "smappservice-daemon",
+        },
+        status: "blocked",
+      },
       transport: "xpc",
     });
   });
@@ -168,6 +204,24 @@ describe("helperClient", () => {
         },
       },
       reason: MACOS_XPC_HELPER_NOT_IMPLEMENTED_REASON,
+      registrationPreflight: {
+        blockers: [
+          "team-id-missing",
+          "designated-requirement-missing",
+          "packaging-entitlements-missing",
+          "fda-validation-matrix-missing",
+        ],
+        contract: {
+          appBundleIdentifier: "com.example.diskvisualizer",
+          helperLabel: "com.example.diskvisualizer.privileged-helper",
+          launchDaemonBundleRelativePath:
+            "Contents/Library/LaunchDaemons/com.example.diskvisualizer.privileged-helper.plist",
+          launchDaemonPlistName:
+            "com.example.diskvisualizer.privileged-helper.plist",
+          serviceManagementModel: "smappservice-daemon",
+        },
+        status: "blocked",
+      },
       transport: "xpc",
     });
   });
@@ -193,6 +247,10 @@ describe("helperClient", () => {
 
     await expect(transport.getStatus()).resolves.toMatchObject({
       available: false,
+      registrationPreflight: {
+        status: "blocked",
+        blockers: ["fda-validation-matrix-missing"],
+      },
       lifecycle: {
         state: "not-authorized",
         reason: "registration-preflight-blocked:fda-validation-matrix-missing",

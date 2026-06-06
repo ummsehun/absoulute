@@ -243,6 +243,19 @@ describe("nativeScanOrchestrator", () => {
             "xpc-channel": "pass",
           },
         },
+        registrationPreflight: {
+          contract: {
+            appBundleIdentifier: "com.example.diskvisualizer",
+            helperLabel: "com.example.diskvisualizer.privileged-helper",
+            launchDaemonPlistName:
+              "com.example.diskvisualizer.privileged-helper.plist",
+            launchDaemonBundleRelativePath:
+              "Contents/Library/LaunchDaemons/com.example.diskvisualizer.privileged-helper.plist",
+            serviceManagementModel: "smappservice-daemon",
+          },
+          status: "ready",
+          blockers: [],
+        },
         transport: "xpc",
       }),
       getVersion: async () => "test-helper",
@@ -302,6 +315,16 @@ describe("nativeScanOrchestrator", () => {
             "caller-identity": "pass",
             "full-disk-access": "unknown",
             "xpc-channel": "pass",
+          },
+        },
+        helperRegistrationPreflight: {
+          status: "ready",
+          blockers: [],
+          contract: {
+            helperLabel: "com.example.diskvisualizer.privileged-helper",
+            launchDaemonPlistName:
+              "com.example.diskvisualizer.privileged-helper.plist",
+            serviceManagementModel: "smappservice-daemon",
           },
         },
       });

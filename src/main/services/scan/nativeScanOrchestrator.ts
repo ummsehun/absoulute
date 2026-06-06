@@ -149,6 +149,13 @@ export class NativeScanOrchestrator {
               checks: helperStatus.lifecycle.checks,
             }
           : undefined,
+        helperRegistrationPreflight: helperStatus.registrationPreflight
+          ? {
+              status: helperStatus.registrationPreflight.status,
+              blockers: helperStatus.registrationPreflight.blockers,
+              contract: helperStatus.registrationPreflight.contract,
+            }
+          : undefined,
         helperUnavailableReason: helperStatus.reason,
         helperTransport: helperStatus.transport,
         accuracyMode: context.options.accuracyMode,

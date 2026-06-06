@@ -12,7 +12,10 @@ import {
   HelperTransportUnavailableError,
   type HelperTransport,
 } from "./helperTransport";
-import { resolveHelperRegistrationPreflightInputFromEnv } from "./helperRegistration";
+import {
+  resolveHelperRegistrationPreflightInputFromEnv,
+  type HelperRegistrationPreflight,
+} from "./helperRegistration";
 import { MacOsXpcHelperTransport } from "./macosXpcHelperTransport";
 
 export const HELPER_DISABLED_REASON = "helper-phase-gate-unresolved";
@@ -21,6 +24,7 @@ export const HELPER_TRANSPORT_ENV = "SCAN_HELPER_TRANSPORT";
 export interface HelperClientStatus {
   available: boolean;
   lifecycle?: HelperLifecycleStatus;
+  registrationPreflight?: HelperRegistrationPreflight;
   reason?: string;
   transport: "disabled" | "xpc";
 }

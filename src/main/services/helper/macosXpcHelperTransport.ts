@@ -39,6 +39,7 @@ export class MacOsXpcHelperTransport implements HelperTransport {
     return {
       available: false,
       lifecycle,
+      registrationPreflight,
       reason: lifecycle.reason,
       transport: "xpc",
     };
