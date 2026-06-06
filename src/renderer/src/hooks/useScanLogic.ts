@@ -3,6 +3,7 @@ import type {
     AggDelta,
     AppError,
     ScanCoverageUpdate,
+    ScanDiagnostics,
     ScanElevationRequired,
     ScanPerfSample,
     ScanProgressBatch,
@@ -37,6 +38,7 @@ export function useScanLogic() {
     const [progress, setProgress] = useState<ScanProgressBatch | null>(null);
     const [error, setError] = useState<AppError | null>(null);
     const [coverageUpdate, setCoverageUpdate] = useState<ScanCoverageUpdate | null>(null);
+    const [diagnostics, setDiagnostics] = useState<ScanDiagnostics | null>(null);
     const [perfSample, setPerfSample] = useState<ScanPerfSample | null>(null);
     const [elevationRequired, setElevationRequired] = useState<ScanElevationRequired | null>(null);
     const [scanTerminal, setScanTerminal] = useState<ScanTerminalEvent | null>(null);
@@ -185,6 +187,10 @@ export function useScanLogic() {
             setCoverageUpdate(event);
         });
 
+        const unsubscribeDiagnostics = electronAPI.onScanDiagnostics((event) => {
+            setDiagnostics(event);
+        });
+
         const unsubscribeTerminal = electronAPI.onScanTerminal((event) => {
             commitPendingDeltas();
             setScanTerminal(event);
@@ -209,6 +215,7 @@ export function useScanLogic() {
             unsubscribeProgress();
             unsubscribeError();
             unsubscribeCoverage();
+            unsubscribeDiagnostics();
             unsubscribeTerminal();
             unsubscribePerfSample();
             unsubscribeElevationRequired();
@@ -265,6 +272,7 @@ export function useScanLogic() {
             setPatchStats({ added: 0, updated: 0, pruned: 0 });
             setWarningSummary({ permission: 0, io: 0, lastPath: null });
             setCoverageUpdate(null);
+            setDiagnostics(null);
             setScanTerminal(null);
             setPerfSample(null);
             setElevationRequired(null);
@@ -394,6 +402,7 @@ export function useScanLogic() {
         error,
         warningSummary,
         coverageUpdate,
+        diagnostics,
         perfSample,
         elevationRequired,
         scanTerminal,

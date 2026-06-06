@@ -13,6 +13,7 @@ function App() {
     progress,
     error,
     coverageUpdate,
+    diagnostics,
     perfSample,
     elevationRequired,
     aggregateSizes,
@@ -44,6 +45,7 @@ function App() {
           elevationRequired={elevationRequired}
           isScanning={isScanning}
           progress={progress}
+          diagnostics={diagnostics}
           perfSample={perfSample}
           windowState={windowState}
         />
@@ -56,6 +58,7 @@ function App() {
           visualizationRoot={visualizationRoot}
           focusedTopItems={focusedTopItems}
           coverageUpdate={coverageUpdate}
+          diagnostics={diagnostics}
           perfSample={perfSample}
           setActiveRootPath={setActiveRootPath}
           onExactRecheck={exactRecheck}

@@ -5,7 +5,12 @@ import {
     parentPathOf,
 } from '../utils/helpers';
 import { BubbleChart } from './BubbleChart';
-import type { ScanCoverageUpdate, ScanPerfSample, ScanProgressBatch } from '../../../types/contracts';
+import type {
+    ScanCoverageUpdate,
+    ScanDiagnostics,
+    ScanPerfSample,
+    ScanProgressBatch,
+} from '../../../types/contracts';
 
 // Hooks
 import { useVisualizationTree } from '../hooks/useVisualizationTree';
@@ -56,6 +61,7 @@ export interface VisualizationViewProps {
     visualizationRoot: string;
     focusedTopItems: Array<[string, number]>;
     coverageUpdate: ScanCoverageUpdate | null;
+    diagnostics: ScanDiagnostics | null;
     perfSample: ScanPerfSample | null;
     setActiveRootPath: (path: string) => void;
     onExactRecheck?: () => void | Promise<void>;
@@ -68,6 +74,7 @@ export function VisualizationView({
     visualizationRoot,
     focusedTopItems,
     coverageUpdate,
+    diagnostics,
     onExactRecheck,
     setActiveRootPath,
 }: VisualizationViewProps) {
@@ -203,6 +210,7 @@ export function VisualizationView({
                     blockedByPermission={blockedByPermission}
                     skippedByScope={skippedByScope}
                     nonRemovableVisible={nonRemovableVisible}
+                    helperPlan={diagnostics?.helperPlan}
                     clearSelection={clearSelection}
                     onExactRecheck={onExactRecheck}
                 />

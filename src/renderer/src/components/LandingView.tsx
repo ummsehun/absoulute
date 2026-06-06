@@ -2,7 +2,14 @@ import React from 'react';
 import { themeTokens } from '../theme/tokens';
 import { DriveSelector } from './DriveSelector';
 import { SpaceLens3D } from './SpaceLens3D';
-import type { ScanElevationRequired, ScanPerfSample, ScanProgressBatch, WindowState } from '../../../types/contracts';
+import type {
+    ScanDiagnostics,
+    ScanElevationRequired,
+    ScanPerfSample,
+    ScanProgressBatch,
+    WindowState,
+} from '../../../types/contracts';
+import { getHelperPlanLabel } from '../utils/helperPlan';
 
 interface LandingViewProps {
     apiReady: boolean;
@@ -14,6 +21,7 @@ interface LandingViewProps {
     elevationRequired?: ScanElevationRequired | null;
     isScanning?: boolean;
     progress?: ScanProgressBatch | null;
+    diagnostics?: ScanDiagnostics | null;
     perfSample?: ScanPerfSample | null;
     windowState?: WindowState | null;
 }
@@ -28,6 +36,7 @@ export function LandingView({
     elevationRequired,
     isScanning,
     progress,
+    diagnostics,
     perfSample,
     windowState,
 }: LandingViewProps) {
@@ -36,6 +45,7 @@ export function LandingView({
     const deferredByBudget = perfSample?.deferredByBudget ?? 0;
     const softSkippedByPolicy = perfSample?.softSkippedByPolicy ?? 0;
     const skipSamplePreview = getSkipSamplePreview(perfSample);
+    const helperPlanLabel = getHelperPlanLabel(diagnostics?.helperPlan);
 
     return (
         <div className="flex-1 flex flex-col items-center justify-center w-full relative z-10 px-6 max-w-2xl mx-auto" style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}>
@@ -84,6 +94,11 @@ export function LandingView({
                         {skipSamplePreview ? (
                             <p className="max-w-[520px] truncate text-xs text-amber-100/70 mb-3 font-mono">
                                 {skipSamplePreview}
+                            </p>
+                        ) : null}
+                        {helperPlanLabel ? (
+                            <p className="max-w-[520px] truncate text-xs text-cyan-100/55 mb-3 font-mono">
+                                {helperPlanLabel}
                             </p>
                         ) : null}
                         <div className="w-64 h-2 bg-white/10 rounded-full overflow-hidden backdrop-blur-sm border border-white/5 relative">

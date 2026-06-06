@@ -1,5 +1,7 @@
 import React from 'react';
+import type { ScanHelperPlan } from '../../../types/contracts';
 import { formatBytes, formatCount } from '../utils/helpers';
+import { getHelperPlanLabel } from '../utils/helperPlan';
 import { Button } from './ui/button';
 
 interface VisualizationFooterProps {
@@ -8,6 +10,7 @@ interface VisualizationFooterProps {
     blockedByPermission: number;
     skippedByScope: number;
     nonRemovableVisible: number;
+    helperPlan?: ScanHelperPlan | null;
     clearSelection: () => void;
     onExactRecheck?: () => void | Promise<void>;
 }
@@ -18,9 +21,12 @@ export function VisualizationFooter({
     blockedByPermission,
     skippedByScope,
     nonRemovableVisible,
+    helperPlan,
     clearSelection,
     onExactRecheck,
 }: VisualizationFooterProps) {
+    const helperPlanLabel = getHelperPlanLabel(helperPlan);
+
     return (
         <footer className="flex shrink-0 h-[68px] items-center justify-between gap-4 border-t border-white/10 px-6 text-white/84 bg-black/20 backdrop-blur-md">
             <div className="text-[15px] font-medium">
@@ -33,6 +39,14 @@ export function VisualizationFooter({
                 {formatCount(skippedByScope)} scope
                 <span className="mx-2 text-white/26">|</span>
                 {formatCount(nonRemovableVisible)} protected system
+                {helperPlanLabel ? (
+                    <>
+                        <span className="mx-2 text-white/26">|</span>
+                        <span className="inline-block max-w-[260px] truncate align-bottom">
+                            {helperPlanLabel}
+                        </span>
+                    </>
+                ) : null}
             </div>
 
             <div className="flex items-center gap-3">
