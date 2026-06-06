@@ -89,7 +89,7 @@ describe("scanTraversalPolicy", () => {
       "myChatTag",
     );
 
-    expect(isKakaoTalkChatTagPath(kakaoChatTag, "darwin")).toBe(true);
+    expect(isKakaoTalkChatTagPath(kakaoChatTag)).toBe(true);
     expect(
       shouldSkipDeepPackageTraversal({
         options,

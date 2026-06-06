@@ -237,10 +237,7 @@ export function pathMatchesAnyPrefix(
   return false;
 }
 
-export function isKakaoTalkChatTagPath(
-  normalizedPath: string,
-  _platform: NodeJS.Platform,
-): boolean {
+export function isKakaoTalkChatTagPath(normalizedPath: string): boolean {
   return matchesSoftSkipPathRules(normalizedPath, SCAN_TRAVERSAL_CONTRACT.softSkipPathRules);
 }
 
