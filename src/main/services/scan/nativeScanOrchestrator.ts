@@ -1,4 +1,5 @@
 import os from "node:os";
+import { appendNativeScannerLog } from "../diagnostics/nativeScannerLogger";
 import {
   createNativeScannerSession,
   type NativeAggBatchMessage,
@@ -52,6 +53,21 @@ export interface NativeStageHandlers {
   onWarn: (message: NativeWarnMessage) => void;
 }
 
+export type NativeVolumeRootKind =
+  | "filesystem-root"
+  | "data-volume"
+  | "external-volume"
+  | "directory";
+export type NativeVolumePolicy = "same-device" | "root-cross-device" | "explicit-volumes";
+
+export interface NativeVolumePlan {
+  rootPath: string;
+  rootKind: NativeVolumeRootKind;
+  volumePolicy: NativeVolumePolicy;
+  sameDeviceOnly: boolean;
+  plannedRoots: string[];
+}
+
 export class NativeScanOrchestrator {
   private readonly sessions = new Map<string, NativeScannerSession>();
 
@@ -84,6 +100,19 @@ export class NativeScanOrchestrator {
     if (context.cancelled) {
       session.sendControl("cancel");
     }
+    const volumePlan = resolveNativeVolumePlan(context);
+    appendNativeScannerLog({
+      event: "native_volume_plan",
+      scanId: context.scanId,
+      stage: input.mode,
+      details: {
+        rootPath: context.rootPath,
+        rootKind: volumePlan.rootKind,
+        volumePolicy: volumePlan.volumePolicy,
+        sameDeviceOnly: volumePlan.sameDeviceOnly,
+        plannedRoots: volumePlan.plannedRoots,
+      },
+    });
 
     await session.runStage(
       {
@@ -93,7 +122,7 @@ export class NativeScanOrchestrator {
         platform: os.platform(),
         timeBudgetMs: input.timeBudgetMs,
         maxDepth: input.maxDepth,
-        sameDeviceOnly: resolveNativeSameDeviceOnly(context),
+        sameDeviceOnly: volumePlan.sameDeviceOnly,
         concurrency: context.options.statConcurrency,
         accuracyMode: context.options.accuracyMode,
         deepPolicyPreset: context.options.deepPolicyPreset,
@@ -176,5 +205,55 @@ export class NativeScanOrchestrator {
 }
 
 export function resolveNativeSameDeviceOnly(context: Pick<NativeStageContext, "rootPath">): boolean {
-  return !isFilesystemRoot(context.rootPath, os.platform());
+  return resolveNativeVolumePlan(context).sameDeviceOnly;
+}
+
+export function resolveNativeVolumePlan(
+  context: Pick<NativeStageContext, "rootPath">,
+  platform = os.platform(),
+): NativeVolumePlan {
+  const rootPath = normalizePlanRoot(context.rootPath);
+
+  if (isFilesystemRoot(rootPath, platform)) {
+    return {
+      rootPath,
+      rootKind: "filesystem-root",
+      volumePolicy: "root-cross-device",
+      sameDeviceOnly: false,
+      plannedRoots: [rootPath],
+    };
+  }
+
+  if (platform === "darwin" && rootPath === "/System/Volumes/Data") {
+    return {
+      rootPath,
+      rootKind: "data-volume",
+      volumePolicy: "explicit-volumes",
+      sameDeviceOnly: true,
+      plannedRoots: [rootPath],
+    };
+  }
+
+  if (platform === "darwin" && rootPath.startsWith("/Volumes/")) {
+    return {
+      rootPath,
+      rootKind: "external-volume",
+      volumePolicy: "explicit-volumes",
+      sameDeviceOnly: true,
+      plannedRoots: [rootPath],
+    };
+  }
+
+  return {
+    rootPath,
+    rootKind: "directory",
+    volumePolicy: "same-device",
+    sameDeviceOnly: true,
+    plannedRoots: [rootPath],
+  };
+}
+
+function normalizePlanRoot(rootPath: string): string {
+  const normalized = rootPath.replace(/\\/g, "/").replace(/\/+$/, "");
+  return normalized.length > 0 ? normalized : "/";
 }
