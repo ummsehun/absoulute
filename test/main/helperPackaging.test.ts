@@ -64,4 +64,22 @@ describe("helper packaging", () => {
       filter: expect.arrayContaining(["service-management-probe-macos"]),
     });
   });
+
+  it("packages the macOS helper enumerate binary as a native resource", () => {
+    const config = JSON.parse(
+      fs.readFileSync(electronBuilderConfigPath, "utf8"),
+    ) as {
+      extraResources?: Array<{
+        filter?: string[];
+        from?: string;
+        to?: string;
+      }>;
+    };
+
+    expect(config.extraResources).toContainEqual({
+      from: "resources/bin",
+      to: "bin",
+      filter: expect.arrayContaining(["helper-enumerate-macos"]),
+    });
+  });
 });

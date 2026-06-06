@@ -8,6 +8,7 @@
   "scripts": {
     "dev": "electron-vite dev",
     "build": "electron-vite build",
+    "build:native:helper-enumerate": "bun run scripts/build-macos-helper-enumerate.ts",
     "build:native:scanner": "cargo build --manifest-path native/scanner/Cargo.toml --release",
     "build:native:sm-probe": "bun run scripts/build-macos-service-management-probe.ts",
     "bench:native-scan": "bun run scripts/bench-native-scan.ts",
