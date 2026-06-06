@@ -35,6 +35,7 @@ export function LandingView({
     const inflight = perfSample?.inflightStats?.inFlight ?? perfSample?.queueDepth ?? 0;
     const deferredByBudget = perfSample?.deferredByBudget ?? 0;
     const softSkippedByPolicy = perfSample?.softSkippedByPolicy ?? 0;
+    const skipSamplePreview = getSkipSamplePreview(perfSample);
 
     return (
         <div className="flex-1 flex flex-col items-center justify-center w-full relative z-10 px-6 max-w-2xl mx-auto" style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}>
@@ -77,9 +78,14 @@ export function LandingView({
                         <p className="text-sm text-cyan-200/70 mb-1 animate-pulse">
                             {phaseDetail.subtitle}
                         </p>
-                        <p className="text-xs text-cyan-100/60 mb-4 font-mono">
+                        <p className="text-xs text-cyan-100/60 mb-2 font-mono">
                             {`inflight ${inflight.toLocaleString()} | deferred ${deferredByBudget.toLocaleString()} | policy-skip ${softSkippedByPolicy.toLocaleString()}`}
                         </p>
+                        {skipSamplePreview ? (
+                            <p className="max-w-[520px] truncate text-xs text-amber-100/70 mb-3 font-mono">
+                                {skipSamplePreview}
+                            </p>
+                        ) : null}
                         <div className="w-64 h-2 bg-white/10 rounded-full overflow-hidden backdrop-blur-sm border border-white/5 relative">
                             {/* Indeterminate loading bar */}
                             <div className="absolute inset-0 bg-gradient-to-r from-transparent via-cyan-400 to-transparent w-full h-full opacity-50" style={{ animation: 'shimmer 1.5s infinite linear', backgroundSize: '200% 100%' }} />
@@ -181,6 +187,26 @@ function getPhaseDetail(progress?: ScanProgressBatch | null): {
         title: "Scanning Spaces...",
         subtitle: `Dir: ${getCurrentDirectoryLabel(progress?.progress.currentPath)}`,
     };
+}
+
+function getSkipSamplePreview(perfSample?: ScanPerfSample | null): string | null {
+    const samples = perfSample?.skipSamples;
+    if (!samples) {
+        return null;
+    }
+
+    const entries: Array<[string, string[] | undefined]> = [
+        ['permission', samples.permission],
+        ['scope', samples.scope],
+        ['budget', samples.budgetDeferred],
+        ['policy', samples.policy],
+    ];
+    const first = entries.find(([, paths]) => paths?.[0]);
+    if (!first) {
+        return null;
+    }
+
+    return `${first[0]} skip ${first[1]?.[0]}`;
 }
 
 function getCurrentDirectoryLabel(currentPath?: string): string {

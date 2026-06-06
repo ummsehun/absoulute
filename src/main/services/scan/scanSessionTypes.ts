@@ -1,4 +1,9 @@
-import type { AggDelta, ScanEngine, ScanProgress } from "../../../types/contracts";
+import type {
+  AggDelta,
+  ScanEngine,
+  ScanProgress,
+  ScanSkipSamples,
+} from "../../../types/contracts";
 import type { PathPolicyClassifier } from "../../core/securityPolicy";
 import type { ScanAggregator } from "../scanAggregator";
 import type { ResolvedScanOptions } from "./scanRuntimeOptions";
@@ -42,6 +47,7 @@ export interface ScanJob {
   deepSkippedByPolicy: boolean;
   softSkippedByPolicyCount: number;
   deferredByBudgetCount: number;
+  skipSamples: ScanSkipSamples;
   inflightCount: number;
   rootDeviceId: number | null;
   deniedPermissionRoots: string[];

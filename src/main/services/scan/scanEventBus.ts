@@ -13,6 +13,7 @@ import type {
   ScanProgress,
   ScanProgressBatch,
   ScanQuickReady,
+  ScanSkipSamples,
   ScanTerminalEvent,
   ScanTerminalStatus,
 } from "../../../types/contracts";
@@ -68,6 +69,7 @@ export interface ScanEventJob extends ScanProgressLike {
   permissionErrorCount: number;
   rootPath: string;
   softSkippedByPolicyCount: number;
+  skipSamples: ScanSkipSamples;
   stageStartedAt: number;
   startedAt: number;
   visibleNonRemovableRoots: ReadonlySet<string>;
@@ -204,6 +206,7 @@ export class ScanEventBus {
         coverage,
         softSkippedByPolicy: job.softSkippedByPolicyCount,
         deferredByBudget: job.deferredByBudgetCount,
+        skipSamples: job.skipSamples,
         inflightStats,
       },
     );
@@ -268,6 +271,7 @@ export class ScanEventBus {
       coverage: this.getCoverage(job),
       softSkippedByPolicy: input.softSkippedByPolicy ?? job.softSkippedByPolicyCount,
       deferredByBudget: input.deferredByBudget ?? job.deferredByBudgetCount,
+      skipSamples: job.skipSamples,
       inflightStats: {
         inFlight: Math.max(0, input.inflight ?? job.inflightCount),
         queuedDirs: Math.max(0, input.queueDepth),

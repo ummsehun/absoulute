@@ -1,0 +1,37 @@
+import { describe, expect, it } from "vitest";
+import { buildScanDiagnostics } from "../../src/main/services/diagnostics/scanDiagnostics";
+
+describe("buildScanDiagnostics", () => {
+  it("preserves skip cause samples", () => {
+    const diagnostics = buildScanDiagnostics(
+      {
+        scanId: "scan-1",
+        phase: "walking",
+        scanStage: "deep",
+        scannedCount: 12,
+        totalBytes: 4096,
+        currentPath: "/Users/user",
+      },
+      250,
+      3,
+      {
+        recoverableErrors: 0,
+        permissionErrors: 1,
+        ioErrors: 0,
+        skipSamples: {
+          policy: ["/Users/user/Library/Caches"],
+          permission: ["/Users/user/Library/Mail"],
+          scope: ["/Volumes/External"],
+          budgetDeferred: ["/Users/user/Library/Application Support"],
+        },
+      },
+    );
+
+    expect(diagnostics.skipSamples).toEqual({
+      policy: ["/Users/user/Library/Caches"],
+      permission: ["/Users/user/Library/Mail"],
+      scope: ["/Volumes/External"],
+      budgetDeferred: ["/Users/user/Library/Application Support"],
+    });
+  });
+});

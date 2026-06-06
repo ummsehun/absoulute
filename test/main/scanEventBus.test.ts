@@ -58,6 +58,7 @@ describe("ScanEventBus", () => {
       scannedCount: 42,
       scanStage: "deep",
       softSkippedByPolicyCount: 0,
+      skipSamples: {},
       stageStartedAt: 0,
       startedAt: 0,
       totalBytes: 1024,
@@ -76,5 +77,88 @@ describe("ScanEventBus", () => {
       },
     ]);
     expect(terminalEvents).toEqual(["partial_mixed"]);
+  });
+
+  it("includes skip cause samples in perf samples", () => {
+    const eventBus = new ScanEventBus();
+    const perfSamples: Array<{
+      skipSamples?: {
+        policy?: string[];
+        permission?: string[];
+        scope?: string[];
+        budgetDeferred?: string[];
+      };
+    }> = [];
+
+    eventBus.onPerfSample((event) => {
+      perfSamples.push(event);
+    });
+
+    const job = {
+      aggregator: {
+        consumePatch: () => null,
+      },
+      blockedByPermissionCount: 1,
+      blockedByPolicyCount: 2,
+      skippedByScopeCount: 1,
+      currentPath: "/",
+      deferredByBudgetCount: 1,
+      diagnosticsLastEmitAt: 0,
+      elevationRequired: true,
+      emittedErrorCount: 0,
+      engine: "native",
+      estimatedDirectories: new Set(),
+      estimatedResult: false,
+      inflightCount: 0,
+      ioErrorCount: 0,
+      lastCoverageEmitAt: 0,
+      lastEmitAt: 0,
+      options: {
+        elevationPolicy: "manual",
+        emitPolicy: {
+          progressIntervalMs: 120,
+        },
+      },
+      pendingDeltaEventCount: 0,
+      pendingDeltaMap: new Map(),
+      permissionErrorCount: 1,
+      quickReadyEmitted: true,
+      rootPath: "/",
+      scanId: "scan-1",
+      scannedCount: 42,
+      scanStage: "deep",
+      softSkippedByPolicyCount: 2,
+      stageStartedAt: 0,
+      startedAt: 0,
+      totalBytes: 1024,
+      visibleNonRemovableRoots: new Set(),
+      skipSamples: {
+        policy: ["/Users/user/Library/Caches"],
+        permission: ["/Users/user/Library/Mail"],
+        scope: ["/Volumes/External"],
+        budgetDeferred: ["/Users/user/Library/Application Support"],
+      },
+    } as ScanEventJob & {
+      skipSamples: {
+        policy: string[];
+        permission: string[];
+        scope: string[];
+        budgetDeferred: string[];
+      };
+    };
+
+    eventBus.emitPerfSample(job, {
+      filesPerSec: 10,
+      stageElapsedMs: 120,
+      ioWaitRatio: 0.1,
+      queueDepth: 2,
+    });
+
+    expect(perfSamples.at(-1)?.skipSamples).toEqual({
+      policy: ["/Users/user/Library/Caches"],
+      permission: ["/Users/user/Library/Mail"],
+      scope: ["/Volumes/External"],
+      budgetDeferred: ["/Users/user/Library/Application Support"],
+    });
   });
 });

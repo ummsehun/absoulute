@@ -13,6 +13,7 @@ import type {
   ScanProgressBatch,
   ScanQuickReady,
   ScanResumeResponse,
+  ScanSkipSamples,
   ScanStartRequest,
   ScanStartResponse,
   ScanTerminalEvent,
@@ -51,6 +52,7 @@ const DEEP_START_GRACE_MS = 500;
 const NATIVE_DEEP_MAX_DEPTH = 128;
 const NATIVE_QUICK_ROOT_MAX_DEPTH = 2;
 const NATIVE_QUICK_DEFAULT_MAX_DEPTH = 3;
+const MAX_SKIP_SAMPLE_PATHS = 25;
 
 export class DiskScanService {
   private readonly eventBus = new ScanEventBus();
@@ -173,6 +175,7 @@ export class DiskScanService {
       deepSkippedByPolicy: false,
       softSkippedByPolicyCount: 0,
       deferredByBudgetCount: 0,
+      skipSamples: {},
       inflightCount: 0,
       rootDeviceId:
         rootStat && typeof rootStat.dev === "number" && Number.isFinite(rootStat.dev)
@@ -510,6 +513,12 @@ export class DiskScanService {
         if (typeof message.inflight === "number") {
           job.inflightCount = message.inflight;
         }
+        job.skipSamples = mergeSkipSamples(job.skipSamples, {
+          policy: message.policySkipSamples,
+          permission: message.permissionSamples,
+          scope: message.scopeSkipSamples,
+          budgetDeferred: message.budgetDeferredSamples,
+        });
         this.eventBus.emitPerfSample(job, {
           filesPerSec: message.filesPerSec,
           stageElapsedMs: message.stageElapsedMs,
@@ -722,6 +731,35 @@ function toNativeScannerError(
     source: "native-scanner",
     nativeCode: message.code,
   });
+}
+
+function mergeSkipSamples(
+  current: ScanSkipSamples,
+  next: ScanSkipSamples,
+): ScanSkipSamples {
+  return {
+    policy: mergeSampleList(current.policy, next.policy),
+    permission: mergeSampleList(current.permission, next.permission),
+    scope: mergeSampleList(current.scope, next.scope),
+    budgetDeferred: mergeSampleList(current.budgetDeferred, next.budgetDeferred),
+  };
+}
+
+function mergeSampleList(
+  current: string[] | undefined,
+  next: string[] | undefined,
+): string[] | undefined {
+  const merged: string[] = [];
+  for (const value of [...(current ?? []), ...(next ?? [])]) {
+    if (!value || merged.includes(value)) {
+      continue;
+    }
+    merged.push(value);
+    if (merged.length >= MAX_SKIP_SAMPLE_PATHS) {
+      break;
+    }
+  }
+  return merged.length > 0 ? merged : undefined;
 }
 
 function sleep(ms: number): Promise<void> {

@@ -5,6 +5,7 @@ import type {
   ScanInflightStats,
   ScanProgress,
   ScanQuickReady,
+  ScanSkipSamples,
 } from "../../../types/contracts";
 
 export interface DiagnosticCounters {
@@ -22,6 +23,7 @@ export interface DiagnosticCounters {
   coverage?: ScanCoverage;
   softSkippedByPolicy?: number;
   deferredByBudget?: number;
+  skipSamples?: ScanSkipSamples;
   inflightStats?: ScanInflightStats;
 }
 
@@ -53,6 +55,7 @@ export function buildScanDiagnostics(
     coverage: counters.coverage,
     softSkippedByPolicy: counters.softSkippedByPolicy,
     deferredByBudget: counters.deferredByBudget,
+    skipSamples: counters.skipSamples,
     inflightStats: counters.inflightStats,
   };
 }

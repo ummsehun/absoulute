@@ -85,6 +85,13 @@ export const ScanInflightStatsSchema = z.object({
   queuedDirs: z.number().int().nonnegative().optional(),
 });
 
+export const ScanSkipSamplesSchema = z.object({
+  policy: z.array(z.string().min(1)).optional(),
+  permission: z.array(z.string().min(1)).optional(),
+  scope: z.array(z.string().min(1)).optional(),
+  budgetDeferred: z.array(z.string().min(1)).optional(),
+});
+
 export const ScanProgressSchema = z.object({
   scanId: z.string().min(1),
   phase: z.enum(["walking", "paused", "aggregating", "compressing", "finalizing"]),
@@ -187,6 +194,7 @@ export const ScanDiagnosticsSchema = z.object({
   coverage: ScanCoverageSchema.optional(),
   softSkippedByPolicy: z.number().int().nonnegative().optional(),
   deferredByBudget: z.number().int().nonnegative().optional(),
+  skipSamples: ScanSkipSamplesSchema.optional(),
   inflightStats: ScanInflightStatsSchema.optional(),
 });
 
@@ -215,6 +223,7 @@ export const ScanPerfSampleSchema = z.object({
   coverage: ScanCoverageSchema.optional(),
   softSkippedByPolicy: z.number().int().nonnegative().optional(),
   deferredByBudget: z.number().int().nonnegative().optional(),
+  skipSamples: ScanSkipSamplesSchema.optional(),
   inflightStats: ScanInflightStatsSchema.optional(),
 });
 
