@@ -73,6 +73,7 @@ export interface NativeHelperPlanMessage {
   engine: HelperScanPlan["engine"];
   fallbackReason?: HelperScanPlan["reason"];
   lifecycle?: HelperLifecycleStatus;
+  prototypeEnumerate?: boolean;
   transport: HelperClientStatus["transport"];
 }
 
@@ -174,17 +175,26 @@ export class NativeScanOrchestrator {
             }
           : undefined,
         helperUnavailableReason: helperStatus.reason,
+        helperPrototypeEnumerate: this.helperPrototypeEnumerate,
         helperTransport: helperStatus.transport,
         accuracyMode: context.options.accuracyMode,
         deepPolicyPreset: context.options.deepPolicyPreset,
       },
     });
-    handlers.onHelperPlan?.({
+    const helperPlanMessage: NativeHelperPlanMessage = {
       engine: helperPlan.engine,
-      fallbackReason: helperPlan.reason,
-      lifecycle: helperStatus.lifecycle,
       transport: helperStatus.transport,
-    });
+    };
+    if (helperPlan.reason) {
+      helperPlanMessage.fallbackReason = helperPlan.reason;
+    }
+    if (helperStatus.lifecycle) {
+      helperPlanMessage.lifecycle = helperStatus.lifecycle;
+    }
+    if (this.helperPrototypeEnumerate) {
+      helperPlanMessage.prototypeEnumerate = true;
+    }
+    handlers.onHelperPlan?.(helperPlanMessage);
 
     if (helperPlan.engine === "helper") {
       try {

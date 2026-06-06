@@ -17,6 +17,8 @@ import { resolveScanOptions } from "../../src/main/services/scan/scanRuntimeOpti
 
 describe("nativeScanOrchestrator", () => {
   const originalScanLogDir = process.env.SCAN_LOG_DIR;
+  const originalHelperPrototypeEnumerate =
+    process.env[SCAN_HELPER_PROTOTYPE_ENUMERATE_ENV];
 
   afterEach(() => {
     vi.restoreAllMocks();
@@ -24,6 +26,12 @@ describe("nativeScanOrchestrator", () => {
       delete process.env.SCAN_LOG_DIR;
     } else {
       process.env.SCAN_LOG_DIR = originalScanLogDir;
+    }
+    if (originalHelperPrototypeEnumerate === undefined) {
+      delete process.env[SCAN_HELPER_PROTOTYPE_ENUMERATE_ENV];
+    } else {
+      process.env[SCAN_HELPER_PROTOTYPE_ENUMERATE_ENV] =
+        originalHelperPrototypeEnumerate;
     }
   });
 
@@ -320,6 +328,10 @@ describe("nativeScanOrchestrator", () => {
   it("uses prototype helper enumeration from env without marking helper status ready", async () => {
     vi.spyOn(os, "platform").mockReturnValue("darwin");
     process.env[SCAN_HELPER_PROTOTYPE_ENUMERATE_ENV] = "1";
+    const logDir = await fs.mkdtemp(
+      path.join(process.cwd(), ".tmp-tests", "helper-prototype-log-"),
+    );
+    process.env.SCAN_LOG_DIR = logDir;
     const helperInputs: unknown[] = [];
     const nativeInputs: unknown[] = [];
     const helperClient: HelperClient = {
@@ -359,39 +371,60 @@ describe("nativeScanOrchestrator", () => {
       }),
     });
 
-    const result = await orchestrator.runStage(
-      {
-        scanId: "scan-1",
-        rootPath: "/Users/tester",
-        permissionDeniedRoots: [],
-        paused: false,
-        cancelled: false,
-        options: resolveScanOptions(
-          {
-            rootPath: "/Users/tester",
-            optInProtected: false,
-            accuracyMode: "full",
-          },
-          "/Users/tester",
-        ),
-      },
-      {
-        mode: "deep",
-        maxDepth: 128,
-        timeBudgetMs: 0,
-      },
-      handlers,
-    );
+    try {
+      const result = await orchestrator.runStage(
+        {
+          scanId: "scan-1",
+          rootPath: "/Users/tester",
+          permissionDeniedRoots: [],
+          paused: false,
+          cancelled: false,
+          options: resolveScanOptions(
+            {
+              rootPath: "/Users/tester",
+              optInProtected: false,
+              accuracyMode: "full",
+            },
+            "/Users/tester",
+          ),
+        },
+        {
+          mode: "deep",
+          maxDepth: 128,
+          timeBudgetMs: 0,
+        },
+        handlers,
+      );
 
-    expect(result).toEqual({ estimated: false });
-    expect(helperInputs).toHaveLength(1);
-    expect(nativeInputs).toHaveLength(0);
-    expect(handlers.helperPlans).toEqual([
-      {
+      expect(result).toEqual({ estimated: false });
+      expect(helperInputs).toHaveLength(1);
+      expect(nativeInputs).toHaveLength(0);
+      expect(handlers.helperPlans).toEqual([
+        {
+          engine: "helper",
+          prototypeEnumerate: true,
+          transport: "xpc",
+        },
+      ]);
+
+      const logPath = path.join(logDir, "native-scanner.jsonl");
+      const entries = (await fs.readFile(logPath, "utf8"))
+        .trim()
+        .split("\n")
+        .map((line) => JSON.parse(line) as Record<string, unknown>);
+      const helperPlan = entries.find(
+        (entry) => entry.event === "native_helper_scan_plan",
+      ) as { details?: Record<string, unknown> } | undefined;
+
+      expect(helperPlan?.details).toMatchObject({
         engine: "helper",
-        transport: "xpc",
-      },
-    ]);
+        helperAvailable: false,
+        helperPrototypeEnumerate: true,
+        helperTransport: "xpc",
+      });
+    } finally {
+      await fs.rm(logDir, { recursive: true, force: true });
+    }
   });
 
   it("logs helper lifecycle details in native helper scan planning", async () => {
