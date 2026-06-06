@@ -1,6 +1,15 @@
 import os from "node:os";
 import { appendNativeScannerLog } from "../diagnostics/nativeScannerLogger";
 import {
+  createDefaultHelperClient,
+  type HelperClient,
+  type HelperClientStatus,
+} from "../helper/helperClient";
+import {
+  resolveHelperScanPlan,
+  type HelperScanPlan,
+} from "../helper/helperScanPlanner";
+import {
   createNativeScannerSession,
   type NativeAggBatchMessage,
   type NativeAggMessage,
@@ -71,6 +80,11 @@ export interface NativeVolumePlan {
 export class NativeScanOrchestrator {
   private readonly sessions = new Map<string, NativeScannerSession>();
 
+  constructor(
+    private readonly helperClient: Pick<HelperClient, "getStatus"> =
+      createDefaultHelperClient(),
+  ) {}
+
   sendControl(scanId: string, control: NativeScanControl): void {
     this.sessions.get(scanId)?.sendControl(control);
   }
@@ -111,6 +125,27 @@ export class NativeScanOrchestrator {
         volumePolicy: volumePlan.volumePolicy,
         sameDeviceOnly: volumePlan.sameDeviceOnly,
         plannedRoots: volumePlan.plannedRoots,
+      },
+    });
+    const helperStatus = await this.resolveHelperStatus();
+    const helperPlan = resolveNativeHelperScanPlan({
+      platform: os.platform(),
+      stage: input.mode,
+      options: context.options,
+      helperStatus,
+    });
+    appendNativeScannerLog({
+      event: "native_helper_scan_plan",
+      scanId: context.scanId,
+      stage: input.mode,
+      details: {
+        engine: helperPlan.engine,
+        fallbackReason: helperPlan.reason,
+        helperAvailable: helperStatus.available,
+        helperUnavailableReason: helperStatus.reason,
+        helperTransport: helperStatus.transport,
+        accuracyMode: context.options.accuracyMode,
+        deepPolicyPreset: context.options.deepPolicyPreset,
       },
     });
 
@@ -202,6 +237,27 @@ export class NativeScanOrchestrator {
     this.sessions.set(scanId, created);
     return created;
   }
+
+  private async resolveHelperStatus(): Promise<HelperClientStatus> {
+    try {
+      return await this.helperClient.getStatus();
+    } catch (error) {
+      return {
+        available: false,
+        reason: `helper-status-failed:${String(error)}`,
+        transport: "disabled",
+      };
+    }
+  }
+}
+
+export function resolveNativeHelperScanPlan(input: {
+  platform: NodeJS.Platform;
+  stage: NativeScanPhaseMode;
+  options: Pick<ResolvedScanOptions, "accuracyMode" | "deepPolicyPreset">;
+  helperStatus: HelperClientStatus;
+}): HelperScanPlan {
+  return resolveHelperScanPlan(input);
 }
 
 export function resolveNativeSameDeviceOnly(context: Pick<NativeStageContext, "rootPath">): boolean {

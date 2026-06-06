@@ -2,6 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 import {
+  resolveNativeHelperScanPlan,
   resolveNativeSameDeviceOnly,
   resolveNativeVolumePlan,
 } from "../../src/main/services/scan/nativeScanOrchestrator";
@@ -50,6 +51,44 @@ describe("nativeScanOrchestrator", () => {
       volumePolicy: "same-device",
       sameDeviceOnly: true,
       plannedRoots: ["/Users/tester"],
+    });
+  });
+
+  it("plans helper only when exact deep scans have an available helper", () => {
+    expect(
+      resolveNativeHelperScanPlan({
+        platform: "darwin",
+        stage: "deep",
+        options: {
+          accuracyMode: "full",
+          deepPolicyPreset: "exact",
+        },
+        helperStatus: {
+          available: true,
+          transport: "xpc",
+        },
+      }),
+    ).toEqual({ engine: "helper" });
+  });
+
+  it("plans native fallback when the helper is unavailable", () => {
+    expect(
+      resolveNativeHelperScanPlan({
+        platform: "darwin",
+        stage: "deep",
+        options: {
+          accuracyMode: "full",
+          deepPolicyPreset: "exact",
+        },
+        helperStatus: {
+          available: false,
+          reason: "helper-phase-gate-unresolved",
+          transport: "disabled",
+        },
+      }),
+    ).toEqual({
+      engine: "native",
+      reason: "helper-unavailable",
     });
   });
 });
