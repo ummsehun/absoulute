@@ -333,6 +333,47 @@ Do not implement privileged helper execution before these are decided:
 - FDA validation matrix
 - fallback behavior on install, identity, IPC, or permission failure
 
+### Phase B Registration Decision
+
+Facts:
+
+- The current app bundle identifier in `electron-builder.json` is
+  `com.example.diskvisualizer`.
+- The helper registration contract is defined in
+  `src/main/services/helper/helperRegistration.ts`.
+- The selected Service Management model is `SMAppService.daemon(plistName:)`.
+- The helper launch daemon plist name is
+  `com.example.diskvisualizer.privileged-helper.plist`.
+- The plist must be bundled at
+  `Contents/Library/LaunchDaemons/com.example.diskvisualizer.privileged-helper.plist`.
+
+Apple documentation basis:
+
+- `SMAppService.daemon(plistName:)` initializes a daemon service from a plist
+  name.
+- That plist name must correspond to a property list in the calling app's
+  `Contents/Library/LaunchDaemons` directory.
+- `SMAppService.register()` registers the service, but a LaunchDaemon is not
+  bootstrapped until an admin approves it in System Settings.
+
+Remaining blockers:
+
+- Production bundle identifier is not confirmed. The current
+  `com.example.diskvisualizer` value is a development identifier.
+- Team ID is not configured.
+- Expected designated requirement is not configured.
+- Hardened runtime, helper entitlements, and packaging are not configured.
+- FDA behavior matrix is not validated on target macOS versions.
+
+Direction:
+
+- Keep the helper engine disabled unless explicit helper transport opt-in and
+  registration preflight evidence exist.
+- Use the registration contract from code for any future launchd plist,
+  packaging, and XPC listener label work.
+- Do not add privileged filesystem execution until the preflight status can be
+  made `ready` with real signing, packaging, and FDA evidence.
+
 ## Decision
 
 Proceed to a read-only helper prototype only after the Phase B gate items above
