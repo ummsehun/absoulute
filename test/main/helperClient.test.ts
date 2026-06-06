@@ -7,7 +7,9 @@ import {
   DisabledHelperClient,
   HELPER_DISABLED_REASON,
   HelperUnavailableError,
+  TransportHelperClient,
 } from "../../src/main/services/helper/helperClient";
+import { HelperTransportUnavailableError, type HelperTransport } from "../../src/main/services/helper/helperTransport";
 import { resolveNativeVolumePlan } from "../../src/main/services/scan/nativeScanOrchestrator";
 import { resolveScanOptions } from "../../src/main/services/scan/scanRuntimeOptions";
 
@@ -101,6 +103,107 @@ describe("helperClient", () => {
           progressIntervalMs: options.emitPolicy.progressIntervalMs,
         },
       },
+    });
+  });
+
+  it("delegates validated enumerate requests to the configured transport", async () => {
+    const receivedRequests: unknown[] = [];
+    const transport: HelperTransport = {
+      getStatus: async () => ({ available: true, transport: "xpc" }),
+      getVersion: async () => "test-helper",
+      healthCheck: async () => ({ available: true, transport: "xpc" }),
+      enumerate: async (request, handlers) => {
+        receivedRequests.push(request);
+        handlers.onEvent({
+          type: "done",
+          requestId: request.requestId,
+          elapsedMs: 1,
+          estimated: false,
+        });
+      },
+    };
+    const events: unknown[] = [];
+    const client = new TransportHelperClient(transport);
+
+    await client.enumerate(
+      {
+        rootPath: "/Users/tester",
+        scanId: "scan-1",
+        stageId: "deep",
+        scanMode: "deep",
+        options: resolveScanOptions(
+          {
+            rootPath: "/Users/tester",
+            optInProtected: false,
+            accuracyMode: "full",
+          },
+          "/Users/tester",
+        ),
+        volumePlan: resolveNativeVolumePlan({ rootPath: "/Users/tester" }, "darwin"),
+        maxDepth: 128,
+        issuedAtMs: 1_765_000_000_000,
+        nonce: "0123456789abcdef",
+        requestId: "request-1",
+      },
+      { onEvent: (event) => events.push(event) },
+    );
+
+    expect(receivedRequests).toHaveLength(1);
+    expect(receivedRequests[0]).toMatchObject({
+      schemaVersion: 1,
+      requestId: "request-1",
+      scanId: "scan-1",
+      stageId: "deep",
+      operation: "scan.enumerate",
+      payload: {
+        root: "/Users/tester",
+        permissionPolicy: "report-only",
+      },
+    });
+    expect(events).toEqual([
+      {
+        type: "done",
+        requestId: "request-1",
+        elapsedMs: 1,
+        estimated: false,
+      },
+    ]);
+  });
+
+  it("maps unavailable transport errors to helper client errors", async () => {
+    const transport: HelperTransport = {
+      getStatus: async () => ({ available: false, transport: "disabled" }),
+      getVersion: async () => null,
+      healthCheck: async () => ({ available: false, transport: "disabled" }),
+      enumerate: async () => {
+        throw new HelperTransportUnavailableError("xpc-not-registered");
+      },
+    };
+    const client = new TransportHelperClient(transport);
+
+    await expect(
+      client.enumerate(
+        {
+          rootPath: "/Users/tester",
+          scanId: "scan-1",
+          stageId: "deep",
+          scanMode: "deep",
+          options: resolveScanOptions(
+            {
+              rootPath: "/Users/tester",
+              optInProtected: false,
+              accuracyMode: "full",
+            },
+            "/Users/tester",
+          ),
+          volumePlan: resolveNativeVolumePlan({ rootPath: "/Users/tester" }, "darwin"),
+          maxDepth: 128,
+        },
+        { onEvent: () => undefined },
+      ),
+    ).rejects.toMatchObject({
+      name: "HelperUnavailableError",
+      reason: "xpc-not-registered",
     });
   });
 

@@ -6,6 +6,11 @@ import {
   type HelperEvent,
   type HelperRequestEnvelope,
 } from "../../../shared/schemas/helperProtocol";
+import {
+  DisabledHelperTransport,
+  HelperTransportUnavailableError,
+  type HelperTransport,
+} from "./helperTransport";
 
 export const HELPER_DISABLED_REASON = "helper-phase-gate-unresolved";
 
@@ -53,37 +58,47 @@ export class HelperUnavailableError extends Error {
   }
 }
 
-export class DisabledHelperClient implements HelperClient {
-  constructor(private readonly reason = HELPER_DISABLED_REASON) {}
+export class TransportHelperClient implements HelperClient {
+  constructor(private readonly transport: HelperTransport) {}
 
   async getStatus(): Promise<HelperClientStatus> {
-    return {
-      available: false,
-      reason: this.reason,
-      transport: "disabled",
-    };
+    return await this.transport.getStatus();
   }
 
   async getVersion(): Promise<string | null> {
-    return null;
+    return await this.transport.getVersion();
   }
 
   async healthCheck(): Promise<HelperClientStatus> {
-    return await this.getStatus();
+    return await this.transport.healthCheck();
   }
 
   async enumerate(
     input: HelperEnumerateInput,
     handlers: HelperEnumerateHandlers,
   ): Promise<void> {
-    void input;
-    void handlers;
-    throw new HelperUnavailableError(this.reason);
+    const request = buildHelperEnumerateRequest(input);
+    try {
+      await this.transport.enumerate(request, handlers);
+    } catch (error) {
+      if (error instanceof HelperTransportUnavailableError) {
+        throw new HelperUnavailableError(error.reason);
+      }
+      throw error;
+    }
+  }
+}
+
+export class DisabledHelperClient extends TransportHelperClient {
+  constructor(reason = HELPER_DISABLED_REASON) {
+    super(new DisabledHelperTransport(reason));
   }
 }
 
 export function createDefaultHelperClient(): HelperClient {
-  return new DisabledHelperClient();
+  return new TransportHelperClient(
+    new DisabledHelperTransport(HELPER_DISABLED_REASON),
+  );
 }
 
 export function buildHelperEnumerateRequest(
