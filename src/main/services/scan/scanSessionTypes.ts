@@ -1,6 +1,7 @@
 import type {
   AggDelta,
   ScanEngine,
+  ScanHelperPlan,
   ScanProgress,
   ScanSkipSamples,
 } from "../../../types/contracts";
@@ -59,6 +60,7 @@ export interface ScanJob {
   options: ResolvedScanOptions;
   engine: ScanEngine;
   fallbackReason?: string;
+  helperPlan?: ScanHelperPlan;
   aggregator: ScanAggregator;
   pathClassifier: PathPolicyClassifier;
   scanStage: ScanStage;

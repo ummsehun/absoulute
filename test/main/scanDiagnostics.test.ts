@@ -65,4 +65,57 @@ describe("buildScanDiagnostics", () => {
       completedRoots: ["/Users/user/Library/Safari"],
     });
   });
+
+  it("preserves helper plan diagnostics", () => {
+    const diagnostics = buildScanDiagnostics(
+      {
+        scanId: "scan-1",
+        phase: "walking",
+        scanStage: "deep",
+        scannedCount: 12,
+        totalBytes: 4096,
+        currentPath: "/Users/user",
+      },
+      250,
+      3,
+      {
+        recoverableErrors: 0,
+        permissionErrors: 0,
+        ioErrors: 0,
+        helperPlan: {
+          engine: "native",
+          fallbackReason: "helper-unavailable",
+          transport: "xpc",
+          lifecycle: {
+            state: "not-implemented",
+            reason: "xpc-transport-not-implemented",
+            checks: {
+              "service-management": "fail",
+              "helper-install": "unknown",
+              "caller-identity": "unknown",
+              "full-disk-access": "unknown",
+              "xpc-channel": "fail",
+            },
+          },
+        },
+      },
+    );
+
+    expect(diagnostics.helperPlan).toEqual({
+      engine: "native",
+      fallbackReason: "helper-unavailable",
+      transport: "xpc",
+      lifecycle: {
+        state: "not-implemented",
+        reason: "xpc-transport-not-implemented",
+        checks: {
+          "service-management": "fail",
+          "helper-install": "unknown",
+          "caller-identity": "unknown",
+          "full-disk-access": "unknown",
+          "xpc-channel": "fail",
+        },
+      },
+    });
+  });
 });

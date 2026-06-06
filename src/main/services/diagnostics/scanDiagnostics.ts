@@ -1,6 +1,7 @@
 import type {
   ScanConfidence,
   ScanCoverage,
+  ScanHelperPlan,
   ScanDiagnostics,
   ScanInflightStats,
   ScanPermissionRescan,
@@ -26,6 +27,7 @@ export interface DiagnosticCounters {
   deferredByBudget?: number;
   skipSamples?: ScanSkipSamples;
   permissionRescan?: ScanPermissionRescan;
+  helperPlan?: ScanHelperPlan;
   inflightStats?: ScanInflightStats;
 }
 
@@ -59,6 +61,7 @@ export function buildScanDiagnostics(
     deferredByBudget: counters.deferredByBudget,
     skipSamples: counters.skipSamples,
     permissionRescan: counters.permissionRescan,
+    helperPlan: counters.helperPlan,
     inflightStats: counters.inflightStats,
   };
 }

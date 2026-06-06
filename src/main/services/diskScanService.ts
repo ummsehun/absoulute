@@ -536,6 +536,10 @@ export class DiskScanService {
         this.scanPolicyService.emitElevationRequired(job, message.targetPath, message.reason);
         this.eventBus.emitCoverageUpdate(job, true);
       },
+      onHelperPlan: (message) => {
+        job.helperPlan = message;
+        this.eventBus.emitDiagnostics(job, "walking", queueDepth, true);
+      },
       onQuickReady: (message) => {
         this.emitQuickReadyFromNative(job, message, stageStartedAt);
       },

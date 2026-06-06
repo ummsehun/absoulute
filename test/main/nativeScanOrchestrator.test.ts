@@ -215,6 +215,12 @@ describe("nativeScanOrchestrator", () => {
         estimated: false,
       },
     ]);
+    expect(handlers.helperPlans).toEqual([
+      {
+        engine: "helper",
+        transport: "xpc",
+      },
+    ]);
   });
 
   it("logs helper lifecycle details in native helper scan planning", async () => {
@@ -308,15 +314,26 @@ describe("nativeScanOrchestrator", () => {
 function createRecordingHandlers(): NativeStageHandlers & {
   aggBatches: Parameters<NativeStageHandlers["onAggBatch"]>[0][];
   done: Parameters<NativeStageHandlers["onDone"]>[0][];
+  helperPlans: NonNullable<NativeStageHandlers["onHelperPlan"]> extends (
+    message: infer T,
+  ) => void
+    ? T[]
+    : never;
   progress: Parameters<NativeStageHandlers["onProgress"]>[0][];
 } {
   const aggBatches: Parameters<NativeStageHandlers["onAggBatch"]>[0][] = [];
   const done: Parameters<NativeStageHandlers["onDone"]>[0][] = [];
+  const helperPlans: NonNullable<NativeStageHandlers["onHelperPlan"]> extends (
+    message: infer T,
+  ) => void
+    ? T[]
+    : never = [];
   const progress: Parameters<NativeStageHandlers["onProgress"]>[0][] = [];
 
   return {
     aggBatches,
     done,
+    helperPlans,
     progress,
     onAgg: () => undefined,
     onAggBatch: (message) => aggBatches.push(message),
@@ -324,6 +341,7 @@ function createRecordingHandlers(): NativeStageHandlers & {
     onDiagnostics: () => undefined,
     onDone: (message) => done.push(message),
     onElevationRequired: () => undefined,
+    onHelperPlan: (message) => helperPlans.push(message),
     onProgress: (message) => progress.push(message),
     onQuickReady: () => undefined,
     onWarn: () => undefined,

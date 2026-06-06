@@ -9,6 +9,7 @@ import type {
   ScanElevationPolicy,
   ScanElevationRequired,
   ScanEngine,
+  ScanHelperPlan,
   ScanPerfSample,
   ScanProgress,
   ScanProgressBatch,
@@ -54,6 +55,7 @@ export interface ScanEventJob extends ScanProgressLike {
   engine: ScanEngine;
   estimatedDirectories: ReadonlySet<string>;
   fallbackReason?: string;
+  helperPlan?: ScanHelperPlan;
   inflightCount: number;
   ioErrorCount: number;
   lastCoverageEmitAt: number;
@@ -215,6 +217,7 @@ export class ScanEventBus {
           activeRoot: job.activePermissionRescanRoot,
           completedRoots: [...job.completedPermissionRescanRoots],
         },
+        helperPlan: job.helperPlan,
         inflightStats,
       },
     );

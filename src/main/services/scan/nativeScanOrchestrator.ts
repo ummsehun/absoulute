@@ -5,6 +5,7 @@ import {
   type HelperClient,
   type HelperClientStatus,
 } from "../helper/helperClient";
+import type { HelperLifecycleStatus } from "../helper/helperLifecycle";
 import {
   resolveHelperScanPlan,
   type HelperScanPlan,
@@ -59,9 +60,17 @@ export interface NativeStageHandlers {
   onDiagnostics: (message: NativeDiagnosticsMessage) => void;
   onDone: (message: NativeDoneMessage) => void;
   onElevationRequired: (message: NativeElevationRequiredMessage) => void;
+  onHelperPlan?: (message: NativeHelperPlanMessage) => void;
   onProgress: (message: NativeProgressMessage) => void;
   onQuickReady: (message: NativeQuickReadyMessage) => void;
   onWarn: (message: NativeWarnMessage) => void;
+}
+
+export interface NativeHelperPlanMessage {
+  engine: HelperScanPlan["engine"];
+  fallbackReason?: HelperScanPlan["reason"];
+  lifecycle?: HelperLifecycleStatus;
+  transport: HelperClientStatus["transport"];
 }
 
 export type NativeVolumeRootKind =
@@ -145,6 +154,12 @@ export class NativeScanOrchestrator {
         accuracyMode: context.options.accuracyMode,
         deepPolicyPreset: context.options.deepPolicyPreset,
       },
+    });
+    handlers.onHelperPlan?.({
+      engine: helperPlan.engine,
+      fallbackReason: helperPlan.reason,
+      lifecycle: helperStatus.lifecycle,
+      transport: helperStatus.transport,
     });
 
     if (helperPlan.engine === "helper") {

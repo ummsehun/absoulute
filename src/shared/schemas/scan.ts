@@ -98,6 +98,32 @@ export const ScanPermissionRescanSchema = z.object({
   completedRoots: z.array(z.string().min(1)).optional(),
 });
 
+export const ScanHelperLifecycleSchema = z.object({
+  state: z.enum([
+    "disabled",
+    "not-implemented",
+    "not-installed",
+    "pending-approval",
+    "not-authorized",
+    "ready",
+  ]),
+  reason: z.string().min(1),
+  checks: z.object({
+    "service-management": z.enum(["pass", "fail", "unknown"]),
+    "helper-install": z.enum(["pass", "fail", "unknown"]),
+    "caller-identity": z.enum(["pass", "fail", "unknown"]),
+    "full-disk-access": z.enum(["pass", "fail", "unknown"]),
+    "xpc-channel": z.enum(["pass", "fail", "unknown"]),
+  }),
+});
+
+export const ScanHelperPlanSchema = z.object({
+  engine: z.enum(["helper", "native"]),
+  fallbackReason: z.string().min(1).optional(),
+  lifecycle: ScanHelperLifecycleSchema.optional(),
+  transport: z.enum(["disabled", "xpc"]),
+});
+
 export const ScanProgressSchema = z.object({
   scanId: z.string().min(1),
   phase: z.enum(["walking", "paused", "aggregating", "compressing", "finalizing"]),
@@ -202,6 +228,7 @@ export const ScanDiagnosticsSchema = z.object({
   deferredByBudget: z.number().int().nonnegative().optional(),
   skipSamples: ScanSkipSamplesSchema.optional(),
   permissionRescan: ScanPermissionRescanSchema.optional(),
+  helperPlan: ScanHelperPlanSchema.optional(),
   inflightStats: ScanInflightStatsSchema.optional(),
 });
 
