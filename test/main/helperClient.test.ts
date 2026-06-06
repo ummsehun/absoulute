@@ -1,6 +1,9 @@
 /* @vitest-environment node */
 
 import { describe, expect, it } from "vitest";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import {
   buildHelperEnumerateRequest,
   createDefaultHelperClient,
@@ -180,6 +183,44 @@ describe("helperClient", () => {
       },
       transport: "xpc",
     });
+  });
+
+  it("uses the packaged ServiceManagement probe when xpc transport is enabled", async () => {
+    const resourcesRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "diskviz-helper-client-resources-"),
+    );
+    const probePath = path.join(
+      resourcesRoot,
+      "bin",
+      "service-management-probe-macos",
+    );
+    fs.mkdirSync(path.dirname(probePath), { recursive: true });
+    fs.writeFileSync(
+      probePath,
+      "#!/bin/sh\nprintf '%s\\n' '{\"reason\":\"not-found\",\"state\":\"not-installed\"}'\n",
+      { mode: 0o755 },
+    );
+
+    try {
+      const transport = createDefaultHelperTransport(
+        { [HELPER_TRANSPORT_ENV]: "xpc" },
+        "darwin",
+        resourcesRoot,
+      );
+
+      await expect(transport.getStatus()).resolves.toMatchObject({
+        lifecycle: {
+          state: "not-installed",
+          checks: {
+            "service-management": "fail",
+            "helper-install": "unknown",
+          },
+        },
+        transport: "xpc",
+      });
+    } finally {
+      fs.rmSync(resourcesRoot, { force: true, recursive: true });
+    }
   });
 
   it("reflects ServiceManagement probe results in macOS xpc lifecycle status", async () => {

@@ -112,6 +112,9 @@ export function createDefaultHelperClient(): HelperClient {
 export function createDefaultHelperTransport(
   env: NodeJS.ProcessEnv = process.env,
   platform: NodeJS.Platform = process.platform,
+  resourcesPath: string | null = typeof process.resourcesPath === "string"
+    ? process.resourcesPath
+    : null,
 ): HelperTransport {
   if (env[HELPER_TRANSPORT_ENV] !== "xpc") {
     return new DisabledHelperTransport(HELPER_DISABLED_REASON);
@@ -122,7 +125,7 @@ export function createDefaultHelperTransport(
   }
 
   return new MacOsXpcHelperTransport(
-    createMacOsServiceManagementProbeFromEnv(env, platform),
+    createMacOsServiceManagementProbeFromEnv(env, platform, resourcesPath),
     resolveHelperRegistrationPreflightInputFromEnv(env),
   );
 }
