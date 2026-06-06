@@ -5,6 +5,7 @@ use std::time::Instant;
 mod emit;
 mod metadata;
 mod path_utils;
+mod planner;
 mod policy;
 mod walker;
 

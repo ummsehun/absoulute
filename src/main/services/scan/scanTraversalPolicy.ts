@@ -1,104 +1,22 @@
 import { spawn } from "node:child_process";
 import path from "node:path";
 import { getProtectedPaths } from "../../../shared/domain/pathPolicy";
+import {
+  getScanTraversalContract,
+  resolveDeepSoftSkipPolicyPrefixes,
+} from "../../../shared/domain/scanPolicyContract";
 import type { ScanMode } from "../../../types/contracts";
 import type { NativeScanPhaseMode } from "../native/nativeRustScannerClient";
 import type { ResolvedScanOptions } from "./scanRuntimeOptions";
 
 const FAST_DIRECTORY_ESTIMATE_TIMEOUT_MS = 1_500;
-const HEAVY_DIRECTORY_BASENAMES = new Set([
-  "node_modules",
-  ".pnpm",
-  ".yarn",
-  ".cache",
-  ".npm",
-  ".rustup",
-  ".nvm",
-  ".rbenv",
-  ".pyenv",
-  ".asdf",
-  ".pnpm-store",
-  ".turbo",
-  ".nx",
-  ".next",
-  ".nuxt",
-  ".svelte-kit",
-  "__pycache__",
-  ".venv",
-  "venv",
-  ".gradle",
-  ".m2",
-  ".cargo",
-  ".terraform",
-  "vendor",
-  "deps",
-  "third_party",
-  "build",
-  "dist",
-  "out",
-  "target",
-  "SDKs",
-  "CommandLineTools",
-  "CoreSimulator",
-  "gems",
-  "site-packages",
-  ".git",
-  "DerivedData",
-  "Caches",
-  "Volumes",
-  ".Spotlight-V100",
-  ".fseventsd",
-  "Trash",
-  ".Trash",
-  "Applications",
-  "Library",
-  "System",
-  "private",
-  "cores",
-  ".DocumentRevisions-V100",
-  ".TemporaryItems",
-  ".VolumeIcon.icns",
-  ".apdisk",
-  ".AppleDouble",
-  ".LSOverride",
-  ".PKInstallSandboxManager",
-  ".PKInstallSandboxManager-SystemSoftware",
-  ".Trashes",
-]);
-const DEEP_PACKAGE_SKIP_BASENAMES = new Set([
-  "node_modules",
-  ".pnpm",
-  ".pnpm-store",
-  ".yarn",
-  ".npm",
-  ".nvm",
-  "venv",
-  ".venv",
-  "site-packages",
-  "dist-packages",
-  ".pyenv",
-  ".rustup",
-  ".cargo",
-  ".gradle",
-  ".m2",
-  ".ivy2",
-  ".android",
-  ".nuget",
-  ".cache",
-  "__pycache__",
-  "caches",
-  "deriveddata",
-]);
-const PACKAGE_DIRECTORY_SUFFIXES = new Set([
-  ".app",
-  ".framework",
-  ".bundle",
-  ".plugin",
-  ".kext",
-  ".prefpane",
-  ".xpc",
-  ".appex",
-]);
+const SCAN_TRAVERSAL_CONTRACT = getScanTraversalContract();
+const HEAVY_DIRECTORY_BASENAMES = new Set(
+  SCAN_TRAVERSAL_CONTRACT.heavyDirectoryBasenames,
+);
+const DEEP_PACKAGE_SKIP_BASENAMES = new Set(
+  SCAN_TRAVERSAL_CONTRACT.deepPackageSkipBasenames,
+);
 
 export function normalizeForCompare(
   rawPath: string,
@@ -188,17 +106,7 @@ export function resolveDeepSoftSkipPrefixes(
     return [];
   }
 
-  const raw = [
-    path.join(homeDirectory, "Library", "Caches"),
-    "/Library/Caches",
-    "/private/var/folders",
-    path.join(homeDirectory, ".nvm", "versions"),
-    path.join(homeDirectory, ".pyenv", "versions"),
-  ];
-  if (platform === "win32") {
-    raw.push(path.join(homeDirectory, "AppData", "Local"));
-    raw.push("C:/Windows/WinSxS");
-  }
+  const raw = resolveDeepSoftSkipPolicyPrefixes(platform, homeDirectory, enabled);
   const unique = new Set<string>();
   for (const item of raw) {
     unique.add(normalizeForCompare(path.resolve(item), platform));
@@ -210,7 +118,7 @@ export function resolveDeepSkipDirSuffixes(enabled: boolean): string[] {
   if (!enabled) {
     return [];
   }
-  return [...PACKAGE_DIRECTORY_SUFFIXES];
+  return [...SCAN_TRAVERSAL_CONTRACT.bundleDirectorySuffixes];
 }
 
 export function shouldEstimateDirectory(

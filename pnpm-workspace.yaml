@@ -1,4 +1,4 @@
-onlyBuiltDependencies:
-  - electron
-  - electron-winstaller
-  - esbuild
+allowBuilds:
+  electron: true
+  electron-winstaller: true
+  esbuild: true

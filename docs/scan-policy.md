@@ -1,5 +1,8 @@
 # Scan Policy
 
+See `docs/scan-architecture.md` for the current end-to-end scanner pipeline,
+state ownership, native protocol, and refactoring target.
+
 ## Scan modes
 
 - `preview`: fast estimation mode. It allows cached preview data, responsive deep policy, and soft-skip/estimate rules for high-cost directories.

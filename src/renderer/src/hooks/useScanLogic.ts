@@ -1,9 +1,7 @@
 import { startTransition, useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
-import { resolveScanIntent } from "../../../shared/domain/scanIntent";
 import type {
     AggDelta,
     AppError,
-    ScanDeepPolicyPreset,
     ScanCoverageUpdate,
     ScanElevationRequired,
     ScanPerfSample,
@@ -24,6 +22,10 @@ import {
     normalizeFsPath,
     buildBreadcrumbPaths,
 } from "../utils/helpers";
+import {
+    buildExactScanRequest,
+    buildPreviewScanRequest,
+} from "./scanRequestFactory";
 
 export function useScanLogic() {
     const electronAPI = getElectronAPI();
@@ -224,10 +226,7 @@ export function useScanLogic() {
         }
     };
 
-    const startScanForPath = async (
-        nextRootPath: string,
-        deepPolicyPreset: ScanDeepPolicyPreset = "exact",
-    ) => {
+    const startScanForPath = async (nextRootPath: string, exact = false) => {
         if (!electronAPI) return;
 
         const normalizedRoot = normalizeFsPath(nextRootPath);
@@ -240,28 +239,17 @@ export function useScanLogic() {
             return;
         }
 
-        const scanIntent = resolveScanIntent({ deepPolicyPreset });
+        const scanRequest = exact
+            ? buildExactScanRequest({
+                rootPath: normalizedRoot,
+                optInProtected: allowProtectedOptIn,
+            })
+            : buildPreviewScanRequest({
+                rootPath: normalizedRoot,
+                optInProtected: allowProtectedOptIn,
+            });
 
-        const result = await electronAPI.scanStart({
-            rootPath: normalizedRoot,
-            optInProtected: allowProtectedOptIn,
-            performanceProfile: scanIntent.performanceProfile,
-            scanMode: "native_rust",
-            accuracyMode: scanIntent.accuracyMode,
-            deepPolicyPreset: scanIntent.deepPolicyPreset,
-            elevationPolicy: "manual",
-            emitPolicy: {
-                aggBatchMaxItems: 512,
-                aggBatchMaxMs: 120,
-                progressIntervalMs: 120,
-            },
-            concurrencyPolicy: {
-                min: 16,
-                max: 64,
-                adaptive: true,
-            },
-            allowNodeFallback: false,
-        });
+        const result = await electronAPI.scanStart(scanRequest);
 
         if (result.ok) {
             setScanId(result.data.scanId);
@@ -296,11 +284,11 @@ export function useScanLogic() {
         }
     };
 
-    const startScan = async () => await startScanForPath(rootPath, "exact");
-    const oneClickScan = async () => await startScanForPath(rootPath, "exact");
-    const scanTopRoot = async () => await startScanForPath(getTopRootPath(rootPath), "exact");
+    const startScan = async () => await startScanForPath(rootPath);
+    const oneClickScan = async () => await startScanForPath(rootPath);
+    const scanTopRoot = async () => await startScanForPath(getTopRootPath(rootPath));
     const exactRecheck = async () =>
-        await startScanForPath(scanBasePathRef.current || rootPathRef.current, "exact");
+        await startScanForPath(scanBasePathRef.current || rootPathRef.current, true);
 
     const cancelScan = async () => {
         if (!scanId || !electronAPI) return;
