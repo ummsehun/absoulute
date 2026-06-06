@@ -34,4 +34,35 @@ describe("buildScanDiagnostics", () => {
       budgetDeferred: ["/Users/user/Library/Application Support"],
     });
   });
+
+  it("preserves permission rescan state", () => {
+    const diagnostics = buildScanDiagnostics(
+      {
+        scanId: "scan-1",
+        phase: "walking",
+        scanStage: "deep",
+        scannedCount: 12,
+        totalBytes: 4096,
+        currentPath: "/Users/user",
+      },
+      250,
+      3,
+      {
+        recoverableErrors: 0,
+        permissionErrors: 1,
+        ioErrors: 0,
+        permissionRescan: {
+          pendingRoots: ["/Users/user/Library/Mail"],
+          activeRoot: "/Users/user/Library/Messages",
+          completedRoots: ["/Users/user/Library/Safari"],
+        },
+      },
+    );
+
+    expect(diagnostics.permissionRescan).toEqual({
+      pendingRoots: ["/Users/user/Library/Mail"],
+      activeRoot: "/Users/user/Library/Messages",
+      completedRoots: ["/Users/user/Library/Safari"],
+    });
+  });
 });

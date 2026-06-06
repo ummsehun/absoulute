@@ -92,6 +92,12 @@ export const ScanSkipSamplesSchema = z.object({
   budgetDeferred: z.array(z.string().min(1)).optional(),
 });
 
+export const ScanPermissionRescanSchema = z.object({
+  pendingRoots: z.array(z.string().min(1)).optional(),
+  activeRoot: z.string().min(1).optional(),
+  completedRoots: z.array(z.string().min(1)).optional(),
+});
+
 export const ScanProgressSchema = z.object({
   scanId: z.string().min(1),
   phase: z.enum(["walking", "paused", "aggregating", "compressing", "finalizing"]),
@@ -195,6 +201,7 @@ export const ScanDiagnosticsSchema = z.object({
   softSkippedByPolicy: z.number().int().nonnegative().optional(),
   deferredByBudget: z.number().int().nonnegative().optional(),
   skipSamples: ScanSkipSamplesSchema.optional(),
+  permissionRescan: ScanPermissionRescanSchema.optional(),
   inflightStats: ScanInflightStatsSchema.optional(),
 });
 

@@ -26,6 +26,7 @@ import {
   ScanPerfSampleSchema,
   ScanElevationRequiredSchema,
   ScanInflightStatsSchema,
+  ScanPermissionRescanSchema,
   ScanSkipSamplesSchema,
   ScanProgressSchema,
   ScanResumeRequestSchema,
@@ -76,6 +77,7 @@ export type ScanDiagnostics = z.infer<typeof ScanDiagnosticsSchema>;
 export type ScanCoverage = z.infer<typeof ScanCoverageSchema>;
 export type ScanCompleteness = z.infer<typeof ScanCompletenessSchema>;
 export type ScanInflightStats = z.infer<typeof ScanInflightStatsSchema>;
+export type ScanPermissionRescan = z.infer<typeof ScanPermissionRescanSchema>;
 export type ScanSkipSamples = z.infer<typeof ScanSkipSamplesSchema>;
 export type ScanCoverageUpdate = z.infer<typeof ScanCoverageUpdateSchema>;
 export type ScanTerminalStatus = z.infer<typeof ScanTerminalStatusSchema>;

@@ -3,6 +3,7 @@ import type {
   ScanCoverage,
   ScanDiagnostics,
   ScanInflightStats,
+  ScanPermissionRescan,
   ScanProgress,
   ScanQuickReady,
   ScanSkipSamples,
@@ -24,6 +25,7 @@ export interface DiagnosticCounters {
   softSkippedByPolicy?: number;
   deferredByBudget?: number;
   skipSamples?: ScanSkipSamples;
+  permissionRescan?: ScanPermissionRescan;
   inflightStats?: ScanInflightStats;
 }
 
@@ -56,6 +58,7 @@ export function buildScanDiagnostics(
     softSkippedByPolicy: counters.softSkippedByPolicy,
     deferredByBudget: counters.deferredByBudget,
     skipSamples: counters.skipSamples,
+    permissionRescan: counters.permissionRescan,
     inflightStats: counters.inflightStats,
   };
 }

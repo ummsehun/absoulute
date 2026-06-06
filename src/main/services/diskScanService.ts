@@ -184,6 +184,7 @@ export class DiskScanService {
       deniedPermissionRoots:
         rootDecision.effectiveAccess?.deniedPermissionRoots ?? [],
       pendingPermissionRescanRoots: new Set<string>(),
+      completedPermissionRescanRoots: [],
       nonRemovableRoots: rootDecision.effectiveAccess?.nonRemovableRoots ?? [],
       visibleNonRemovableRoots: new Set<string>(),
       options,
@@ -557,15 +558,26 @@ export class DiskScanService {
       return;
     }
 
-    job.pendingPermissionRescanRoots.clear();
     for (const rootPath of roots) {
       if (job.cancelled) {
         return;
       }
 
+      job.pendingPermissionRescanRoots.delete(rootPath);
+      job.activePermissionRescanRoot = rootPath;
       job.scanStage = "deep";
       const stageStartedAt = Date.now();
       job.stageStartedAt = stageStartedAt;
+      appendNativeScannerLog({
+        event: "native_permission_rescan_start",
+        scanId: job.scanId,
+        stage: "deep",
+        details: {
+          rootPath,
+          pendingRoots: [...job.pendingPermissionRescanRoots],
+          completedRoots: job.completedPermissionRescanRoots,
+        },
+      });
       this.eventBus.emitProgressBatch(job, "walking", true);
       this.eventBus.emitDiagnostics(job, "walking", 0, true);
 
@@ -580,6 +592,19 @@ export class DiskScanService {
       );
 
       job.estimatedResult = job.estimatedResult || result.estimated;
+      job.completedPermissionRescanRoots.push(rootPath);
+      appendNativeScannerLog({
+        event: "native_permission_rescan_done",
+        scanId: job.scanId,
+        stage: "deep",
+        details: {
+          rootPath,
+          estimated: result.estimated,
+          completedRoots: job.completedPermissionRescanRoots,
+        },
+      });
+      job.activePermissionRescanRoot = undefined;
+      this.eventBus.emitDiagnostics(job, "walking", 0, true);
     }
   }
 

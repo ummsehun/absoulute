@@ -52,6 +52,8 @@ export interface ScanJob {
   rootDeviceId: number | null;
   deniedPermissionRoots: string[];
   pendingPermissionRescanRoots: Set<string>;
+  activePermissionRescanRoot?: string;
+  completedPermissionRescanRoots: string[];
   nonRemovableRoots: string[];
   visibleNonRemovableRoots: Set<string>;
   options: ResolvedScanOptions;

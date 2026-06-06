@@ -51,6 +51,8 @@ describe("ScanEventBus", () => {
       },
       pendingDeltaEventCount: 0,
       pendingDeltaMap: new Map(),
+      pendingPermissionRescanRoots: new Set(),
+      completedPermissionRescanRoots: [],
       permissionErrorCount: 2,
       quickReadyEmitted: true,
       rootPath: "/",
@@ -121,6 +123,8 @@ describe("ScanEventBus", () => {
       },
       pendingDeltaEventCount: 0,
       pendingDeltaMap: new Map(),
+      pendingPermissionRescanRoots: new Set(),
+      completedPermissionRescanRoots: [],
       permissionErrorCount: 1,
       quickReadyEmitted: true,
       rootPath: "/",
@@ -159,6 +163,77 @@ describe("ScanEventBus", () => {
       permission: ["/Users/user/Library/Mail"],
       scope: ["/Volumes/External"],
       budgetDeferred: ["/Users/user/Library/Application Support"],
+    });
+  });
+
+  it("includes permission rescan state in diagnostics", () => {
+    const eventBus = new ScanEventBus();
+    const diagnosticsEvents: Array<{
+      permissionRescan?: {
+        pendingRoots?: string[];
+        activeRoot?: string;
+        completedRoots?: string[];
+      };
+    }> = [];
+
+    eventBus.onDiagnostics((event) => {
+      diagnosticsEvents.push(event);
+    });
+
+    const job = {
+      aggregator: {
+        consumePatch: () => null,
+      },
+      blockedByPermissionCount: 1,
+      blockedByPolicyCount: 0,
+      skippedByScopeCount: 0,
+      currentPath: "/Users/user",
+      deferredByBudgetCount: 0,
+      diagnosticsLastEmitAt: 0,
+      elevationRequired: true,
+      emittedErrorCount: 0,
+      engine: "native",
+      estimatedDirectories: new Set(),
+      estimatedResult: false,
+      inflightCount: 0,
+      ioErrorCount: 0,
+      lastCoverageEmitAt: 0,
+      lastEmitAt: 0,
+      options: {
+        elevationPolicy: "manual",
+        emitPolicy: {
+          progressIntervalMs: 120,
+        },
+      },
+      pendingDeltaEventCount: 0,
+      pendingDeltaMap: new Map(),
+      permissionErrorCount: 1,
+      pendingPermissionRescanRoots: new Set(["/Users/user/Library/Mail"]),
+      activePermissionRescanRoot: "/Users/user/Library/Messages",
+      completedPermissionRescanRoots: ["/Users/user/Library/Safari"],
+      quickReadyEmitted: true,
+      rootPath: "/Users/user",
+      scanId: "scan-1",
+      scannedCount: 42,
+      scanStage: "deep",
+      softSkippedByPolicyCount: 0,
+      skipSamples: {},
+      stageStartedAt: 0,
+      startedAt: 0,
+      totalBytes: 1024,
+      visibleNonRemovableRoots: new Set(),
+    } as ScanEventJob & {
+      activePermissionRescanRoot: string;
+      completedPermissionRescanRoots: string[];
+      pendingPermissionRescanRoots: Set<string>;
+    };
+
+    eventBus.emitDiagnostics(job, "walking", 0, true);
+
+    expect(diagnosticsEvents.at(-1)?.permissionRescan).toEqual({
+      pendingRoots: ["/Users/user/Library/Mail"],
+      activeRoot: "/Users/user/Library/Messages",
+      completedRoots: ["/Users/user/Library/Safari"],
     });
   });
 });

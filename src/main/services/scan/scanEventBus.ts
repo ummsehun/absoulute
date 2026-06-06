@@ -66,6 +66,9 @@ export interface ScanEventJob extends ScanProgressLike {
   };
   pendingDeltaEventCount: number;
   pendingDeltaMap: Map<string, AggDelta>;
+  pendingPermissionRescanRoots: ReadonlySet<string>;
+  activePermissionRescanRoot?: string;
+  completedPermissionRescanRoots: readonly string[];
   permissionErrorCount: number;
   rootPath: string;
   softSkippedByPolicyCount: number;
@@ -207,6 +210,11 @@ export class ScanEventBus {
         softSkippedByPolicy: job.softSkippedByPolicyCount,
         deferredByBudget: job.deferredByBudgetCount,
         skipSamples: job.skipSamples,
+        permissionRescan: {
+          pendingRoots: [...job.pendingPermissionRescanRoots],
+          activeRoot: job.activePermissionRescanRoot,
+          completedRoots: [...job.completedPermissionRescanRoots],
+        },
         inflightStats,
       },
     );
