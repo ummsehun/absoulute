@@ -9,6 +9,7 @@
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "build:native:scanner": "cargo build --manifest-path native/scanner/Cargo.toml --release",
+    "build:native:sm-probe": "bun run scripts/build-macos-service-management-probe.ts",
     "bench:native-scan": "bun run scripts/bench-native-scan.ts",
     "smoke:native-scan": "bun run scripts/smoke-native-scan.ts",
     "preview": "electron-vite preview",

@@ -16,6 +16,7 @@
         "scanner-macos",
         "scanner-win.exe",
         "scanner-linux",
+        "service-management-probe-macos",
         "diskviz-scanner",
         "diskviz-scanner.exe"
       ]
