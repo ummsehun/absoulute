@@ -60,7 +60,7 @@ function mapCoverage(
 ): NativeCoverageMessage {
   return {
     type: "coverage",
-    scanned: 0,
+    scanned: event.scannedCount ?? 0,
     blockedByPolicy: 0,
     blockedByPermission: event.permissionFailures,
     skippedByScope: 0,

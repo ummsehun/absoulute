@@ -84,7 +84,7 @@ func enumerate(_ request: HelperRequest) throws {
             path: root.path,
             message: "failed to create directory enumerator"
         )
-        emitCoverage(requestId: request.requestId, permissionFailures: permissionFailures, ioFailures: 1)
+        emitCoverage(requestId: request.requestId, scannedCount: scannedCount, permissionFailures: permissionFailures, ioFailures: 1)
         emitDone(requestId: request.requestId)
         return
     }
@@ -120,7 +120,7 @@ func enumerate(_ request: HelperRequest) throws {
         emitEntryBatch(requestId: request.requestId, items: batch)
     }
     emitProgress(requestId: request.requestId, scannedCount: scannedCount, currentPath: root.path)
-    emitCoverage(requestId: request.requestId, permissionFailures: permissionFailures, ioFailures: ioFailures)
+    emitCoverage(requestId: request.requestId, scannedCount: scannedCount, permissionFailures: permissionFailures, ioFailures: ioFailures)
     emitDone(requestId: request.requestId)
 }
 
@@ -178,10 +178,11 @@ func emitProgress(requestId: String, scannedCount: Int, currentPath: String) {
     ])
 }
 
-func emitCoverage(requestId: String, permissionFailures: Int, ioFailures: Int) {
+func emitCoverage(requestId: String, scannedCount: Int, permissionFailures: Int, ioFailures: Int) {
     emit([
         "type": "coverage",
         "requestId": requestId,
+        "scannedCount": scannedCount,
         "permissionFailures": permissionFailures,
         "ioFailures": ioFailures,
     ])

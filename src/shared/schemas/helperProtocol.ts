@@ -137,6 +137,7 @@ export const HelperProgressEventSchema = z.object({
 export const HelperCoverageEventSchema = z.object({
   type: z.literal("coverage"),
   requestId: HelperIdSchema,
+  scannedCount: z.number().int().nonnegative().optional(),
   permissionFailures: z.number().int().nonnegative(),
   ioFailures: z.number().int().nonnegative(),
 });

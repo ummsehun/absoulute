@@ -71,13 +71,14 @@ describe("helperEventAdapter", () => {
       mapHelperEventToNativeMessages({
         type: "coverage",
         requestId: "request-1",
+        scannedCount: 12,
         permissionFailures: 2,
         ioFailures: 1,
       }),
     ).toEqual([
       {
         type: "coverage",
-        scanned: 0,
+        scanned: 12,
         blockedByPolicy: 0,
         blockedByPermission: 2,
         skippedByScope: 0,
