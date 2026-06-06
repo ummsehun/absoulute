@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { HelperEventSchema } from "../../src/shared/schemas/helperProtocol";
 import {
   buildHelperEnumerateRequest,
   createDefaultHelperClient,
@@ -223,6 +224,79 @@ describe("helperClient", () => {
     }
   });
 
+  it("uses the packaged helper enumerate CLI when xpc transport is enabled", async () => {
+    const resourcesRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "diskviz-helper-enumerate-resources-"),
+    );
+    const helperPath = path.join(
+      resourcesRoot,
+      "bin",
+      "helper-enumerate-macos",
+    );
+    fs.mkdirSync(path.dirname(helperPath), { recursive: true });
+    fs.writeFileSync(
+      helperPath,
+      [
+        "#!/bin/sh",
+        "cat >/dev/null",
+        "printf '%s\\n' '{\"type\":\"ready\",\"requestId\":\"request-1\",\"helperVersion\":\"test-helper\"}'",
+        "printf '%s\\n' '{\"type\":\"done\",\"requestId\":\"request-1\",\"estimated\":false,\"elapsedMs\":1}'",
+      ].join("\n"),
+      { mode: 0o755 },
+    );
+    const events: unknown[] = [];
+
+    try {
+      const transport = createDefaultHelperTransport(
+        { [HELPER_TRANSPORT_ENV]: "xpc" },
+        "darwin",
+        resourcesRoot,
+      );
+
+      await transport.enumerate(
+        buildHelperEnumerateRequest({
+          rootPath: "/Users/tester",
+          scanId: "scan-1",
+          stageId: "deep",
+          scanMode: "deep",
+          options: resolveScanOptions(
+            {
+              rootPath: "/Users/tester",
+              optInProtected: false,
+              accuracyMode: "full",
+            },
+            "/Users/tester",
+          ),
+          volumePlan: resolveNativeVolumePlan(
+            { rootPath: "/Users/tester" },
+            "darwin",
+          ),
+          maxDepth: 128,
+          issuedAtMs: 1_765_000_000_000,
+          nonce: "0123456789abcdef",
+          requestId: "request-1",
+        }),
+        { onEvent: (event) => events.push(event) },
+      );
+    } finally {
+      fs.rmSync(resourcesRoot, { force: true, recursive: true });
+    }
+
+    expect(events.map((event) => HelperEventSchema.parse(event))).toEqual([
+      {
+        type: "ready",
+        requestId: "request-1",
+        helperVersion: "test-helper",
+      },
+      {
+        type: "done",
+        requestId: "request-1",
+        estimated: false,
+        elapsedMs: 1,
+      },
+    ]);
+  });
+
   it("reflects ServiceManagement probe results in macOS xpc lifecycle status", async () => {
     const transport = new MacOsXpcHelperTransport({
       getStatus: async () => ({
@@ -265,6 +339,81 @@ describe("helperClient", () => {
       },
       transport: "xpc",
     });
+  });
+
+  it("streams validated helper enumerate events from the macOS helper CLI", async () => {
+    const tempRootPath = fs.mkdtempSync(
+      path.join(os.tmpdir(), "diskviz-helper-transport-root-"),
+    );
+    const rootPath = fs.realpathSync(tempRootPath);
+    fs.mkdirSync(path.join(rootPath, "Library"), { recursive: true });
+    fs.writeFileSync(path.join(rootPath, "Library", "cache.bin"), "cache");
+    const helperPath = path.join(
+      process.cwd(),
+      "resources",
+      "bin",
+      "helper-enumerate-macos",
+    );
+    const events: unknown[] = [];
+    const transport = new MacOsXpcHelperTransport(
+      {
+        getStatus: async () => ({
+          state: "registered",
+          reason: "registered",
+        }),
+      },
+      {
+        identity: {
+          teamId: "ABCDE12345",
+          designatedRequirement:
+            'identifier "com.example.diskvisualizer" and anchor apple generic',
+        },
+        packagingEntitlementsReady: true,
+        fdaValidationMatrixReady: true,
+      },
+      { enumerateBinaryPath: helperPath },
+    );
+
+    try {
+      await transport.enumerate(
+        buildHelperEnumerateRequest({
+          rootPath,
+          scanId: "scan-1",
+          stageId: "deep",
+          scanMode: "deep",
+          options: resolveScanOptions(
+            {
+              rootPath,
+              optInProtected: false,
+              accuracyMode: "full",
+            },
+            rootPath,
+          ),
+          volumePlan: resolveNativeVolumePlan({ rootPath }, "darwin"),
+          maxDepth: 4,
+          issuedAtMs: 1_765_000_000_000,
+          nonce: "0123456789abcdef",
+          requestId: "request-1",
+        }),
+        { onEvent: (event) => events.push(event) },
+      );
+    } finally {
+      fs.rmSync(rootPath, { force: true, recursive: true });
+    }
+
+    const parsedEvents = events.map((event) => HelperEventSchema.parse(event));
+    expect(parsedEvents.map((event) => event.type)).toContain("ready");
+    expect(parsedEvents.map((event) => event.type)).toContain("entry_batch");
+    expect(parsedEvents.at(-1)).toMatchObject({
+      type: "done",
+      requestId: "request-1",
+      estimated: false,
+    });
+    expect(
+      parsedEvents
+        .filter((event) => event.type === "entry_batch")
+        .flatMap((event) => event.items.map((item) => item.path)),
+    ).toContain(path.join(rootPath, "Library", "cache.bin"));
   });
 
   it("surfaces registration preflight blockers before reporting xpc readiness", async () => {

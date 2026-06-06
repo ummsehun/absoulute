@@ -16,6 +16,7 @@ import {
   resolveHelperRegistrationPreflightInputFromEnv,
   type HelperRegistrationPreflight,
 } from "./helperRegistration";
+import { createMacOsHelperEnumeratorFromEnv } from "./macosHelperEnumerateCommand";
 import { createMacOsServiceManagementProbeFromEnv } from "./macosServiceManagementProbe";
 import { MacOsXpcHelperTransport } from "./macosXpcHelperTransport";
 
@@ -127,6 +128,13 @@ export function createDefaultHelperTransport(
   return new MacOsXpcHelperTransport(
     createMacOsServiceManagementProbeFromEnv(env, platform, resourcesPath),
     resolveHelperRegistrationPreflightInputFromEnv(env),
+    {
+      enumerator: createMacOsHelperEnumeratorFromEnv(
+        env,
+        platform,
+        resourcesPath,
+      ) ?? undefined,
+    },
   );
 }
 
