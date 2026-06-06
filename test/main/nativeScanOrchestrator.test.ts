@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { HelperClient } from "../../src/main/services/helper/helperClient";
 import {
   NativeScanOrchestrator,
+  SCAN_HELPER_PROTOTYPE_ENUMERATE_ENV,
   type NativeStageHandlers,
   resolveNativeHelperScanPlan,
   resolveNativeSameDeviceOnly,
@@ -108,6 +109,25 @@ describe("nativeScanOrchestrator", () => {
       engine: "native",
       reason: "helper-unavailable",
     });
+  });
+
+  it("plans prototype helper enumeration on explicit opt-in even before helper readiness", () => {
+    expect(
+      resolveNativeHelperScanPlan({
+        platform: "darwin",
+        stage: "deep",
+        options: {
+          accuracyMode: "full",
+          deepPolicyPreset: "exact",
+        },
+        helperStatus: {
+          available: false,
+          reason: "xpc-transport-not-implemented",
+          transport: "xpc",
+        },
+        helperPrototypeEnumerate: true,
+      }),
+    ).toEqual({ engine: "helper" });
   });
 
   it("routes available helper events through native stage handlers", async () => {
@@ -215,6 +235,157 @@ describe("nativeScanOrchestrator", () => {
         estimated: false,
       },
     ]);
+    expect(handlers.helperPlans).toEqual([
+      {
+        engine: "helper",
+        transport: "xpc",
+      },
+    ]);
+  });
+
+  it("falls back to native scanning when the selected helper enumerate stage fails", async () => {
+    vi.spyOn(os, "platform").mockReturnValue("darwin");
+    const helperInputs: unknown[] = [];
+    const nativeInputs: unknown[] = [];
+    const helperClient: HelperClient = {
+      getStatus: async () => ({ available: true, transport: "xpc" }),
+      getVersion: async () => "test-helper",
+      healthCheck: async () => ({ available: true, transport: "xpc" }),
+      enumerate: async (input) => {
+        helperInputs.push(input);
+        throw new Error("helper-enumerate-failed:exit-1:test-failure");
+      },
+    };
+    const handlers = createRecordingHandlers();
+    const orchestrator = new NativeScanOrchestrator(helperClient, {
+      createNativeSession: () => ({
+        binaryPath: "test-native-scanner",
+        dispose: () => undefined,
+        pid: 1,
+        sendControl: () => undefined,
+        waitForExit: async () => undefined,
+        runStage: async (input, nativeHandlers) => {
+          nativeInputs.push(input);
+          nativeHandlers.onMessage({
+            type: "done",
+            elapsedMs: 3,
+            estimated: true,
+          });
+        },
+      }),
+    });
+
+    const result = await orchestrator.runStage(
+      {
+        scanId: "scan-1",
+        rootPath: "/Users/tester",
+        permissionDeniedRoots: [],
+        paused: false,
+        cancelled: false,
+        options: resolveScanOptions(
+          {
+            rootPath: "/Users/tester",
+            optInProtected: false,
+            accuracyMode: "full",
+          },
+          "/Users/tester",
+        ),
+      },
+      {
+        mode: "deep",
+        maxDepth: 128,
+        timeBudgetMs: 0,
+      },
+      handlers,
+    );
+
+    expect(result).toEqual({ estimated: true });
+    expect(helperInputs).toHaveLength(1);
+    expect(nativeInputs).toHaveLength(1);
+    expect(nativeInputs[0]).toMatchObject({
+      scanId: "scan-1",
+      root: "/Users/tester",
+      mode: "deep",
+      maxDepth: 128,
+    });
+    expect(handlers.done).toEqual([
+      {
+        type: "done",
+        elapsedMs: 3,
+        estimated: true,
+      },
+    ]);
+  });
+
+  it("uses prototype helper enumeration from env without marking helper status ready", async () => {
+    vi.spyOn(os, "platform").mockReturnValue("darwin");
+    process.env[SCAN_HELPER_PROTOTYPE_ENUMERATE_ENV] = "1";
+    const helperInputs: unknown[] = [];
+    const nativeInputs: unknown[] = [];
+    const helperClient: HelperClient = {
+      getStatus: async () => ({
+        available: false,
+        reason: "xpc-transport-not-implemented",
+        transport: "xpc",
+      }),
+      getVersion: async () => "test-helper",
+      healthCheck: async () => ({ available: false, transport: "xpc" }),
+      enumerate: async (input, handlers) => {
+        helperInputs.push(input);
+        handlers.onEvent({
+          type: "done",
+          requestId: "request-1",
+          elapsedMs: 2,
+          estimated: false,
+        });
+      },
+    };
+    const handlers = createRecordingHandlers();
+    const orchestrator = new NativeScanOrchestrator(helperClient, {
+      createNativeSession: () => ({
+        binaryPath: "test-native-scanner",
+        dispose: () => undefined,
+        pid: 1,
+        sendControl: () => undefined,
+        waitForExit: async () => undefined,
+        runStage: async (input, nativeHandlers) => {
+          nativeInputs.push(input);
+          nativeHandlers.onMessage({
+            type: "done",
+            elapsedMs: 3,
+            estimated: true,
+          });
+        },
+      }),
+    });
+
+    const result = await orchestrator.runStage(
+      {
+        scanId: "scan-1",
+        rootPath: "/Users/tester",
+        permissionDeniedRoots: [],
+        paused: false,
+        cancelled: false,
+        options: resolveScanOptions(
+          {
+            rootPath: "/Users/tester",
+            optInProtected: false,
+            accuracyMode: "full",
+          },
+          "/Users/tester",
+        ),
+      },
+      {
+        mode: "deep",
+        maxDepth: 128,
+        timeBudgetMs: 0,
+      },
+      handlers,
+    );
+
+    expect(result).toEqual({ estimated: false });
+    expect(helperInputs).toHaveLength(1);
+    expect(nativeInputs).toHaveLength(0);
     expect(handlers.helperPlans).toEqual([
       {
         engine: "helper",

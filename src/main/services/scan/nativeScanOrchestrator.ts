@@ -38,6 +38,9 @@ import {
 } from "./scanTraversalPolicy";
 import { isFilesystemRoot } from "./scanRuntimeOptions";
 
+export const SCAN_HELPER_PROTOTYPE_ENUMERATE_ENV =
+  "SCAN_HELPER_PROTOTYPE_ENUMERATE";
+
 export interface NativeStageContext {
   cancelled: boolean;
   options: ResolvedScanOptions;
@@ -88,12 +91,25 @@ export interface NativeVolumePlan {
   plannedRoots: string[];
 }
 
+export interface NativeScanOrchestratorOptions {
+  createNativeSession?: () => NativeScannerSession;
+  helperPrototypeEnumerate?: boolean;
+}
+
 export class NativeScanOrchestrator {
   private readonly sessions = new Map<string, NativeScannerSession>();
+  private readonly createNativeSession: () => NativeScannerSession;
+  private readonly helperPrototypeEnumerate: boolean;
 
   constructor(
     private readonly helperClient: HelperClient = createDefaultHelperClient(),
-  ) {}
+    options: NativeScanOrchestratorOptions = {},
+  ) {
+    this.createNativeSession = options.createNativeSession
+      ?? createNativeScannerSession;
+    this.helperPrototypeEnumerate = options.helperPrototypeEnumerate
+      ?? resolveHelperPrototypeEnumerateFromEnv(process.env);
+  }
 
   sendControl(scanId: string, control: NativeScanControl): void {
     this.sessions.get(scanId)?.sendControl(control);
@@ -133,6 +149,7 @@ export class NativeScanOrchestrator {
       stage: input.mode,
       options: context.options,
       helperStatus,
+      helperPrototypeEnumerate: this.helperPrototypeEnumerate,
     });
     appendNativeScannerLog({
       event: "native_helper_scan_plan",
@@ -170,9 +187,80 @@ export class NativeScanOrchestrator {
     });
 
     if (helperPlan.engine === "helper") {
-      return await this.runHelperStage(context, input, volumePlan, handlers);
+      try {
+        return await this.runHelperStage(context, input, volumePlan, handlers);
+      } catch (error) {
+        appendNativeScannerLog({
+          event: "native_helper_scan_fallback",
+          scanId: context.scanId,
+          stage: input.mode,
+          details: {
+            reason: error instanceof Error ? error.message : String(error),
+            fallbackEngine: "native",
+          },
+        });
+      }
     }
 
+    return await this.runNativeStage(context, input, volumePlan, handlers);
+  }
+
+  private async runHelperStage(
+    context: NativeStageContext,
+    input: NativeStageInput,
+    volumePlan: NativeVolumePlan,
+    handlers: NativeStageHandlers,
+  ): Promise<{ estimated: boolean }> {
+    let doneEstimated = false;
+    let doneReceived = false;
+
+    appendNativeScannerLog({
+      event: "native_helper_scan_start",
+      scanId: context.scanId,
+      stage: input.mode,
+      details: {
+        rootPath: context.rootPath,
+        volumePolicy: volumePlan.volumePolicy,
+        plannedRoots: volumePlan.plannedRoots,
+      },
+    });
+
+    await this.helperClient.enumerate(
+      {
+        rootPath: context.rootPath,
+        scanId: context.scanId,
+        stageId: input.mode,
+        scanMode: input.mode,
+        options: context.options,
+        volumePlan,
+        maxDepth: input.maxDepth,
+      },
+      {
+        onEvent: (event) => {
+          for (const message of mapHelperEventToNativeMessages(event)) {
+            if (message.type === "done") {
+              doneReceived = true;
+              doneEstimated = message.estimated;
+            }
+            dispatchNativeStageMessage(message, handlers);
+          }
+        },
+      },
+    );
+
+    if (!doneReceived && !context.cancelled) {
+      throw new Error(`Helper stage ${input.mode} finished without done event`);
+    }
+
+    return { estimated: doneEstimated };
+  }
+
+  private async runNativeStage(
+    context: NativeStageContext,
+    input: NativeStageInput,
+    volumePlan: NativeVolumePlan,
+    handlers: NativeStageHandlers,
+  ): Promise<{ estimated: boolean }> {
     let doneEstimated = input.mode === "quick";
     let doneReceived = false;
 
@@ -234,63 +322,13 @@ export class NativeScanOrchestrator {
     return { estimated: doneEstimated };
   }
 
-  private async runHelperStage(
-    context: NativeStageContext,
-    input: NativeStageInput,
-    volumePlan: NativeVolumePlan,
-    handlers: NativeStageHandlers,
-  ): Promise<{ estimated: boolean }> {
-    let doneEstimated = false;
-    let doneReceived = false;
-
-    appendNativeScannerLog({
-      event: "native_helper_scan_start",
-      scanId: context.scanId,
-      stage: input.mode,
-      details: {
-        rootPath: context.rootPath,
-        volumePolicy: volumePlan.volumePolicy,
-        plannedRoots: volumePlan.plannedRoots,
-      },
-    });
-
-    await this.helperClient.enumerate(
-      {
-        rootPath: context.rootPath,
-        scanId: context.scanId,
-        stageId: input.mode,
-        scanMode: input.mode,
-        options: context.options,
-        volumePlan,
-        maxDepth: input.maxDepth,
-      },
-      {
-        onEvent: (event) => {
-          for (const message of mapHelperEventToNativeMessages(event)) {
-            if (message.type === "done") {
-              doneReceived = true;
-              doneEstimated = message.estimated;
-            }
-            dispatchNativeStageMessage(message, handlers);
-          }
-        },
-      },
-    );
-
-    if (!doneReceived && !context.cancelled) {
-      throw new Error(`Helper stage ${input.mode} finished without done event`);
-    }
-
-    return { estimated: doneEstimated };
-  }
-
   private getOrCreateSession(scanId: string): NativeScannerSession {
     const existing = this.sessions.get(scanId);
     if (existing) {
       return existing;
     }
 
-    const created = createNativeScannerSession();
+    const created = this.createNativeSession();
     this.sessions.set(scanId, created);
     return created;
   }
@@ -313,8 +351,16 @@ export function resolveNativeHelperScanPlan(input: {
   stage: NativeScanPhaseMode;
   options: Pick<ResolvedScanOptions, "accuracyMode" | "deepPolicyPreset">;
   helperStatus: HelperClientStatus;
+  helperPrototypeEnumerate?: boolean;
 }): HelperScanPlan {
   return resolveHelperScanPlan(input);
+}
+
+export function resolveHelperPrototypeEnumerateFromEnv(
+  env: NodeJS.ProcessEnv = process.env,
+): boolean {
+  const value = env[SCAN_HELPER_PROTOTYPE_ENUMERATE_ENV]?.trim().toLowerCase();
+  return value === "1" || value === "true" || value === "yes";
 }
 
 function dispatchNativeStageMessage(

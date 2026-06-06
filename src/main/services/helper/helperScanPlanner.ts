@@ -27,6 +27,7 @@ export interface ResolveHelperScanPlanInput {
     deepPolicyPreset: ScanDeepPolicyPreset;
   };
   helperStatus: HelperClientStatus;
+  helperPrototypeEnumerate?: boolean;
 }
 
 export function resolveHelperScanPlan(
@@ -57,6 +58,13 @@ export function resolveHelperScanPlan(
   }
 
   if (!input.helperStatus.available) {
+    if (
+      input.helperPrototypeEnumerate === true
+      && input.helperStatus.transport === "xpc"
+    ) {
+      return { engine: "helper" };
+    }
+
     return {
       engine: "native",
       reason: "helper-unavailable",
