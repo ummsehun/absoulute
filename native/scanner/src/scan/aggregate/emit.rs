@@ -101,6 +101,8 @@ pub(crate) fn maybe_emit_progress_and_diagnostics<W: Write>(
             deferred_by_budget: runtime.deferred_by_budget,
             policy_skip_samples: runtime.policy_skip_samples.clone(),
             permission_samples: runtime.permission_samples.clone(),
+            scope_skip_samples: runtime.scope_skip_samples.clone(),
+            budget_deferred_samples: runtime.budget_deferred_samples.clone(),
             inflight,
         },
     )?;
@@ -182,9 +184,11 @@ pub(crate) fn on_policy_block<W: Write>(
             runtime.soft_skipped_by_policy += 1;
             runtime.deferred_by_budget += 1;
             record_policy_skip_sample(runtime, blocked_path);
+            record_budget_deferred_sample(runtime, blocked_path);
         }
         PolicyBlockKind::ScopeExcluded => {
             runtime.skipped_by_scope += 1;
+            record_scope_skip_sample(runtime, blocked_path);
         }
     }
 
@@ -201,6 +205,14 @@ fn record_policy_skip_sample<W: Write>(runtime: &mut ScanRuntime<'_, W>, path: &
 
 fn record_permission_sample<W: Write>(runtime: &mut ScanRuntime<'_, W>, path: &Path) {
     record_sample(&mut runtime.permission_samples, path);
+}
+
+fn record_scope_skip_sample<W: Write>(runtime: &mut ScanRuntime<'_, W>, path: &Path) {
+    record_sample(&mut runtime.scope_skip_samples, path);
+}
+
+fn record_budget_deferred_sample<W: Write>(runtime: &mut ScanRuntime<'_, W>, path: &Path) {
+    record_sample(&mut runtime.budget_deferred_samples, path);
 }
 
 fn record_sample(samples: &mut Vec<String>, path: &Path) {
@@ -282,6 +294,100 @@ pub(crate) fn flush_agg_batch<W: Write>(
     emit_message(runtime.writer, &OutgoingMessage::AggBatch { items })?;
     accum.last_agg_emit = Instant::now();
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::protocol::{
+        AccuracyMode, ConcurrencyPolicy, DeepPolicyPreset, ElevationPolicy, EmitPolicy, ScanMode,
+        StartRequest,
+    };
+    use crate::scan::aggregate::{ControlState, ScanRuntime};
+
+    fn start_request() -> StartRequest {
+        StartRequest {
+            scan_id: "test-scan".to_string(),
+            root: "/tmp/root".to_string(),
+            mode: ScanMode::Deep,
+            platform: "darwin".to_string(),
+            time_budget_ms: 0,
+            max_depth: 16,
+            same_device_only: true,
+            concurrency: 1,
+            accuracy_mode: AccuracyMode::Full,
+            deep_policy_preset: DeepPolicyPreset::Exact,
+            elevation_policy: ElevationPolicy::Manual,
+            emit_policy: EmitPolicy::default(),
+            concurrency_policy: ConcurrencyPolicy::default(),
+            skip_basenames: Vec::new(),
+            soft_skip_path_rules: Vec::new(),
+            soft_skip_prefixes: Vec::new(),
+            skip_dir_suffixes: Vec::new(),
+            blocked_prefixes: Vec::new(),
+            permission_prefixes: Vec::new(),
+        }
+    }
+
+    fn diagnostics_after_policy_block(kind: PolicyBlockKind, blocked_path: &str) -> String {
+        let request = start_request();
+        let controls = ControlState::new();
+        let now = Instant::now();
+        let mut output = Vec::new();
+        let mut runtime = ScanRuntime {
+            request: &request,
+            controls: &controls,
+            writer: &mut output,
+            started_at: now,
+            stage_started_at: now,
+            scanned_count: 0,
+            permission_errors: 0,
+            io_errors: 0,
+            blocked_by_policy: 0,
+            blocked_by_permission: 0,
+            skipped_by_scope: 0,
+            elevation_required: false,
+            elevation_signal_emitted: false,
+            soft_skipped_by_policy: 0,
+            deferred_by_budget: 0,
+            policy_skip_samples: Vec::new(),
+            permission_samples: Vec::new(),
+            scope_skip_samples: Vec::new(),
+            budget_deferred_samples: Vec::new(),
+        };
+        let mut accum = EmitAccumulator::new(now);
+
+        on_policy_block(
+            &mut runtime,
+            &mut accum,
+            Path::new(blocked_path),
+            "blocked for test",
+            kind,
+        )
+        .expect("policy block should emit coverage");
+        maybe_emit_progress_and_diagnostics(&mut runtime, &mut accum, 0, None, 0, true)
+            .expect("diagnostics should serialize");
+
+        String::from_utf8(output).expect("scanner output should be utf8")
+    }
+
+    #[test]
+    fn diagnostics_include_scope_skip_samples() {
+        let output =
+            diagnostics_after_policy_block(PolicyBlockKind::ScopeExcluded, "/Volumes/External");
+
+        assert!(output.contains(r#""scopeSkipSamples":["/Volumes/External"]"#));
+    }
+
+    #[test]
+    fn diagnostics_include_budget_deferred_samples() {
+        let output = diagnostics_after_policy_block(
+            PolicyBlockKind::DeferredByBudget,
+            "/Users/user/Library/Caches",
+        );
+
+        assert!(output.contains(r#""budgetDeferredSamples":["/Users/user/Library/Caches"]"#));
+    }
 }
 
 pub(crate) fn infer_confidence(

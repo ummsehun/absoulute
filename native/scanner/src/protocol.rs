@@ -320,6 +320,10 @@ pub enum OutgoingMessage {
         policy_skip_samples: Vec<String>,
         #[serde(rename = "permissionSamples")]
         permission_samples: Vec<String>,
+        #[serde(rename = "scopeSkipSamples")]
+        scope_skip_samples: Vec<String>,
+        #[serde(rename = "budgetDeferredSamples")]
+        budget_deferred_samples: Vec<String>,
         inflight: usize,
     },
     #[serde(rename = "coverage")]

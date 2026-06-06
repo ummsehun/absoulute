@@ -97,6 +97,8 @@ export interface NativeDiagnosticsMessage {
   deferredByBudget?: number;
   policySkipSamples?: string[];
   permissionSamples?: string[];
+  scopeSkipSamples?: string[];
+  budgetDeferredSamples?: string[];
   inflight?: number;
 }
 
@@ -632,6 +634,8 @@ function parseNativeScannerLine(line: string): NativeScannerMessage | null {
         deferredByBudget: toSafeOptionalNonNegative(message.deferredByBudget),
         policySkipSamples: toSafeStringArray(message.policySkipSamples),
         permissionSamples: toSafeStringArray(message.permissionSamples),
+        scopeSkipSamples: toSafeStringArray(message.scopeSkipSamples),
+        budgetDeferredSamples: toSafeStringArray(message.budgetDeferredSamples),
         inflight: toSafeOptionalNonNegative(message.inflight),
       };
     case "elevation_required":

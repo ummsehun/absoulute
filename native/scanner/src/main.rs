@@ -109,6 +109,8 @@ fn main() -> Result<()> {
             deferred_by_budget: 0,
             policy_skip_samples: Vec::new(),
             permission_samples: Vec::new(),
+            scope_skip_samples: Vec::new(),
+            budget_deferred_samples: Vec::new(),
         };
 
         let summary = run_scan_loop(&mut runtime)?;
