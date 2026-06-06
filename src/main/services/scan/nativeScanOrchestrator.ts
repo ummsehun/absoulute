@@ -9,6 +9,7 @@ import {
   resolveHelperScanPlan,
   type HelperScanPlan,
 } from "../helper/helperScanPlanner";
+import { mapHelperEventToNativeMessages } from "./helperEventAdapter";
 import {
   createNativeScannerSession,
   type NativeAggBatchMessage,
@@ -21,6 +22,7 @@ import {
   type NativeQuickReadyMessage,
   type NativeScanControl,
   type NativeScanPhaseMode,
+  type NativeScannerMessage,
   type NativeScannerSession,
   type NativeWarnMessage,
 } from "../native/nativeRustScannerClient";
@@ -81,8 +83,7 @@ export class NativeScanOrchestrator {
   private readonly sessions = new Map<string, NativeScannerSession>();
 
   constructor(
-    private readonly helperClient: Pick<HelperClient, "getStatus"> =
-      createDefaultHelperClient(),
+    private readonly helperClient: HelperClient = createDefaultHelperClient(),
   ) {}
 
   sendControl(scanId: string, control: NativeScanControl): void {
@@ -104,16 +105,6 @@ export class NativeScanOrchestrator {
     input: NativeStageInput,
     handlers: NativeStageHandlers,
   ): Promise<{ estimated: boolean }> {
-    let doneEstimated = input.mode === "quick";
-    let doneReceived = false;
-
-    const session = this.getOrCreateSession(context.scanId);
-    if (context.paused) {
-      session.sendControl("pause");
-    }
-    if (context.cancelled) {
-      session.sendControl("cancel");
-    }
     const volumePlan = resolveNativeVolumePlan(context);
     appendNativeScannerLog({
       event: "native_volume_plan",
@@ -149,6 +140,21 @@ export class NativeScanOrchestrator {
       },
     });
 
+    if (helperPlan.engine === "helper") {
+      return await this.runHelperStage(context, input, volumePlan, handlers);
+    }
+
+    let doneEstimated = input.mode === "quick";
+    let doneReceived = false;
+
+    const session = this.getOrCreateSession(context.scanId);
+    if (context.paused) {
+      session.sendControl("pause");
+    }
+    if (context.cancelled) {
+      session.sendControl("cancel");
+    }
+
     await session.runStage(
       {
         scanId: context.scanId,
@@ -183,45 +189,67 @@ export class NativeScanOrchestrator {
       },
       {
         onMessage: (message) => {
-          switch (message.type) {
-            case "agg":
-              handlers.onAgg(message);
-              return;
-            case "agg_batch":
-              handlers.onAggBatch(message);
-              return;
-            case "progress":
-              handlers.onProgress(message);
-              return;
-            case "coverage":
-              handlers.onCoverage(message);
-              return;
-            case "diagnostics":
-              handlers.onDiagnostics(message);
-              return;
-            case "elevation_required":
-              handlers.onElevationRequired(message);
-              return;
-            case "quick_ready":
-              handlers.onQuickReady(message);
-              return;
-            case "warn":
-              handlers.onWarn(message);
-              return;
-            case "done":
-              doneReceived = true;
-              doneEstimated = message.estimated;
-              handlers.onDone(message);
-              return;
-            default:
-              return;
+          if (message.type === "done") {
+            doneReceived = true;
+            doneEstimated = message.estimated;
           }
+          dispatchNativeStageMessage(message, handlers);
         },
       },
     );
 
     if (!doneReceived && !context.cancelled) {
       throw new Error(`Native stage ${input.mode} finished without done event`);
+    }
+
+    return { estimated: doneEstimated };
+  }
+
+  private async runHelperStage(
+    context: NativeStageContext,
+    input: NativeStageInput,
+    volumePlan: NativeVolumePlan,
+    handlers: NativeStageHandlers,
+  ): Promise<{ estimated: boolean }> {
+    let doneEstimated = false;
+    let doneReceived = false;
+
+    appendNativeScannerLog({
+      event: "native_helper_scan_start",
+      scanId: context.scanId,
+      stage: input.mode,
+      details: {
+        rootPath: context.rootPath,
+        volumePolicy: volumePlan.volumePolicy,
+        plannedRoots: volumePlan.plannedRoots,
+      },
+    });
+
+    await this.helperClient.enumerate(
+      {
+        rootPath: context.rootPath,
+        scanId: context.scanId,
+        stageId: input.mode,
+        scanMode: input.mode,
+        options: context.options,
+        volumePlan,
+        maxDepth: input.maxDepth,
+      },
+      {
+        onEvent: (event) => {
+          for (const message of mapHelperEventToNativeMessages(event)) {
+            if (message.type === "done") {
+              doneReceived = true;
+              doneEstimated = message.estimated;
+            }
+            dispatchNativeStageMessage(message, handlers);
+          }
+        },
+      },
+    );
+
+    if (!doneReceived && !context.cancelled) {
+      throw new Error(`Helper stage ${input.mode} finished without done event`);
     }
 
     return { estimated: doneEstimated };
@@ -258,6 +286,41 @@ export function resolveNativeHelperScanPlan(input: {
   helperStatus: HelperClientStatus;
 }): HelperScanPlan {
   return resolveHelperScanPlan(input);
+}
+
+function dispatchNativeStageMessage(
+  message: NativeScannerMessage,
+  handlers: NativeStageHandlers,
+): void {
+  switch (message.type) {
+    case "agg":
+      handlers.onAgg(message);
+      return;
+    case "agg_batch":
+      handlers.onAggBatch(message);
+      return;
+    case "progress":
+      handlers.onProgress(message);
+      return;
+    case "coverage":
+      handlers.onCoverage(message);
+      return;
+    case "diagnostics":
+      handlers.onDiagnostics(message);
+      return;
+    case "elevation_required":
+      handlers.onElevationRequired(message);
+      return;
+    case "quick_ready":
+      handlers.onQuickReady(message);
+      return;
+    case "warn":
+      handlers.onWarn(message);
+      return;
+    case "done":
+      handlers.onDone(message);
+      return;
+  }
 }
 
 export function resolveNativeSameDeviceOnly(context: Pick<NativeStageContext, "rootPath">): boolean {

@@ -1,13 +1,22 @@
 /* @vitest-environment node */
 
-import { describe, expect, it } from "vitest";
+import os from "node:os";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import type { HelperClient } from "../../src/main/services/helper/helperClient";
 import {
+  NativeScanOrchestrator,
+  type NativeStageHandlers,
   resolveNativeHelperScanPlan,
   resolveNativeSameDeviceOnly,
   resolveNativeVolumePlan,
 } from "../../src/main/services/scan/nativeScanOrchestrator";
+import { resolveScanOptions } from "../../src/main/services/scan/scanRuntimeOptions";
 
 describe("nativeScanOrchestrator", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it("allows filesystem-root scans to cross mounted system volumes", () => {
     expect(resolveNativeSameDeviceOnly({ rootPath: "/" })).toBe(false);
   });
@@ -91,4 +100,136 @@ describe("nativeScanOrchestrator", () => {
       reason: "helper-unavailable",
     });
   });
+
+  it("routes available helper events through native stage handlers", async () => {
+    vi.spyOn(os, "platform").mockReturnValue("darwin");
+    const helperInputs: unknown[] = [];
+    const helperClient: HelperClient = {
+      getStatus: async () => ({ available: true, transport: "xpc" }),
+      getVersion: async () => "test-helper",
+      healthCheck: async () => ({ available: true, transport: "xpc" }),
+      enumerate: async (input, handlers) => {
+        helperInputs.push(input);
+        handlers.onEvent({
+          type: "entry_batch",
+          requestId: "request-1",
+          items: [
+            {
+              path: "/Users/tester/file.txt",
+              parentPath: "/Users/tester",
+              kind: "file",
+              size: 64,
+              estimated: false,
+            },
+          ],
+        });
+        handlers.onEvent({
+          type: "progress",
+          requestId: "request-1",
+          scannedCount: 1,
+          currentPath: "/Users/tester/file.txt",
+        });
+        handlers.onEvent({
+          type: "done",
+          requestId: "request-1",
+          elapsedMs: 12,
+          estimated: false,
+        });
+      },
+    };
+    const handlers = createRecordingHandlers();
+    const orchestrator = new NativeScanOrchestrator(helperClient);
+
+    const result = await orchestrator.runStage(
+      {
+        scanId: "scan-1",
+        rootPath: "/Users/tester",
+        permissionDeniedRoots: [],
+        paused: false,
+        cancelled: false,
+        options: resolveScanOptions(
+          {
+            rootPath: "/Users/tester",
+            optInProtected: false,
+            accuracyMode: "full",
+          },
+          "/Users/tester",
+        ),
+      },
+      {
+        mode: "deep",
+        maxDepth: 128,
+        timeBudgetMs: 0,
+      },
+      handlers,
+    );
+
+    expect(result).toEqual({ estimated: false });
+    expect(helperInputs).toHaveLength(1);
+    expect(helperInputs[0]).toMatchObject({
+      rootPath: "/Users/tester",
+      scanId: "scan-1",
+      stageId: "deep",
+      scanMode: "deep",
+      maxDepth: 128,
+      volumePlan: {
+        volumePolicy: "same-device",
+        plannedRoots: ["/Users/tester"],
+      },
+    });
+    expect(handlers.aggBatches).toEqual([
+      {
+        type: "agg_batch",
+        items: [
+          {
+            path: "/Users/tester/file.txt",
+            sizeDelta: 64,
+            countDelta: 1,
+            estimated: false,
+          },
+        ],
+      },
+    ]);
+    expect(handlers.progress).toEqual([
+      {
+        type: "progress",
+        scannedCount: 1,
+        queuedDirs: 0,
+        elapsedMs: 0,
+        currentPath: "/Users/tester/file.txt",
+      },
+    ]);
+    expect(handlers.done).toEqual([
+      {
+        type: "done",
+        elapsedMs: 12,
+        estimated: false,
+      },
+    ]);
+  });
 });
+
+function createRecordingHandlers(): NativeStageHandlers & {
+  aggBatches: Parameters<NativeStageHandlers["onAggBatch"]>[0][];
+  done: Parameters<NativeStageHandlers["onDone"]>[0][];
+  progress: Parameters<NativeStageHandlers["onProgress"]>[0][];
+} {
+  const aggBatches: Parameters<NativeStageHandlers["onAggBatch"]>[0][] = [];
+  const done: Parameters<NativeStageHandlers["onDone"]>[0][] = [];
+  const progress: Parameters<NativeStageHandlers["onProgress"]>[0][] = [];
+
+  return {
+    aggBatches,
+    done,
+    progress,
+    onAgg: () => undefined,
+    onAggBatch: (message) => aggBatches.push(message),
+    onCoverage: () => undefined,
+    onDiagnostics: () => undefined,
+    onDone: (message) => done.push(message),
+    onElevationRequired: () => undefined,
+    onProgress: (message) => progress.push(message),
+    onQuickReady: () => undefined,
+    onWarn: () => undefined,
+  };
+}
