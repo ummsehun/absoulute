@@ -4,12 +4,15 @@ import { describe, expect, it } from "vitest";
 import {
   buildHelperEnumerateRequest,
   createDefaultHelperClient,
+  createDefaultHelperTransport,
   DisabledHelperClient,
   HELPER_DISABLED_REASON,
+  HELPER_TRANSPORT_ENV,
   HelperUnavailableError,
   TransportHelperClient,
 } from "../../src/main/services/helper/helperClient";
 import { HelperTransportUnavailableError, type HelperTransport } from "../../src/main/services/helper/helperTransport";
+import { MACOS_XPC_HELPER_NOT_IMPLEMENTED_REASON } from "../../src/main/services/helper/macosXpcHelperTransport";
 import { resolveNativeVolumePlan } from "../../src/main/services/scan/nativeScanOrchestrator";
 import { resolveScanOptions } from "../../src/main/services/scan/scanRuntimeOptions";
 
@@ -54,6 +57,48 @@ describe("helperClient", () => {
         { onEvent: () => undefined },
       ),
     ).rejects.toBeInstanceOf(HelperUnavailableError);
+  });
+
+  it("keeps helper transport disabled unless xpc is explicitly requested", async () => {
+    const transport = createDefaultHelperTransport({}, "darwin");
+
+    await expect(transport.getStatus()).resolves.toEqual({
+      available: false,
+      reason: HELPER_DISABLED_REASON,
+      transport: "disabled",
+    });
+  });
+
+  it("selects the macOS xpc transport stub only on darwin opt-in", async () => {
+    const transport = createDefaultHelperTransport(
+      { [HELPER_TRANSPORT_ENV]: "xpc" },
+      "darwin",
+    );
+
+    await expect(transport.getStatus()).resolves.toEqual({
+      available: false,
+      reason: MACOS_XPC_HELPER_NOT_IMPLEMENTED_REASON,
+      transport: "xpc",
+    });
+    await expect(transport.getVersion()).resolves.toBeNull();
+    await expect(transport.healthCheck()).resolves.toEqual({
+      available: false,
+      reason: MACOS_XPC_HELPER_NOT_IMPLEMENTED_REASON,
+      transport: "xpc",
+    });
+  });
+
+  it("does not select xpc transport on non-macOS platforms", async () => {
+    const transport = createDefaultHelperTransport(
+      { [HELPER_TRANSPORT_ENV]: "xpc" },
+      "linux",
+    );
+
+    await expect(transport.getStatus()).resolves.toEqual({
+      available: false,
+      reason: "xpc-transport-non-darwin",
+      transport: "disabled",
+    });
   });
 
   it("builds a validated helper enumerate request from main-process scan inputs", () => {

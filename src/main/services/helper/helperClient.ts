@@ -11,8 +11,10 @@ import {
   HelperTransportUnavailableError,
   type HelperTransport,
 } from "./helperTransport";
+import { MacOsXpcHelperTransport } from "./macosXpcHelperTransport";
 
 export const HELPER_DISABLED_REASON = "helper-phase-gate-unresolved";
+export const HELPER_TRANSPORT_ENV = "SCAN_HELPER_TRANSPORT";
 
 export interface HelperClientStatus {
   available: boolean;
@@ -96,9 +98,22 @@ export class DisabledHelperClient extends TransportHelperClient {
 }
 
 export function createDefaultHelperClient(): HelperClient {
-  return new TransportHelperClient(
-    new DisabledHelperTransport(HELPER_DISABLED_REASON),
-  );
+  return new TransportHelperClient(createDefaultHelperTransport());
+}
+
+export function createDefaultHelperTransport(
+  env: NodeJS.ProcessEnv = process.env,
+  platform: NodeJS.Platform = process.platform,
+): HelperTransport {
+  if (env[HELPER_TRANSPORT_ENV] !== "xpc") {
+    return new DisabledHelperTransport(HELPER_DISABLED_REASON);
+  }
+
+  if (platform !== "darwin") {
+    return new DisabledHelperTransport("xpc-transport-non-darwin");
+  }
+
+  return new MacOsXpcHelperTransport();
 }
 
 export function buildHelperEnumerateRequest(
