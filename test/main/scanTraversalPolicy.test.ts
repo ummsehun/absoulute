@@ -6,6 +6,10 @@ import { resolveScanOptions } from "../../src/main/services/scan/scanRuntimeOpti
 import {
   buildNativeBlockedPrefixes,
   buildNativePermissionDeniedPrefixes,
+  resolveNativeSkipBasenames,
+  resolveNativeSkipDirSuffixes,
+  resolveNativeSoftSkipPathRules,
+  resolveNativeSoftSkipPrefixes,
   shouldEstimateDirectory,
   isKakaoTalkChatTagPath,
   shouldSkipDeepPackageTraversal,
@@ -106,5 +110,22 @@ describe("scanTraversalPolicy", () => {
     expect(blockedRoots).toContain("/dev");
     expect(blockedRoots).not.toContain(path.join(homeDirectory, "Documents"));
     expect(permissionRoots).toContain(path.join(homeDirectory, "Documents"));
+  });
+
+  it("sends no responsive skip inputs for exact native deep stages", () => {
+    const options = resolveScanOptions(
+      {
+        rootPath,
+        optInProtected: false,
+        accuracyMode: "full",
+        deepPolicyPreset: "exact",
+      },
+      rootPath,
+    );
+
+    expect(resolveNativeSkipBasenames(options, "deep")).toEqual([]);
+    expect(resolveNativeSoftSkipPrefixes(options, "deep", "darwin")).toEqual([]);
+    expect(resolveNativeSkipDirSuffixes(options, "deep")).toEqual([]);
+    expect(resolveNativeSoftSkipPathRules(options, "deep")).toEqual([]);
   });
 });
