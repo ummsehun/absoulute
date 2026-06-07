@@ -38,11 +38,11 @@ describe("audit-helper-readiness script", () => {
       expect(result.status).toBe(1);
       const report = JSON.parse(result.stdout);
       expect(report.serviceManagementStatus).toBe("pending-approval");
-      expect(report.evidence).toContainEqual({
+      expect(report.evidence).toContainEqual(expect.objectContaining({
         key: "service-management",
         reason: "service-management-not-registered:pending-approval",
         status: "fail",
-      });
+      }));
     } finally {
       fs.rmSync(tempDir, { force: true, recursive: true });
     }

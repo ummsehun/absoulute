@@ -36,21 +36,39 @@ describe("helper readiness audit", () => {
     expect(report.evidence).toEqual([
       {
         key: "designated-requirement",
+        guidance: {
+          description: expect.any(String),
+          requiredInputs: ["SCAN_HELPER_DESIGNATED_REQUIREMENT"],
+        },
         reason: "designated-requirement-missing",
         status: "fail",
       },
       {
         key: "fda-validation-matrix",
+        guidance: {
+          description: expect.any(String),
+          requiredArtifacts: ["docs/helper-fda-validation-matrix.json"],
+          requiredInputs: ["SCAN_HELPER_FDA_VALIDATION_MATRIX_READY"],
+        },
         reason: "fda-validation-matrix-missing",
         status: "fail",
       },
       {
         key: "service-management",
+        guidance: {
+          description: expect.any(String),
+          requiredArtifacts: ["resources/bin/service-management-probe-macos"],
+          requiredInputs: ["SCAN_HELPER_SM_PROBE_BIN"],
+        },
         reason: "service-management-not-registered:not-installed",
         status: "fail",
       },
       {
         key: "team-id",
+        guidance: {
+          description: expect.any(String),
+          requiredInputs: ["SCAN_HELPER_TEAM_ID"],
+        },
         reason: "team-id-missing",
         status: "fail",
       },
@@ -85,21 +103,48 @@ describe("helper readiness audit", () => {
     expect(report.evidence).toEqual([
       {
         key: "listener-requirement",
+        guidance: {
+          description: expect.any(String),
+          requiredArtifacts: [
+            "resources/helper/LaunchServices/com.example.diskvisualizer.privileged-helper.requirement.json",
+          ],
+        },
         reason: "privileged-helper-listener-requirement-missing",
         status: "fail",
       },
       {
         key: "packaging-entitlements",
+        guidance: {
+          description: expect.any(String),
+          requiredArtifacts: [
+            "electron-builder.json",
+            "resources/entitlements/mac.plist",
+            "resources/entitlements/mac.inherit.plist",
+          ],
+          requiredInputs: ["SCAN_HELPER_PACKAGING_ENTITLEMENTS_READY"],
+        },
         reason: "packaging-entitlements-missing",
         status: "fail",
       },
       {
         key: "privileged-helper-executable",
+        guidance: {
+          description: expect.any(String),
+          requiredArtifacts: [
+            "resources/helper/LaunchServices/com.example.diskvisualizer.privileged-helper",
+          ],
+          requiredInputs: ["SCAN_HELPER_PRIVILEGED_EXECUTABLE_READY"],
+        },
         reason: "privileged-helper-executable-missing",
         status: "fail",
       },
       {
         key: "service-management",
+        guidance: {
+          description: expect.any(String),
+          requiredArtifacts: ["resources/bin/service-management-probe-macos"],
+          requiredInputs: ["SCAN_HELPER_SM_PROBE_BIN"],
+        },
         reason: "service-management-not-registered:unknown",
         status: "fail",
       },
@@ -133,6 +178,11 @@ describe("helper readiness audit", () => {
     expect(report.evidence).toEqual([
       {
         key: "service-management",
+        guidance: {
+          description: expect.any(String),
+          requiredArtifacts: ["resources/bin/service-management-probe-macos"],
+          requiredInputs: ["SCAN_HELPER_SM_PROBE_BIN"],
+        },
         reason: "registered",
         status: "pass",
       },
@@ -165,6 +215,11 @@ describe("helper readiness audit", () => {
     expect(report.evidence).toEqual([
       {
         key: "service-management",
+        guidance: {
+          description: expect.any(String),
+          requiredArtifacts: ["resources/bin/service-management-probe-macos"],
+          requiredInputs: ["SCAN_HELPER_SM_PROBE_BIN"],
+        },
         reason: "service-management-not-registered:pending-approval",
         status: "fail",
       },
@@ -197,6 +252,11 @@ describe("helper readiness audit", () => {
     expect(report.evidence).toEqual([
       {
         key: "service-management",
+        guidance: {
+          description: expect.any(String),
+          requiredArtifacts: ["resources/bin/service-management-probe-macos"],
+          requiredInputs: ["SCAN_HELPER_SM_PROBE_BIN"],
+        },
         reason: "service-management-not-registered:not-implemented",
         status: "fail",
       },
@@ -229,6 +289,11 @@ describe("helper readiness audit", () => {
     expect(report.evidence).toEqual([
       {
         key: "service-management",
+        guidance: {
+          description: expect.any(String),
+          requiredArtifacts: ["resources/bin/service-management-probe-macos"],
+          requiredInputs: ["SCAN_HELPER_SM_PROBE_BIN"],
+        },
         reason: "service-management-not-registered:unknown",
         status: "fail",
       },
