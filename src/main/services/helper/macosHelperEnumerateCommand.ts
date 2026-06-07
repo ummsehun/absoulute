@@ -87,11 +87,19 @@ function bindHandlersToRequest(
   requestId: string,
   handlers: HelperTransportHandlers,
 ): HelperTransportHandlers {
+  let terminalReceived = false;
+
   return {
     onEvent: (event) => {
       const parsedEvent = HelperEventSchema.parse(event);
       if (parsedEvent.requestId !== requestId) {
         throw new Error("helper-enumerate-request-id-mismatch");
+      }
+      if (terminalReceived) {
+        throw new Error("helper-enumerate-event-after-terminal");
+      }
+      if (parsedEvent.type === "done" || parsedEvent.type === "error") {
+        terminalReceived = true;
       }
       handlers.onEvent(parsedEvent);
     },

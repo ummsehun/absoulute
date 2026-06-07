@@ -614,6 +614,50 @@ Cold assessment:
 - It does not implement real XPC health/version transport calls.
 - It does not enable helper-backed scan execution by default.
 
+## Phase B8 Helper Terminal Event Guard
+
+Facts:
+
+- Phase B8 is scoped in
+  `docs/superpowers/plans/2026-06-08-phase-b8-helper-terminal-event-guard.md`.
+- `CommandMacOsHelperEnumerator` now tracks helper stream terminal state inside
+  its request-bound handler wrapper.
+- After the first `done` or `error` event, later helper events fail with
+  `helper-enumerate-event-after-terminal`.
+- The first terminal event is still dispatched to scan handlers.
+- The existing operation allowlist, replay guard, event schema validation, and
+  request-id binding remain in place.
+- The helper remains disabled by default.
+
+Verification commands run for this Phase B8 slice:
+
+- `pnpm test test/main/helperClient.test.ts`: passed, 26 tests.
+- `pnpm test`: passed, 45 files, 193 tests.
+- `pnpm typecheck`: passed.
+- `pnpm lint`: passed.
+- `pnpm build`: passed.
+- `cargo test --manifest-path native/scanner/Cargo.toml`: passed, 8 tests,
+  with the existing 6 Rust dead-code warnings.
+- `pnpm audit:helper-readiness`: reported `status: "blocked"`,
+  `canEnableHelperByDefault: false`, and local
+  `serviceManagementStatus: "not-implemented"`.
+
+External blockers still missing:
+
+- Production XPC peer identity validation.
+- Real ServiceManagement registration evidence from a packaged app/helper.
+- Real Team ID and designated requirement.
+- Real listener requirement metadata generated from that Team ID.
+- Full FDA validation matrix on the target macOS version.
+- Production signing, packaging, and notarization evidence.
+
+Cold assessment:
+
+- This mini phase hardens helper stream terminal semantics before
+  helper-backed scan execution expands.
+- It does not implement real XPC health/version transport calls.
+- It does not enable helper-backed scan execution by default.
+
 ## Findings
 
 ### P1: Privileged Helper Is Still Blocked by Real Identity and FDA Evidence

@@ -661,6 +661,135 @@ describe("helperClient", () => {
     expect(events).toEqual([]);
   });
 
+  it("rejects helper enumerate events after a terminal event", async () => {
+    const terminalEvents = [
+      {
+        event: {
+          type: "done",
+          requestId: "request-1",
+          estimated: false,
+          elapsedMs: 1,
+        },
+      },
+      {
+        event: {
+          type: "error",
+          requestId: "request-1",
+          code: "E_INVALID_REQUEST",
+          message: "invalid request",
+        },
+      },
+    ] as const;
+
+    for (const { event } of terminalEvents) {
+      const events: unknown[] = [];
+      const enumerator = new CommandMacOsHelperEnumerator({
+        commandPath: "/test/helper-enumerate-macos",
+        run: async (_request, handlers) => {
+          handlers.onEvent(event);
+          handlers.onEvent({
+            type: "progress",
+            requestId: "request-1",
+            scannedCount: 1,
+          });
+          return { exitCode: 0, stderr: "" };
+        },
+      });
+
+      await expect(
+        enumerator.enumerate(
+          buildHelperEnumerateRequest({
+            rootPath: "/Users/tester",
+            scanId: "scan-1",
+            stageId: "deep",
+            scanMode: "deep",
+            options: resolveScanOptions(
+              {
+                rootPath: "/Users/tester",
+                optInProtected: false,
+                accuracyMode: "full",
+              },
+              "/Users/tester",
+            ),
+            volumePlan: resolveNativeVolumePlan(
+              { rootPath: "/Users/tester" },
+              "darwin",
+            ),
+            maxDepth: 128,
+            issuedAtMs: 1_765_000_000_000,
+            nonce: `0123456789abcdef-${event.type}`,
+            requestId: "request-1",
+          }),
+          { onEvent: (receivedEvent) => events.push(receivedEvent) },
+        ),
+      ).rejects.toThrow("helper-enumerate-event-after-terminal");
+      expect(events).toEqual([event]);
+    }
+  });
+
+  it("rejects command stdout helper events after a terminal event", async () => {
+    const helperDir = fs.mkdtempSync(
+      path.join(os.tmpdir(), "diskviz-helper-terminal-guard-"),
+    );
+    const helperPath = path.join(helperDir, "helper-enumerate-macos");
+    fs.writeFileSync(
+      helperPath,
+      [
+        "#!/bin/sh",
+        "cat >/dev/null",
+        "printf '%s\\n' '{\"type\":\"done\",\"requestId\":\"request-1\",\"estimated\":false,\"elapsedMs\":1}'",
+        "printf '%s\\n' '{\"type\":\"progress\",\"requestId\":\"request-1\",\"scannedCount\":1}'",
+      ].join("\n"),
+      { mode: 0o755 },
+    );
+    const events: unknown[] = [];
+    const enumerator = new CommandMacOsHelperEnumerator({
+      commandPath: helperPath,
+    });
+
+    try {
+      await expect(
+        enumerator.enumerate(
+          buildHelperEnumerateRequest({
+            rootPath: "/Users/tester",
+            scanId: "scan-1",
+            stageId: "deep",
+            scanMode: "deep",
+            options: resolveScanOptions(
+              {
+                rootPath: "/Users/tester",
+                optInProtected: false,
+                accuracyMode: "full",
+              },
+              "/Users/tester",
+            ),
+            volumePlan: resolveNativeVolumePlan(
+              { rootPath: "/Users/tester" },
+              "darwin",
+            ),
+            maxDepth: 128,
+            issuedAtMs: 1_765_000_000_000,
+            nonce: "0123456789abcdef-command-terminal",
+            requestId: "request-1",
+          }),
+          { onEvent: (event) => events.push(event) },
+        ),
+      ).rejects.toThrow(
+        "helper-enumerate-failed:exit-1:helper-enumerate-event-after-terminal",
+      );
+      expect(events).toEqual([
+        {
+          type: "done",
+          requestId: "request-1",
+          estimated: false,
+          elapsedMs: 1,
+        },
+      ]);
+    } finally {
+      fs.rmSync(helperDir, { force: true, recursive: true });
+    }
+  });
+
   it("reflects ServiceManagement probe results in macOS xpc lifecycle status", async () => {
     const transport = new MacOsXpcHelperTransport({
       getStatus: async () => ({
