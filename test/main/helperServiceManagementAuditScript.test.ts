@@ -117,6 +117,68 @@ describe("audit-helper-service-management script", () => {
     expect(result.stderr).toContain("missing value for --probe-bin");
   });
 
+  it("fails explicitly when resources path is followed by another option", () => {
+    const result = spawnSync(
+      "bun",
+      [
+        "run",
+        "scripts/audit-helper-service-management.ts",
+        "--resources-path",
+        "--not-a-path",
+      ],
+      {
+        cwd: process.cwd(),
+        env: process.env,
+        encoding: "utf8",
+      },
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("missing value for --resources-path");
+  });
+
+  it("fails explicitly when probe bin is followed by another option", () => {
+    const result = spawnSync(
+      "bun",
+      [
+        "run",
+        "scripts/audit-helper-service-management.ts",
+        "--probe-bin",
+        "--platform",
+        "darwin",
+      ],
+      {
+        cwd: process.cwd(),
+        env: process.env,
+        encoding: "utf8",
+      },
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("missing value for --probe-bin");
+  });
+
+  it("fails explicitly when platform is followed by another option", () => {
+    const result = spawnSync(
+      "bun",
+      [
+        "run",
+        "scripts/audit-helper-service-management.ts",
+        "--platform",
+        "--resources-path",
+        "resources",
+      ],
+      {
+        cwd: process.cwd(),
+        env: process.env,
+        encoding: "utf8",
+      },
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("missing value for --platform");
+  });
+
   it("uses the shared output path error when --out is missing", () => {
     const result = spawnSync(
       "bun",

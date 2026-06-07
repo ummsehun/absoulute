@@ -44,7 +44,7 @@ function resolveOptionalArg(
   }
 
   const value = rawArgs[index + 1]?.trim();
-  if (!value) {
+  if (!value || value.startsWith("--")) {
     throw new Error(`missing value for ${name}`);
   }
 

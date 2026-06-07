@@ -2781,10 +2781,56 @@ Verification so far:
   dead-code warnings remain.
 - `pnpm audit:helper-readiness --platform darwin --resources-path resources`
   and `pnpm audit:helper-readiness-bundle` remain intentionally blocked.
+- Sub-agent review reported no Critical, Important, or Minor findings. The
+  review was static and did not rerun tests.
 
 Interpretation:
 
 - This phase aligns the standalone identity audit CLI with the stricter
   readiness audit option parsing.
 - It does not provide production identity, ServiceManagement registration, FDA
+  evidence, or default helper scanning.
+
+## Phase B49 ServiceManagement Audit Option Values
+
+Date: 2026-06-08
+
+Facts:
+
+- `audit-helper-service-management` now rejects option-looking values for
+  valued CLI options.
+- Covered options are:
+  - `--resources-path`;
+  - `--probe-bin`;
+  - `--platform`.
+- Existing valid-value behavior and default paths are unchanged.
+- ServiceManagement probe semantics, readiness evidence, and helper default
+  activation are unchanged.
+- Helper default activation remains disabled.
+
+Verification so far:
+
+- RED was confirmed before implementation:
+  - ServiceManagement audit valued options accepted option-looking values and
+    returned structured blocked output instead of a missing-value error.
+- `pnpm test test/main/helperServiceManagementAuditScript.test.ts` passed, 1
+  file and 7 tests.
+- `pnpm test test/main/helperServiceManagementAuditScript.test.ts test/main/macosServiceManagementProbe.test.ts test/main/helperReadinessAuditScript.test.ts test/main/helperReadinessBundleScript.test.ts test/main/helperPreflightAuditScript.test.ts test/main/helperIdentityAuditScript.test.ts test/main/helperReadinessAudit.test.ts test/main/helperReadinessBundle.test.ts test/main/helperRegistration.test.ts`
+  passed, 9 files and 73 tests.
+- `pnpm test` passed, 55 files and 299 tests.
+- `pnpm typecheck` passed.
+- `pnpm lint` passed.
+- `pnpm build` passed.
+- `cargo test --manifest-path native/scanner/Cargo.toml` passed. Existing Rust
+  dead-code warnings remain.
+- `pnpm audit:helper-readiness --platform darwin --resources-path resources`
+  and `pnpm audit:helper-readiness-bundle` remain intentionally blocked.
+- Sub-agent review reported no Critical, Important, or Minor findings. The
+  review was static and did not rerun tests.
+
+Interpretation:
+
+- This phase aligns the standalone ServiceManagement audit CLI with stricter
+  helper audit option parsing.
+- It does not provide ServiceManagement registration, production identity, FDA
   evidence, or default helper scanning.
