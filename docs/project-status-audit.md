@@ -1826,6 +1826,61 @@ Cold assessment:
 - It still keeps the helper disabled by default in the current repo.
 - It does not make helper readiness pass.
 
+## Phase B30 Readiness-Gated Default Helper Transport
+
+Facts:
+
+- Phase B30 is scoped in
+  `docs/superpowers/plans/2026-06-08-phase-b30-readiness-gated-default-helper-transport.md`.
+- `src/main/services/helper/helperClient.ts` now resolves registration preflight
+  before choosing the default helper transport.
+- Explicit `SCAN_HELPER_TRANSPORT=xpc` support is preserved.
+- Without explicit transport override, default XPC transport selection is now
+  allowed only on macOS when static registration preflight resolves ready.
+- `createDefaultHelperTransport()` now accepts an optional `projectRoot` so
+  tests and packaged contexts can evaluate static helper evidence outside cwd.
+- The current repo still resolves default helper transport as disabled because
+  registration preflight remains blocked.
+- ServiceManagement registration and control health still determine actual
+  helper availability after XPC transport selection.
+- Helper scan planner rules did not change.
+- Helper-backed scans are not enabled by default in the current repo.
+- No production Team ID, designated requirement, FDA, ServiceManagement,
+  signing, packaging, or notarization evidence is recorded by this phase.
+
+Verification commands run for this Phase B30 slice:
+
+- `pnpm test test/main/helperClient.test.ts` passed after implementation:
+  1 file, 37 tests.
+- `pnpm test test/main/helperClient.test.ts test/main/helperScanPlanner.test.ts`
+  passed: 2 files, 45 tests.
+- `pnpm test` passed: 52 files, 246 tests.
+- `pnpm typecheck` passed.
+- `pnpm lint` passed.
+- `pnpm build` passed.
+- `cargo test --manifest-path native/scanner/Cargo.toml` passed. Existing Rust
+  dead-code warnings remain.
+- `pnpm audit:helper-readiness-bundle` printed `status: "blocked"`,
+  `canEnableHelperByDefault: false`, all component statuses blocked, and exited
+  1 as intended.
+- `pnpm audit:helper-readiness` printed `status: "blocked"`,
+  `canEnableHelperByDefault: false`, and exited 1 as intended.
+
+External blockers still missing:
+
+- Production Team ID and designated requirement evidence.
+- Listener requirement metadata generated from the production Team ID.
+- Installed privileged helper ServiceManagement registration evidence.
+- Full FDA validation matrix on the target macOS version.
+- Production signing, packaging, and notarization evidence.
+
+Cold assessment:
+
+- This mini phase removes the manual transport env requirement after static
+  helper readiness evidence is ready.
+- It still keeps the helper disabled by default in the current repo.
+- It does not make helper readiness pass.
+
 ## Findings
 
 ### P1: Privileged Helper Is Still Blocked by Real Identity and FDA Evidence

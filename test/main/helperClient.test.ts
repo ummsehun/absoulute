@@ -24,6 +24,22 @@ import {
   resolveMacOsHelperEnumerateBinary,
 } from "../../src/main/services/helper/macosHelperEnumerateCommand";
 import {
+  buildHelperCodeSigningRequirement,
+  DISK_SCAN_HELPER_EXECUTABLE_SOURCE_RELATIVE_PATH,
+  DISK_SCAN_HELPER_FDA_MATRIX_SOURCE_RELATIVE_PATH,
+  DISK_SCAN_HELPER_LABEL,
+  DISK_SCAN_HELPER_LAUNCH_DAEMON_PLIST_NAME,
+  DISK_SCAN_HELPER_REQUIREMENT_METADATA_SOURCE_RELATIVE_PATH,
+  DISK_SCAN_HELPER_REQUIRED_FDA_SCENARIOS,
+  DISK_SCAN_HELPER_XPC_ENUMERATE_BRIDGE_SOURCE_RELATIVE_PATH,
+  HELPER_DESIGNATED_REQUIREMENT_ENV,
+  HELPER_FDA_VALIDATION_MATRIX_READY_ENV,
+  HELPER_PACKAGING_ENTITLEMENTS_READY_ENV,
+  HELPER_PRIVILEGED_EXECUTABLE_READY_ENV,
+  HELPER_TEAM_ID_ENV,
+  HELPER_XPC_ENUMERATE_BRIDGE_READY_ENV,
+} from "../../src/main/services/helper/helperRegistration";
+import {
   MACOS_XPC_HELPER_NOT_IMPLEMENTED_REASON,
   MacOsXpcHelperTransport,
 } from "../../src/main/services/helper/macosXpcHelperTransport";
@@ -189,6 +205,40 @@ describe("helperClient", () => {
       reason: HELPER_DISABLED_REASON,
       transport: "disabled",
     });
+  });
+
+  it("selects xpc transport by default when static registration preflight is ready", async () => {
+    const projectRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "diskviz-helper-default-ready-"),
+    );
+    const requirement = buildReadyHelperProjectEvidence(projectRoot);
+
+    try {
+      const transport = createDefaultHelperTransport(
+        {
+          [HELPER_TEAM_ID_ENV]: "ABCDE12345",
+          [HELPER_DESIGNATED_REQUIREMENT_ENV]: requirement,
+          [HELPER_PACKAGING_ENTITLEMENTS_READY_ENV]: "true",
+          [HELPER_PRIVILEGED_EXECUTABLE_READY_ENV]: "true",
+          [HELPER_XPC_ENUMERATE_BRIDGE_READY_ENV]: "true",
+          [HELPER_FDA_VALIDATION_MATRIX_READY_ENV]: "true",
+        },
+        "darwin",
+        null,
+        projectRoot,
+      );
+
+      await expect(transport.getStatus()).resolves.toMatchObject({
+        available: false,
+        registrationPreflight: {
+          status: "ready",
+          blockers: [],
+        },
+        transport: "xpc",
+      });
+    } finally {
+      fs.rmSync(projectRoot, { recursive: true, force: true });
+    }
   });
 
   it("selects the macOS xpc transport stub only on darwin opt-in", async () => {
@@ -1613,3 +1663,79 @@ describe("helperClient", () => {
     ).toThrow();
   });
 });
+
+function buildReadyHelperProjectEvidence(projectRoot: string): string {
+  const requirement = buildHelperCodeSigningRequirement("ABCDE12345");
+  writeJson(path.join(projectRoot, "electron-builder.json"), {
+    extraResources: [
+      {
+        from: path.dirname(DISK_SCAN_HELPER_XPC_ENUMERATE_BRIDGE_SOURCE_RELATIVE_PATH),
+        to: "bin",
+        filter: [
+          path.basename(DISK_SCAN_HELPER_XPC_ENUMERATE_BRIDGE_SOURCE_RELATIVE_PATH),
+        ],
+      },
+    ],
+    mac: {
+      entitlements: "resources/entitlements/mac.plist",
+      entitlementsInherit: "resources/entitlements/mac.inherit.plist",
+      hardenedRuntime: true,
+      extraFiles: [
+        {
+          from: path.dirname(DISK_SCAN_HELPER_EXECUTABLE_SOURCE_RELATIVE_PATH),
+          to: "Library/LaunchServices",
+          filter: [DISK_SCAN_HELPER_LABEL],
+        },
+        {
+          from: "resources/helper/LaunchDaemons",
+          to: "Library/LaunchDaemons",
+          filter: [DISK_SCAN_HELPER_LAUNCH_DAEMON_PLIST_NAME],
+        },
+      ],
+    },
+  });
+  writeText(path.join(projectRoot, "resources/entitlements/mac.plist"), "<plist />");
+  writeText(
+    path.join(projectRoot, "resources/entitlements/mac.inherit.plist"),
+    "<plist />",
+  );
+  writeMachO(path.join(projectRoot, DISK_SCAN_HELPER_EXECUTABLE_SOURCE_RELATIVE_PATH));
+  writeMachO(
+    path.join(projectRoot, DISK_SCAN_HELPER_XPC_ENUMERATE_BRIDGE_SOURCE_RELATIVE_PATH),
+  );
+  writeJson(
+    path.join(projectRoot, DISK_SCAN_HELPER_REQUIREMENT_METADATA_SOURCE_RELATIVE_PATH),
+    {
+      ready: true,
+      requirement,
+      teamId: "ABCDE12345",
+    },
+  );
+  writeJson(path.join(projectRoot, DISK_SCAN_HELPER_FDA_MATRIX_SOURCE_RELATIVE_PATH), {
+    targetMacOS: "15.0",
+    scenarios: DISK_SCAN_HELPER_REQUIRED_FDA_SCENARIOS.map((scenario) => ({
+      id: scenario,
+      notes: "validated in test fixture",
+      status: "passed",
+      validatedAt: "2026-06-08T00:00:00.000Z",
+      validator: "test",
+    })),
+  });
+
+  return requirement;
+}
+
+function writeJson(filePath: string, value: unknown): void {
+  writeText(filePath, JSON.stringify(value, null, 2));
+}
+
+function writeText(filePath: string, value: string): void {
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  fs.writeFileSync(filePath, value);
+}
+
+function writeMachO(filePath: string): void {
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  fs.writeFileSync(filePath, Buffer.from("feedfacf", "hex"));
+  fs.chmodSync(filePath, 0o755);
+}

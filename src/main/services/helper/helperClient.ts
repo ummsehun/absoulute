@@ -13,6 +13,7 @@ import {
   type HelperTransport,
 } from "./helperTransport";
 import {
+  resolveHelperRegistrationPreflight,
   resolveHelperRegistrationPreflightInputFromEnv,
   type HelperRegistrationPreflight,
 } from "./helperRegistration";
@@ -154,8 +155,16 @@ export function createDefaultHelperTransport(
   resourcesPath: string | null = typeof process.resourcesPath === "string"
     ? process.resourcesPath
     : null,
+  projectRoot = process.cwd(),
 ): HelperTransport {
-  if (env[HELPER_TRANSPORT_ENV] !== "xpc") {
+  const registrationPreflightInput =
+    resolveHelperRegistrationPreflightInputFromEnv(env, projectRoot);
+  const explicitXpcTransport = env[HELPER_TRANSPORT_ENV] === "xpc";
+  const readinessGatedXpcTransport = platform === "darwin"
+    && resolveHelperRegistrationPreflight(registrationPreflightInput).status
+      === "ready";
+
+  if (!explicitXpcTransport && !readinessGatedXpcTransport) {
     return new DisabledHelperTransport(HELPER_DISABLED_REASON);
   }
 
@@ -165,7 +174,7 @@ export function createDefaultHelperTransport(
 
   return new MacOsXpcHelperTransport(
     createMacOsServiceManagementProbeFromEnv(env, platform, resourcesPath),
-    resolveHelperRegistrationPreflightInputFromEnv(env),
+    registrationPreflightInput,
     {
       allowPrototypeEnumerate: readBooleanEnv(
         env[HELPER_PROTOTYPE_ENUMERATE_ENV],
