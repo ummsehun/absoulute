@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import type { ScanHelperPlan } from "../../../types/contracts";
 import type { NativeVolumePlan } from "../scan/nativeScanOrchestrator";
 import type { ResolvedScanOptions } from "../scan/scanRuntimeOptions";
 import {
@@ -35,6 +36,7 @@ export interface HelperClientStatus {
   lifecycle?: HelperLifecycleStatus;
   registrationPreflight?: HelperRegistrationPreflight;
   reason?: string;
+  readinessBlockers?: NonNullable<ScanHelperPlan["readinessBlockers"]>;
   transport: "disabled" | "xpc";
 }
 

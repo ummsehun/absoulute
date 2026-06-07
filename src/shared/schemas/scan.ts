@@ -128,6 +128,11 @@ export const ScanHelperRegistrationBlockerSchema = z.enum([
   "fda-validation-matrix-missing",
 ]);
 
+export const ScanHelperReadinessBlockerSchema = z.enum([
+  "helper-peer-validation-missing",
+  "service-management-not-registered",
+]);
+
 export const ScanHelperPlanSchema = z.object({
   engine: z.enum(["helper", "native"]),
   fallbackReason: z.string().min(1).optional(),
@@ -138,6 +143,7 @@ export const ScanHelperPlanSchema = z.object({
     "blocked",
     "unavailable",
   ]),
+  readinessBlockers: z.array(ScanHelperReadinessBlockerSchema).optional(),
   registrationBlockers: z.array(ScanHelperRegistrationBlockerSchema).optional(),
   transport: z.enum(["disabled", "xpc"]),
 });

@@ -7,6 +7,7 @@ import {
   type HelperClientStatus,
 } from "../helper/helperClient";
 import type { HelperLifecycleStatus } from "../helper/helperLifecycle";
+import type { ScanHelperPlan } from "../../../types/contracts";
 import type { HelperEvent } from "../../../shared/schemas/helperProtocol";
 import {
   resolveHelperScanPlan,
@@ -81,6 +82,7 @@ export interface NativeHelperPlanMessage {
     | "blocked"
     | "unavailable";
   prototypeEnumerate?: boolean;
+  readinessBlockers?: NonNullable<ScanHelperPlan["readinessBlockers"]>;
   registrationBlockers?: NonNullable<
     HelperClientStatus["registrationPreflight"]
   >["blockers"];
@@ -189,6 +191,7 @@ export class NativeScanOrchestrator {
               contract: helperStatus.registrationPreflight.contract,
             }
           : undefined,
+        helperReadinessBlockers: helperStatus.readinessBlockers,
         helperUnavailableReason: helperStatus.reason,
         helperPrototypeEnumerate: this.helperPrototypeEnumerate,
         helperProductionReadiness: resolveHelperProductionReadiness({
@@ -219,6 +222,11 @@ export class NativeScanOrchestrator {
     if (helperStatus.registrationPreflight?.blockers.length) {
       helperPlanMessage.registrationBlockers = [
         ...helperStatus.registrationPreflight.blockers,
+      ];
+    }
+    if (helperStatus.readinessBlockers?.length) {
+      helperPlanMessage.readinessBlockers = [
+        ...helperStatus.readinessBlockers,
       ];
     }
     if (this.helperPrototypeEnumerate) {

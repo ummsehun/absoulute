@@ -91,6 +91,10 @@ describe("buildScanDiagnostics", () => {
             "team-id-missing",
             "helper-xpc-enumerate-bridge-missing",
           ],
+          readinessBlockers: [
+            "helper-peer-validation-missing",
+            "service-management-not-registered",
+          ],
           transport: "xpc",
           lifecycle: {
             state: "not-implemented",
@@ -114,6 +118,10 @@ describe("buildScanDiagnostics", () => {
       registrationBlockers: [
         "team-id-missing",
         "helper-xpc-enumerate-bridge-missing",
+      ],
+      readinessBlockers: [
+        "helper-peer-validation-missing",
+        "service-management-not-registered",
       ],
       transport: "xpc",
       lifecycle: {

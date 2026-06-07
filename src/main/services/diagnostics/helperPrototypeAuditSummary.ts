@@ -1,5 +1,8 @@
 import type { NativeHelperPlanMessage } from "../scan/nativeScanOrchestrator";
-import { ScanHelperRegistrationBlockerSchema } from "../../../shared/schemas/scan";
+import {
+  ScanHelperReadinessBlockerSchema,
+  ScanHelperRegistrationBlockerSchema,
+} from "../../../shared/schemas/scan";
 import type {
   NativeAggBatchMessage,
   NativeCoverageMessage,
@@ -55,6 +58,10 @@ export interface HelperPrototypeAuditSummary {
   registrationBlockers: NonNullable<
     NativeHelperPlanMessage["registrationBlockers"]
   >;
+  readinessBlocked: boolean;
+  readinessBlockers: NonNullable<
+    NativeHelperPlanMessage["readinessBlockers"]
+  >;
 }
 
 export function summarizeHelperPrototypeAudit(
@@ -68,6 +75,9 @@ export function summarizeHelperPrototypeAudit(
   );
   const registrationBlockers = filterRegistrationBlockers(
     latestPlan?.registrationBlockers,
+  );
+  const readinessBlockers = filterReadinessBlockers(
+    latestPlan?.readinessBlockers,
   );
 
   return {
@@ -101,6 +111,8 @@ export function summarizeHelperPrototypeAudit(
       readBooleanDetail(helperPlanLog, "helperPrototypeEnumerate") === true,
     registrationBlocked: registrationBlockers.length > 0,
     registrationBlockers,
+    readinessBlocked: readinessBlockers.length > 0,
+    readinessBlockers,
   };
 }
 
@@ -109,6 +121,14 @@ function filterRegistrationBlockers(
 ): NonNullable<NativeHelperPlanMessage["registrationBlockers"]> {
   return (blockers ?? []).filter((blocker) =>
     ScanHelperRegistrationBlockerSchema.safeParse(blocker).success
+  );
+}
+
+function filterReadinessBlockers(
+  blockers: NativeHelperPlanMessage["readinessBlockers"] | undefined,
+): NonNullable<NativeHelperPlanMessage["readinessBlockers"]> {
+  return (blockers ?? []).filter((blocker) =>
+    ScanHelperReadinessBlockerSchema.safeParse(blocker).success
   );
 }
 

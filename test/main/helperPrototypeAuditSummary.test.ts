@@ -126,10 +126,12 @@ describe("helperPrototypeAuditSummary", () => {
       helperPrototypeLogged: true,
       registrationBlocked: false,
       registrationBlockers: [],
+      readinessBlocked: false,
+      readinessBlockers: [],
     });
   });
 
-  it("summarizes helper registration blocker evidence from the latest helper plan", () => {
+  it("summarizes helper blocker evidence from the latest helper plan", () => {
     expect(
       summarizeHelperPrototypeAudit({
         root: "/Users/user",
@@ -141,12 +143,17 @@ describe("helperPrototypeAuditSummary", () => {
             fallbackReason: "helper-unavailable",
             productionReadiness: "unavailable",
             registrationBlockers: ["team-id-missing"],
+            readinessBlockers: ["service-management-not-registered"],
             transport: "xpc",
           },
           {
             engine: "native",
             fallbackReason: "registration-preflight-blocked",
             productionReadiness: "blocked",
+            readinessBlockers: [
+              "helper-peer-validation-missing",
+              "service-management-not-registered",
+            ],
             registrationBlockers: [
               "team-id-missing",
               "helper-xpc-enumerate-bridge-missing",
@@ -170,11 +177,16 @@ describe("helperPrototypeAuditSummary", () => {
         "team-id-missing",
         "helper-xpc-enumerate-bridge-missing",
       ],
+      readinessBlocked: true,
+      readinessBlockers: [
+        "helper-peer-validation-missing",
+        "service-management-not-registered",
+      ],
       transport: "xpc",
     });
   });
 
-  it("filters helper registration blocker summary to stable blocker codes", () => {
+  it("filters helper blocker summary to stable blocker codes", () => {
     expect(
       summarizeHelperPrototypeAudit({
         root: "/Users/user",
@@ -185,6 +197,10 @@ describe("helperPrototypeAuditSummary", () => {
             engine: "native",
             fallbackReason: "registration-preflight-blocked",
             productionReadiness: "blocked",
+            readinessBlockers: [
+              "helper-peer-validation-missing",
+              "human readable readiness reason",
+            ] as never,
             registrationBlockers: [
               "team-id-missing",
               "human readable fallback reason",
@@ -202,6 +218,8 @@ describe("helperPrototypeAuditSummary", () => {
     ).toMatchObject({
       registrationBlocked: true,
       registrationBlockers: ["team-id-missing"],
+      readinessBlocked: true,
+      readinessBlockers: ["helper-peer-validation-missing"],
     });
   });
 });

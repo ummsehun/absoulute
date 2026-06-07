@@ -87,6 +87,10 @@ export class MacOsXpcHelperTransport implements HelperTransport {
       available: false,
       lifecycle,
       registrationPreflight,
+      readinessBlockers: resolveReadinessBlockers({
+        lifecycle,
+        reason: lifecycle.reason,
+      }),
       reason: lifecycle.reason,
       transport: "xpc",
     };
@@ -143,6 +147,10 @@ export class MacOsXpcHelperTransport implements HelperTransport {
               "xpc-channel": "pass",
             },
           },
+          readinessBlockers: mergeReadinessBlocker(
+            status.readinessBlockers,
+            "helper-peer-validation-missing",
+          ),
           reason: "helper-control-peer-validation-missing",
         };
       }
@@ -159,6 +167,10 @@ export class MacOsXpcHelperTransport implements HelperTransport {
       const readyStatus = {
         ...status,
         lifecycle,
+        readinessBlockers: resolveReadinessBlockers({
+          lifecycle,
+          reason: lifecycle.reason,
+        }),
         reason: lifecycle.reason,
       };
 
@@ -259,10 +271,38 @@ export class MacOsXpcHelperTransport implements HelperTransport {
       available: false,
       lifecycle,
       registrationPreflight,
+      readinessBlockers: resolveReadinessBlockers({
+        lifecycle,
+        reason: lifecycle.reason,
+      }),
       reason: lifecycle.reason,
       transport: "xpc",
     };
   }
+}
+
+type HelperReadinessBlockers = NonNullable<HelperClientStatus["readinessBlockers"]>;
+
+function resolveReadinessBlockers(input: {
+  lifecycle: NonNullable<HelperClientStatus["lifecycle"]>;
+  reason: string;
+}): HelperReadinessBlockers {
+  const blockers: HelperReadinessBlockers = [];
+  if (input.lifecycle.checks["service-management"] !== "pass") {
+    blockers.push("service-management-not-registered");
+  }
+  if (input.reason === "helper-control-peer-validation-missing") {
+    blockers.push("helper-peer-validation-missing");
+  }
+
+  return blockers;
+}
+
+function mergeReadinessBlocker(
+  blockers: HelperReadinessBlockers | undefined,
+  blocker: HelperReadinessBlockers[number],
+): HelperReadinessBlockers {
+  return [...new Set([...(blockers ?? []), blocker])];
 }
 
 function canAcceptXpcChannelEvidence(status: HelperClientStatus): boolean {

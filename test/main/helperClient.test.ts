@@ -269,6 +269,7 @@ describe("helperClient", () => {
           "xpc-channel": "fail",
         },
       },
+      readinessBlockers: ["service-management-not-registered"],
       reason: MACOS_XPC_HELPER_NOT_IMPLEMENTED_REASON,
       registrationPreflight: {
         blockers: [
@@ -310,6 +311,7 @@ describe("helperClient", () => {
           "xpc-channel": "fail",
         },
       },
+      readinessBlockers: ["service-management-not-registered"],
       reason: MACOS_XPC_HELPER_NOT_IMPLEMENTED_REASON,
       registrationPreflight: {
         blockers: [
@@ -1021,6 +1023,7 @@ describe("helperClient", () => {
           "xpc-channel": "pass",
         },
       },
+      readinessBlockers: ["helper-peer-validation-missing"],
       reason: "helper-control-peer-validation-missing",
       transport: "xpc",
     });
@@ -1338,6 +1341,7 @@ describe("helperClient", () => {
           "xpc-channel": "fail",
         },
       },
+      readinessBlockers: ["service-management-not-registered"],
       reason: MACOS_XPC_HELPER_NOT_IMPLEMENTED_REASON,
       registrationPreflight: {
         blockers: [
@@ -1361,6 +1365,30 @@ describe("helperClient", () => {
             "com.example.diskvisualizer.privileged-helper.plist",
           serviceManagementModel: "smappservice-daemon",
         },
+        status: "blocked",
+      },
+      transport: "xpc",
+    });
+  });
+
+  it("does not report peer validation missing before control peer validation is probed", async () => {
+    const transport = new MacOsXpcHelperTransport({
+      getStatus: async () => ({
+        state: "registered",
+        reason: "enabled",
+      }),
+    });
+
+    await expect(transport.getStatus()).resolves.toMatchObject({
+      available: false,
+      lifecycle: {
+        checks: {
+          "service-management": "pass",
+          "caller-identity": "fail",
+        },
+      },
+      readinessBlockers: [],
+      registrationPreflight: {
         status: "blocked",
       },
       transport: "xpc",

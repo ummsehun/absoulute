@@ -67,6 +67,13 @@ Facts:
 - Helper readiness bundle generation uses the same peer-validation evidence
   input, so bundle audits cannot become ready through identity, FDA, and
   ServiceManagement evidence alone.
+- Scan helper plan diagnostics now preserve readiness blockers separately from
+  registration blockers. Current diagnostics can surface
+  `helper-peer-validation-missing` and `service-management-not-registered`
+  without treating those as registration preflight failures.
+- Helper prototype audit summaries now include `readinessBlocked` and
+  `readinessBlockers`, so fallback scans can explain why production helper
+  scanning was not active.
 - `bun run audit:helper-readiness` reports `status: "blocked"` with
   `canEnableHelperByDefault: false`.
 
@@ -87,6 +94,27 @@ Phase B57 verification:
   `helper-peer-validation-missing`.
 - Sub-agent review reported no Critical or Important findings. One Minor
   duplicate-confirmation-flow finding was addressed in the bundle CLI.
+
+Phase B58 verification so far:
+
+- RED was confirmed before implementation:
+  - scan helper plan diagnostics dropped `readinessBlockers`;
+  - shared scan diagnostics schema parsing stripped `readinessBlockers`;
+  - helper prototype audit summaries did not expose
+    `readinessBlocked/readinessBlockers`.
+- Focused diagnostics tests passed: 4 files and 63 tests.
+- `pnpm typecheck` passed.
+- Sub-agent review reported no Critical findings and one Important finding:
+  peer-validation could be overstated from `caller-identity: fail` before
+  control peer validation was probed. The issue was fixed with a regression
+  test, and follow-up review reported no Critical or Important findings.
+- Current-state verification after review follow-up:
+  - `pnpm test` passed, 55 files and 322 tests.
+  - `pnpm typecheck` passed.
+  - `pnpm lint` passed.
+  - `pnpm build` passed.
+  - `pnpm audit:helper-readiness --platform darwin --resources-path resources`
+    reported blocked and exited 1 as expected.
 
 ### Remaining Phase B Work
 

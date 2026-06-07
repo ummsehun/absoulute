@@ -584,6 +584,10 @@ describe("nativeScanOrchestrator", () => {
       available: false,
       reason: "registration-preflight-blocked:team-id-missing",
       transport: "xpc",
+      readinessBlockers: [
+        "helper-peer-validation-missing",
+        "service-management-not-registered",
+      ],
       registrationPreflight: {
         status: "blocked",
         blockers: [
@@ -666,6 +670,10 @@ describe("nativeScanOrchestrator", () => {
         registrationBlockers: [
           "team-id-missing",
           "helper-xpc-enumerate-bridge-missing",
+        ],
+        readinessBlockers: [
+          "helper-peer-validation-missing",
+          "service-management-not-registered",
         ],
         transport: "xpc",
       },
