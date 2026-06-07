@@ -391,6 +391,52 @@ Cold assessment:
 - It does not register the helper.
 - It does not enable helper-backed scan execution by default.
 
+## Phase B3 ServiceManagement Control Evidence
+
+Facts:
+
+- Phase B3 is scoped in
+  `docs/superpowers/plans/2026-06-08-phase-b3-service-management-control-evidence.md`.
+- `CommandMacOsServiceManagementController.register()` now accepts command
+  output only when the parsed reason is exactly `register-succeeded`.
+- `CommandMacOsServiceManagementController.unregister()` now accepts command
+  output only when the parsed reason is exactly `unregister-succeeded`.
+- Control operations also validate operation-specific success states:
+  `register` accepts `registered` or `pending-approval`; `unregister` accepts
+  only `not-installed`.
+- Generic status-like output such as `enabled` or `not-registered` is rejected
+  for control operations as
+  `service-management-control-output-mismatch:<operation>:<reason>`.
+- Generic `getStatus()` probe parsing remains unchanged.
+
+Verification commands run for this Phase B3 slice:
+
+- `pnpm test test/main/macosServiceManagementProbe.test.ts`: passed, 11 tests.
+- `pnpm typecheck`: passed.
+- `pnpm test`: passed, 45 files, 185 tests.
+- `pnpm lint`: passed.
+- `pnpm build`: passed.
+- `cargo test --manifest-path native/scanner/Cargo.toml`: passed, 8 tests,
+  with the existing 6 Rust dead-code warnings.
+- `pnpm audit:helper-readiness`: reported `status: "blocked"`,
+  `canEnableHelperByDefault: false`, and local
+  `serviceManagementStatus: "not-implemented"`.
+
+External blockers still missing:
+
+- Real ServiceManagement registration evidence from a packaged app/helper.
+- Real Team ID and designated requirement.
+- Real listener requirement metadata generated from that Team ID.
+- Full FDA validation matrix on the target macOS version.
+- Production signing, packaging, and notarization evidence.
+
+Cold assessment:
+
+- This mini phase hardens command-control evidence without performing real
+  registration.
+- It does not make the helper production-ready.
+- It does not enable helper-backed scan execution by default.
+
 ## Findings
 
 ### P1: Privileged Helper Is Still Blocked by Real Identity and FDA Evidence

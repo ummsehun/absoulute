@@ -109,17 +109,19 @@ export class CommandMacOsServiceManagementController
   }
 
   async register(): Promise<MacOsServiceManagementProbeResult> {
-    return await new CommandMacOsServiceManagementProbe({
+    const result = await new CommandMacOsServiceManagementProbe({
       ...this.commandOptions,
       args: ["register"],
     }).getStatus();
+    return requireControlSuccessReason(result, "register");
   }
 
   async unregister(): Promise<MacOsServiceManagementProbeResult> {
-    return await new CommandMacOsServiceManagementProbe({
+    const result = await new CommandMacOsServiceManagementProbe({
       ...this.commandOptions,
       args: ["unregister"],
     }).getStatus();
+    return requireControlSuccessReason(result, "unregister");
   }
 }
 
@@ -219,6 +221,34 @@ function isProbeState(value: unknown): value is MacOsServiceManagementProbeState
 function buildFailedProbeReason(exitCode: number, stderr: string): string {
   const suffix = stderr.trim() || "no-stderr";
   return `service-management-probe-failed:exit-${exitCode}:${suffix}`;
+}
+
+function requireControlSuccessReason(
+  result: MacOsServiceManagementProbeResult,
+  operation: "register" | "unregister",
+): MacOsServiceManagementProbeResult {
+  if (
+    result.reason === `${operation}-succeeded`
+    && isAllowedControlSuccessState(result.state, operation)
+  ) {
+    return result;
+  }
+
+  return {
+    state: "not-implemented",
+    reason: `service-management-control-output-mismatch:${operation}:${result.reason}`,
+  };
+}
+
+function isAllowedControlSuccessState(
+  state: MacOsServiceManagementProbeState,
+  operation: "register" | "unregister",
+): boolean {
+  if (operation === "register") {
+    return state === "registered" || state === "pending-approval";
+  }
+
+  return state === "not-installed";
 }
 
 function runCommandProbe(

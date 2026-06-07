@@ -76,6 +76,82 @@ describe("macosServiceManagementProbe", () => {
     ]);
   });
 
+  it("rejects register output that does not prove register completion", async () => {
+    const controller = new CommandMacOsServiceManagementController({
+      commandPath: "/tmp/control-sm-service",
+      run: async () => ({
+        exitCode: 0,
+        stderr: "",
+        stdout: JSON.stringify({
+          state: "registered",
+          reason: "enabled",
+        }),
+      }),
+    });
+
+    await expect(controller.register()).resolves.toEqual({
+      state: "not-implemented",
+      reason: "service-management-control-output-mismatch:register:enabled",
+    });
+  });
+
+  it("rejects unregister output that does not prove unregister completion", async () => {
+    const controller = new CommandMacOsServiceManagementController({
+      commandPath: "/tmp/control-sm-service",
+      run: async () => ({
+        exitCode: 0,
+        stderr: "",
+        stdout: JSON.stringify({
+          state: "not-installed",
+          reason: "not-registered",
+        }),
+      }),
+    });
+
+    await expect(controller.unregister()).resolves.toEqual({
+      state: "not-implemented",
+      reason: "service-management-control-output-mismatch:unregister:not-registered",
+    });
+  });
+
+  it("rejects unregister output that reports a registered state", async () => {
+    const controller = new CommandMacOsServiceManagementController({
+      commandPath: "/tmp/control-sm-service",
+      run: async () => ({
+        exitCode: 0,
+        stderr: "",
+        stdout: JSON.stringify({
+          state: "registered",
+          reason: "unregister-succeeded",
+        }),
+      }),
+    });
+
+    await expect(controller.unregister()).resolves.toEqual({
+      state: "not-implemented",
+      reason: "service-management-control-output-mismatch:unregister:unregister-succeeded",
+    });
+  });
+
+  it("rejects register output that reports an uninstalled state", async () => {
+    const controller = new CommandMacOsServiceManagementController({
+      commandPath: "/tmp/control-sm-service",
+      run: async () => ({
+        exitCode: 0,
+        stderr: "",
+        stdout: JSON.stringify({
+          state: "not-installed",
+          reason: "register-succeeded",
+        }),
+      }),
+    });
+
+    await expect(controller.register()).resolves.toEqual({
+      state: "not-implemented",
+      reason: "service-management-control-output-mismatch:register:register-succeeded",
+    });
+  });
+
   it("turns failed probe commands into explicit not-implemented status", async () => {
     const probe = new CommandMacOsServiceManagementProbe({
       commandPath: "/tmp/probe-sm-status",
