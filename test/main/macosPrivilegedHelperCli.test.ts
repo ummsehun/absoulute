@@ -36,6 +36,11 @@ const xpcEnumerateSourcePath = path.join(
   "xpc-enumerate",
   "main.swift",
 );
+const xpcEnumerateBuildScriptPath = path.join(
+  process.cwd(),
+  "scripts",
+  "build-macos-helper-xpc-enumerate.ts",
+);
 const privilegedTraversalSourcePath = path.join(
   process.cwd(),
   "native",
@@ -67,6 +72,19 @@ function writeMinimalPrivilegedHelperSources(projectRoot: string): void {
     'let expectedClientTeamId = "TEAMID_NOT_CONFIGURED"\n',
   );
   fs.writeFileSync(traversalSourcePath, "func enumeratePrivileged() {}\n");
+}
+
+function writeMinimalXpcEnumerateSource(projectRoot: string): void {
+  const sourcePath = path.join(
+    projectRoot,
+    "native",
+    "macos-helper",
+    "xpc-enumerate",
+    "main.swift",
+  );
+
+  fs.mkdirSync(path.dirname(sourcePath), { recursive: true });
+  fs.writeFileSync(sourcePath, "print(\"xpc enumerate\")\n");
 }
 
 function writeFakeSwiftCompiler(binDir: string): string {
@@ -415,5 +433,149 @@ describe("macOS privileged helper executable", () => {
     expect(source).not.toContain("FileManager.default.enumerator");
     expect(source).not.toContain("removeItem");
     expect(source).not.toContain("Process()");
+  });
+
+  it("builds helper xpc enumerate artifacts under an explicit project root", () => {
+    const cwdRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "diskviz-xpc-enumerate-build-cwd-"),
+    );
+    const artifactRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "diskviz-xpc-enumerate-build-artifacts-"),
+    );
+    const fakeBinDir = fs.mkdtempSync(
+      path.join(os.tmpdir(), "diskviz-xpc-enumerate-build-bin-"),
+    );
+    const artifactOutputPath = path.join(
+      artifactRoot,
+      "resources",
+      "bin",
+      "helper-xpc-enumerate-macos",
+    );
+    const cwdOutputPath = path.join(
+      cwdRoot,
+      "resources",
+      "bin",
+      "helper-xpc-enumerate-macos",
+    );
+    const artifactModuleCachePath = path.join(
+      artifactRoot,
+      ".tmp",
+      "swift-module-cache",
+    );
+    const argsLogPath = path.join(artifactRoot, "swiftc-args.log");
+
+    try {
+      writeMinimalXpcEnumerateSource(cwdRoot);
+      writeMinimalXpcEnumerateSource(artifactRoot);
+      writeFakeSwiftCompiler(fakeBinDir);
+
+      const result = spawnSync(
+        "bun",
+        [
+          "run",
+          xpcEnumerateBuildScriptPath,
+          "--project-root",
+          artifactRoot,
+        ],
+        {
+          cwd: cwdRoot,
+          env: {
+            ...process.env,
+            FAKE_SWIFTC_ARGS_LOG: argsLogPath,
+            PATH: `${fakeBinDir}${path.delimiter}${process.env.PATH ?? ""}`,
+          },
+          encoding: "utf8",
+        },
+      );
+
+      expect(result.status).toBe(0);
+      expect(fs.existsSync(artifactOutputPath)).toBe(true);
+      expect(fs.existsSync(artifactModuleCachePath)).toBe(true);
+      expect(fs.existsSync(cwdOutputPath)).toBe(false);
+      expect(fs.readFileSync(argsLogPath, "utf8")).toContain(
+        path.join(
+          artifactRoot,
+          "native",
+          "macos-helper",
+          "xpc-enumerate",
+          "main.swift",
+        ),
+      );
+    } finally {
+      fs.rmSync(cwdRoot, { force: true, recursive: true });
+      fs.rmSync(artifactRoot, { force: true, recursive: true });
+      fs.rmSync(fakeBinDir, { force: true, recursive: true });
+    }
+  });
+
+  it("fails explicitly when helper xpc enumerate build project root is missing", () => {
+    const cwdRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "diskviz-xpc-enumerate-build-missing-cwd-"),
+    );
+    const fakeBinDir = fs.mkdtempSync(
+      path.join(os.tmpdir(), "diskviz-xpc-enumerate-build-missing-bin-"),
+    );
+
+    try {
+      writeMinimalXpcEnumerateSource(cwdRoot);
+      writeFakeSwiftCompiler(fakeBinDir);
+
+      const result = spawnSync(
+        "bun",
+        ["run", xpcEnumerateBuildScriptPath, "--project-root"],
+        {
+          cwd: cwdRoot,
+          env: {
+            ...process.env,
+            PATH: `${fakeBinDir}${path.delimiter}${process.env.PATH ?? ""}`,
+          },
+          encoding: "utf8",
+        },
+      );
+
+      expect(result.status).toBe(1);
+      expect(result.stderr).toContain("missing value for --project-root");
+    } finally {
+      fs.rmSync(cwdRoot, { force: true, recursive: true });
+      fs.rmSync(fakeBinDir, { force: true, recursive: true });
+    }
+  });
+
+  it("fails explicitly when helper xpc enumerate build project root is followed by another option", () => {
+    const cwdRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "diskviz-xpc-enumerate-build-option-cwd-"),
+    );
+    const fakeBinDir = fs.mkdtempSync(
+      path.join(os.tmpdir(), "diskviz-xpc-enumerate-build-option-bin-"),
+    );
+
+    try {
+      writeMinimalXpcEnumerateSource(cwdRoot);
+      writeFakeSwiftCompiler(fakeBinDir);
+
+      const result = spawnSync(
+        "bun",
+        [
+          "run",
+          xpcEnumerateBuildScriptPath,
+          "--project-root",
+          "--other",
+        ],
+        {
+          cwd: cwdRoot,
+          env: {
+            ...process.env,
+            PATH: `${fakeBinDir}${path.delimiter}${process.env.PATH ?? ""}`,
+          },
+          encoding: "utf8",
+        },
+      );
+
+      expect(result.status).toBe(1);
+      expect(result.stderr).toContain("missing value for --project-root");
+    } finally {
+      fs.rmSync(cwdRoot, { force: true, recursive: true });
+      fs.rmSync(fakeBinDir, { force: true, recursive: true });
+    }
   });
 });

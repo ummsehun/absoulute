@@ -2,21 +2,23 @@ import { mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { spawnSync } from "node:child_process";
 
+const rawArgs = process.argv.slice(2);
+const projectRoot = resolveOptionalArg(rawArgs, "--project-root") ?? process.cwd();
 const sourcePath = join(
-  process.cwd(),
+  projectRoot,
   "native",
   "macos-helper",
   "xpc-enumerate",
   "main.swift",
 );
 const outputPath = join(
-  process.cwd(),
+  projectRoot,
   "resources",
   "bin",
   "helper-xpc-enumerate-macos",
 );
 const moduleCachePath = join(
-  process.cwd(),
+  projectRoot,
   ".tmp",
   "swift-module-cache",
 );
@@ -45,4 +47,21 @@ const result = spawnSync(
 
 if (result.status !== 0) {
   process.exit(result.status ?? 1);
+}
+
+function resolveOptionalArg(
+  rawArgs: string[],
+  name: string,
+): string | undefined {
+  const index = rawArgs.indexOf(name);
+  if (index < 0) {
+    return undefined;
+  }
+
+  const value = rawArgs[index + 1]?.trim();
+  if (!value || value.startsWith("--")) {
+    throw new Error(`missing value for ${name}`);
+  }
+
+  return value;
 }

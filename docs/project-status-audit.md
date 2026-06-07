@@ -2183,6 +2183,7 @@ Verification:
   dead-code warnings remain.
 - `pnpm audit:helper-readiness --platform darwin --resources-path resources`
   and `pnpm audit:helper-readiness-bundle` remain intentionally blocked.
+- Sub-agent review found no Critical, Important, or Minor issues.
 
 Interpretation:
 
@@ -2368,3 +2369,46 @@ Interpretation:
   generation be rehearsed in isolated roots without writing into the live repo.
 - It does not provide a production Team ID or prove production helper
   installation/readiness.
+
+## Phase B40 Helper XPC Enumerate Build Project Root
+
+Date: 2026-06-08
+
+Facts:
+
+- `build-macos-helper-xpc-enumerate` now accepts `--project-root <path>`.
+- The selected project root is used for:
+  - `native/macos-helper/xpc-enumerate/main.swift`;
+  - `resources/bin/helper-xpc-enumerate-macos`;
+  - `.tmp/swift-module-cache`.
+- When `--project-root` is absent, the script keeps using `process.cwd()`.
+- `--project-root` without a value, or followed by another option-looking
+  value, fails explicitly with `missing value for --project-root`.
+- Helper XPC enumerate bridge protocol/readiness semantics are unchanged.
+- Helper default activation remains disabled.
+
+Verification so far:
+
+- RED was confirmed before implementation:
+  - the script ignored `--project-root` and did not write
+    `helper-xpc-enumerate-macos` under the explicit artifact root;
+  - missing-value forms exited `0` instead of failing.
+- `pnpm test test/main/macosPrivilegedHelperCli.test.ts` passed, 1 file and 12
+  tests.
+- `pnpm test test/main/macosPrivilegedHelperCli.test.ts test/main/helperPreflightAuditScript.test.ts test/main/helperReadinessBundleScript.test.ts test/main/helperReadinessAudit.test.ts`
+  passed, 4 files and 26 tests.
+- `pnpm test` passed, 55 files and 271 tests.
+- `pnpm typecheck` passed.
+- `pnpm lint` passed.
+- `pnpm build` passed.
+- `cargo test --manifest-path native/scanner/Cargo.toml` passed. Existing Rust
+  dead-code warnings remain.
+- `pnpm audit:helper-readiness --platform darwin --resources-path resources`
+  and `pnpm audit:helper-readiness-bundle` remain intentionally blocked.
+
+Interpretation:
+
+- This phase lets the app-side helper XPC enumerate bridge artifact be rehearsed
+  in isolated roots without writing into the live repo.
+- It does not provide production approval evidence or enable helper scanning by
+  default.
