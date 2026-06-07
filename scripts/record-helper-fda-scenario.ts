@@ -3,15 +3,25 @@ import {
   recordHelperFdaScenario,
   type HelperFdaScenarioStatus,
 } from "../src/main/services/helper/helperFdaValidationMatrix";
+import {
+  resolveAuditOutputPath,
+  writeAuditOutputFile,
+} from "./helper-audit-output";
 
 const args = parseArgs(process.argv.slice(2));
+const outputPath = resolveAuditOutputPath(process.argv.slice(2));
+const projectRoot = args["project-root"];
+
 if (args.list === "true") {
-  console.log(JSON.stringify(listHelperFdaScenarios(), null, 2));
+  const listJson = JSON.stringify(listHelperFdaScenarios({ projectRoot }), null, 2);
+  console.log(listJson);
+  writeAuditOutputFile(outputPath, listJson);
   process.exit(0);
 }
 
 const result = recordHelperFdaScenario({
   notes: requireArg(args, "notes"),
+  projectRoot,
   scenarioId: requireArg(args, "scenario"),
   status: readStatus(args.status),
   targetMacOS: requireArg(args, "target-macos"),
@@ -19,7 +29,9 @@ const result = recordHelperFdaScenario({
   validator: requireArg(args, "validator"),
 });
 
-console.log(JSON.stringify(result, null, 2));
+const resultJson = JSON.stringify(result, null, 2);
+console.log(resultJson);
+writeAuditOutputFile(outputPath, resultJson);
 
 function parseArgs(rawArgs: string[]): Record<string, string> {
   const parsed: Record<string, string> = {};

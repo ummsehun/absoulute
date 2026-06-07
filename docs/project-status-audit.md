@@ -2189,3 +2189,48 @@ Interpretation:
 - This phase adds a safer manual path for producing ServiceManagement
   register/unregister evidence.
 - It does not prove the helper is installed or approved on the current machine.
+
+## Phase B36 Helper FDA Recorder CLI Options
+
+Date: 2026-06-08
+
+Facts:
+
+- `record-helper-fda-scenario` now supports `--project-root`.
+- `record-helper-fda-scenario` now supports `--out` through the shared audit
+  output helper.
+- `--list` also respects the selected project root.
+- Tests record and list FDA matrix data only under temporary project roots.
+- The real `docs/helper-fda-validation-matrix.json` remains pending and is not
+  marked ready.
+
+Verification:
+
+- RED was confirmed before implementation because the old recorder ignored
+  `--project-root`, did not write `--out`, and read the real repo matrix for
+  `--list`.
+- The RED run briefly modified the real FDA matrix as a test side effect; this
+  was restored before commit.
+- `pnpm test test/main/helperFdaScenarioRecorderScript.test.ts` passed, 1 file
+  and 3 tests.
+- `pnpm test test/main/helperFdaScenarioRecorderScript.test.ts test/main/helperFdaValidationMatrix.test.ts test/main/helperFdaMatrixAuditScript.test.ts`
+  passed, 3 files and 14 tests.
+- `pnpm audit:helper-fda-matrix` remains intentionally blocked with
+  `targetMacOS: "pending"` and zero passed scenarios.
+- `pnpm audit:helper-readiness --platform darwin --resources-path resources`
+  remains intentionally blocked.
+- Initial `pnpm test` surfaced recurring ServiceManagement probe timeout
+  failures unrelated to the FDA recorder change. Focused ServiceManagement
+  tests passed, and rerunning `pnpm test` passed with 54 files and 261 tests.
+- `pnpm typecheck` passed.
+- `pnpm lint` passed.
+- `pnpm build` passed.
+- `cargo test --manifest-path native/scanner/Cargo.toml` passed. Existing Rust
+  dead-code warnings remain.
+
+Interpretation:
+
+- This phase makes FDA validation evidence recording safer to rehearse and
+  easier to audit.
+- It does not complete the FDA validation matrix or enable helper production
+  scanning.
