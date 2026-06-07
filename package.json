@@ -19,6 +19,7 @@
     "audit:helper-preflight": "bun run scripts/audit-helper-preflight.ts",
     "audit:helper-prototype": "bun run scripts/audit-helper-prototype-scan.ts",
     "audit:helper-readiness": "bun run scripts/audit-helper-readiness.ts",
+    "audit:helper-readiness-bundle": "bun run scripts/audit-helper-readiness-bundle.ts",
     "audit:helper-service-management": "bun run scripts/audit-helper-service-management.ts",
     "bench:native-scan": "bun run scripts/bench-native-scan.ts",
     "record:helper-fda-scenario": "bun run scripts/record-helper-fda-scenario.ts",

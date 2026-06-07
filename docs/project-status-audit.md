@@ -1693,6 +1693,84 @@ Cold assessment:
 - It does not make helper readiness pass.
 - It does not enable helper-backed scan execution by default.
 
+## Phase B28 Helper Readiness Bundle Audit
+
+Facts:
+
+- Phase B28 is scoped in
+  `docs/superpowers/plans/2026-06-08-phase-b28-helper-readiness-bundle-audit.md`.
+- `src/main/services/helper/helperReadinessBundle.ts` now exposes
+  `buildHelperReadinessBundle`.
+- `scripts/audit-helper-readiness-bundle.ts` prints combined helper readiness
+  bundle JSON to stdout.
+- `package.json` now exposes `audit:helper-readiness-bundle`.
+- The bundle includes identity, FDA matrix, ServiceManagement, preflight, and
+  readiness reports in one artifact.
+- The bundle supports `--project-root <path>`, `--team-id <team-id>`,
+  `--designated-requirement <requirement>`, `--probe-bin <path>`,
+  `--resources-path <path>`, `--platform <platform>`, and `--out <path>`.
+- The top-level bundle `status` and `canEnableHelperByDefault` are copied from
+  the existing helper readiness report.
+- The bundle does not invent new readiness rules.
+- The bundle does not record production Team ID, designated requirement,
+  ServiceManagement registration, or FDA evidence.
+- No generated audit JSON files are committed.
+- Current bundle output remains `status: "blocked"` and
+  `canEnableHelperByDefault: false`.
+- Current component statuses are all blocked: identity, FDA matrix,
+  ServiceManagement, preflight, and readiness.
+- Current top-level blockers are `designated-requirement-missing`,
+  `fda-validation-matrix-missing`, `helper-xpc-enumerate-bridge-missing`,
+  `packaging-entitlements-missing`, `privileged-helper-executable-missing`,
+  `privileged-helper-listener-requirement-missing`,
+  `service-management-not-registered`, and `team-id-missing`.
+- Helper readiness gates did not change.
+- The helper remains disabled by default and readiness remains blocked without
+  real ServiceManagement registration, production identity, and FDA evidence.
+
+Verification commands run for this Phase B28 slice:
+
+- `pnpm test test/main/helperReadinessBundle.test.ts
+  test/main/helperReadinessBundleScript.test.ts` passed after implementation:
+  2 files, 5 tests.
+- Direct `--out` check wrote
+  `/tmp/luie-helper-audit-b28/readiness-bundle.json`; the file parsed as JSON
+  and retained `status: "blocked"`, `canEnableHelperByDefault: false`, all
+  component statuses blocked, and 8 readiness blockers.
+- `pnpm test` passed: 52 files, 243 tests.
+- `pnpm typecheck` passed.
+- `pnpm lint` passed.
+- `pnpm build` passed.
+- `cargo test --manifest-path native/scanner/Cargo.toml` passed. Existing Rust
+  dead-code warnings remain.
+- `pnpm audit:helper-readiness-bundle` printed `status: "blocked"`,
+  `canEnableHelperByDefault: false`, all component statuses blocked, and exited
+  1 as intended.
+- `pnpm audit:helper-identity` printed `status: "blocked"` and exited 1 as
+  intended.
+- `pnpm audit:helper-service-management` printed `status: "blocked"` and
+  exited 1 as intended.
+- `pnpm audit:helper-fda-matrix` printed `status: "blocked"` and exited 1 as
+  intended.
+- `pnpm audit:helper-preflight` printed `status: "blocked"` and exited 0.
+- `pnpm audit:helper-readiness` printed `status: "blocked"`,
+  `canEnableHelperByDefault: false`, and exited 1 as intended.
+
+External blockers still missing:
+
+- Production Team ID and designated requirement evidence.
+- Listener requirement metadata generated from the production Team ID.
+- Installed privileged helper ServiceManagement registration evidence.
+- Full FDA validation matrix on the target macOS version.
+- Production signing, packaging, and notarization evidence.
+
+Cold assessment:
+
+- This mini phase makes the helper readiness evidence set retainable as one
+  bundle.
+- It does not make helper readiness pass.
+- It does not enable helper-backed scan execution by default.
+
 ## Findings
 
 ### P1: Privileged Helper Is Still Blocked by Real Identity and FDA Evidence
