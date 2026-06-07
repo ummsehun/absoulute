@@ -297,6 +297,51 @@ Opinion:
   need to move from mostly contract tests to at least one real integration
   verification path.
 
+## Phase B1 Helper Registration Evidence
+
+Facts:
+
+- Phase B1 is now scoped in
+  `docs/superpowers/plans/2026-06-07-phase-b1-helper-registration-evidence.md`.
+- `HelperReadinessReport` now includes structured `evidence` entries in
+  addition to blocker strings.
+- Readiness evidence covers helper identity, designated requirement, packaging
+  entitlements, helper executable packaging, listener requirement metadata, FDA
+  matrix status, and ServiceManagement registration status.
+- `canEnableHelperByDefault` remains `false` even when readiness evidence is
+  otherwise present.
+- Existing helper registration tests already cover Team ID mismatch,
+  designated-requirement mismatch, and missing LaunchDaemon packaging evidence.
+
+Verification commands run for this Phase B1 slice:
+
+- `pnpm test test/main/helperReadinessAudit.test.ts`: passed, 3 tests.
+- `pnpm test test/main/helperRegistration.test.ts`: passed, 13 tests.
+- `pnpm test`: passed, 44 files, 177 tests.
+- `pnpm typecheck`: passed.
+- `pnpm lint`: passed.
+- `pnpm build`: passed.
+- `cargo test --manifest-path native/scanner/Cargo.toml`: passed, 8 tests,
+  with the existing 6 Rust dead-code warnings.
+- `pnpm audit:helper-readiness`: reported `status: "blocked"`,
+  `canEnableHelperByDefault: false`, and blocker-specific evidence entries;
+  exited `1` as expected while external evidence is missing.
+
+External blockers still missing:
+
+- Real production Team ID.
+- Real designated requirement derived from the production signing identity.
+- Real listener requirement metadata generated with that Team ID.
+- Full FDA validation matrix on the target macOS version.
+- ServiceManagement registration evidence from the packaged app/helper.
+- Production signing, packaging, and notarization evidence.
+
+Cold assessment:
+
+- This mini phase improves helper readiness auditability.
+- It does not make the helper production-ready.
+- It does not enable helper-backed scan execution by default.
+
 ## Findings
 
 ### P1: Privileged Helper Is Still Blocked by Real Identity and FDA Evidence
