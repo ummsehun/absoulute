@@ -34,6 +34,11 @@ const controlBuildScriptPath = path.join(
   "scripts",
   "build-macos-helper-control.ts",
 );
+const enumerateBuildScriptPath = path.join(
+  process.cwd(),
+  "scripts",
+  "build-macos-helper-enumerate.ts",
+);
 const xpcEnumerateSourcePath = path.join(
   process.cwd(),
   "native",
@@ -95,6 +100,19 @@ function writeMinimalXpcEnumerateSource(projectRoot: string): void {
 
   fs.mkdirSync(path.dirname(sourcePath), { recursive: true });
   fs.writeFileSync(sourcePath, "print(\"xpc enumerate\")\n");
+}
+
+function writeMinimalEnumerateSource(projectRoot: string): void {
+  const sourcePath = path.join(
+    projectRoot,
+    "native",
+    "macos-helper",
+    "enumerate",
+    "main.swift",
+  );
+
+  fs.mkdirSync(path.dirname(sourcePath), { recursive: true });
+  fs.writeFileSync(sourcePath, "print(\"enumerate\")\n");
 }
 
 function writeMinimalServiceManagementProbeSource(projectRoot: string): void {
@@ -573,6 +591,150 @@ describe("macOS privileged helper executable", () => {
         [
           "run",
           controlBuildScriptPath,
+          "--project-root",
+          "--other",
+        ],
+        {
+          cwd: cwdRoot,
+          env: {
+            ...process.env,
+            PATH: `${fakeBinDir}${path.delimiter}${process.env.PATH ?? ""}`,
+          },
+          encoding: "utf8",
+        },
+      );
+
+      expect(result.status).toBe(1);
+      expect(result.stderr).toContain("missing value for --project-root");
+    } finally {
+      fs.rmSync(cwdRoot, { force: true, recursive: true });
+      fs.rmSync(fakeBinDir, { force: true, recursive: true });
+    }
+  });
+
+  it("builds helper enumerate artifacts under an explicit project root", () => {
+    const cwdRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "diskviz-helper-enumerate-build-cwd-"),
+    );
+    const artifactRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "diskviz-helper-enumerate-build-artifacts-"),
+    );
+    const fakeBinDir = fs.mkdtempSync(
+      path.join(os.tmpdir(), "diskviz-helper-enumerate-build-bin-"),
+    );
+    const artifactOutputPath = path.join(
+      artifactRoot,
+      "resources",
+      "bin",
+      "helper-enumerate-macos",
+    );
+    const cwdOutputPath = path.join(
+      cwdRoot,
+      "resources",
+      "bin",
+      "helper-enumerate-macos",
+    );
+    const artifactModuleCachePath = path.join(
+      artifactRoot,
+      ".tmp",
+      "swift-module-cache",
+    );
+    const argsLogPath = path.join(artifactRoot, "swiftc-args.log");
+
+    try {
+      writeMinimalEnumerateSource(cwdRoot);
+      writeMinimalEnumerateSource(artifactRoot);
+      writeFakeSwiftCompiler(fakeBinDir);
+
+      const result = spawnSync(
+        "bun",
+        [
+          "run",
+          enumerateBuildScriptPath,
+          "--project-root",
+          artifactRoot,
+        ],
+        {
+          cwd: cwdRoot,
+          env: {
+            ...process.env,
+            FAKE_SWIFTC_ARGS_LOG: argsLogPath,
+            PATH: `${fakeBinDir}${path.delimiter}${process.env.PATH ?? ""}`,
+          },
+          encoding: "utf8",
+        },
+      );
+
+      expect(result.status).toBe(0);
+      expect(fs.existsSync(artifactOutputPath)).toBe(true);
+      expect(fs.existsSync(artifactModuleCachePath)).toBe(true);
+      expect(fs.existsSync(cwdOutputPath)).toBe(false);
+      expect(fs.readFileSync(argsLogPath, "utf8")).toContain(
+        path.join(
+          artifactRoot,
+          "native",
+          "macos-helper",
+          "enumerate",
+          "main.swift",
+        ),
+      );
+    } finally {
+      fs.rmSync(cwdRoot, { force: true, recursive: true });
+      fs.rmSync(artifactRoot, { force: true, recursive: true });
+      fs.rmSync(fakeBinDir, { force: true, recursive: true });
+    }
+  });
+
+  it("fails explicitly when helper enumerate build project root is missing", () => {
+    const cwdRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "diskviz-helper-enumerate-build-missing-cwd-"),
+    );
+    const fakeBinDir = fs.mkdtempSync(
+      path.join(os.tmpdir(), "diskviz-helper-enumerate-build-missing-bin-"),
+    );
+
+    try {
+      writeMinimalEnumerateSource(cwdRoot);
+      writeFakeSwiftCompiler(fakeBinDir);
+
+      const result = spawnSync(
+        "bun",
+        ["run", enumerateBuildScriptPath, "--project-root"],
+        {
+          cwd: cwdRoot,
+          env: {
+            ...process.env,
+            PATH: `${fakeBinDir}${path.delimiter}${process.env.PATH ?? ""}`,
+          },
+          encoding: "utf8",
+        },
+      );
+
+      expect(result.status).toBe(1);
+      expect(result.stderr).toContain("missing value for --project-root");
+    } finally {
+      fs.rmSync(cwdRoot, { force: true, recursive: true });
+      fs.rmSync(fakeBinDir, { force: true, recursive: true });
+    }
+  });
+
+  it("fails explicitly when helper enumerate build project root is followed by another option", () => {
+    const cwdRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "diskviz-helper-enumerate-build-option-cwd-"),
+    );
+    const fakeBinDir = fs.mkdtempSync(
+      path.join(os.tmpdir(), "diskviz-helper-enumerate-build-option-bin-"),
+    );
+
+    try {
+      writeMinimalEnumerateSource(cwdRoot);
+      writeFakeSwiftCompiler(fakeBinDir);
+
+      const result = spawnSync(
+        "bun",
+        [
+          "run",
+          enumerateBuildScriptPath,
           "--project-root",
           "--other",
         ],
