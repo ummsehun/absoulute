@@ -903,6 +903,53 @@ Cold assessment:
 - It does not make any external evidence pass.
 - It does not enable helper-backed scan execution by default.
 
+## Phase B14 Helper Preflight Remediation Actions
+
+Facts:
+
+- Phase B14 is scoped in
+  `docs/superpowers/plans/2026-06-08-phase-b14-helper-preflight-remediation-actions.md`.
+- `HelperPreflightAudit` now includes a diagnostic `remediation` array.
+- Each remediation item is derived from the current blocker list and includes
+  the blocker, description, and applicable commands, required inputs, and
+  required artifacts.
+- Remediation guidance covers Team ID, designated requirement, packaging
+  entitlements, privileged helper executable, listener requirement metadata,
+  and FDA matrix blockers.
+- Remediation is diagnostic only; it does not change blocker calculation,
+  `installReady`, `enumerateReady`, strict exit codes, or helper default
+  activation.
+- The helper remains disabled by default.
+
+Verification commands run for this Phase B14 slice:
+
+- `pnpm test test/main/helperPreflightAudit.test.ts`: passed, 6 tests.
+- `pnpm test`: passed, 45 files, 201 tests.
+- `pnpm typecheck`: passed.
+- `pnpm lint`: passed.
+- `pnpm build`: passed.
+- `cargo test --manifest-path native/scanner/Cargo.toml`: passed, 8 tests,
+  with the existing 6 Rust dead-code warnings.
+- `pnpm audit:helper-preflight`: printed blocker-specific remediation actions.
+- `pnpm audit:helper-readiness`: reported `status: "blocked"` and
+  `canEnableHelperByDefault: false`.
+
+External blockers still missing:
+
+- Production XPC peer identity validation.
+- Real ServiceManagement registration evidence from a packaged app/helper.
+- Real Team ID and designated requirement.
+- Real listener requirement metadata generated from that Team ID.
+- Full FDA validation matrix on the target macOS version.
+- Production signing, packaging, and notarization evidence.
+
+Cold assessment:
+
+- This mini phase makes the preflight audit actionable for the remaining
+  install/enumerate evidence work.
+- It does not make any external evidence pass.
+- It does not enable helper-backed scan execution by default.
+
 ## Findings
 
 ### P1: Privileged Helper Is Still Blocked by Real Identity and FDA Evidence

@@ -5,9 +5,11 @@ import {
   DISK_SCAN_HELPER_FDA_MATRIX_SOURCE_RELATIVE_PATH,
   DISK_SCAN_HELPER_REQUIRED_FDA_SCENARIOS,
   DISK_SCAN_HELPER_REQUIREMENT_METADATA_SOURCE_RELATIVE_PATH,
+  HELPER_DESIGNATED_REQUIREMENT_ENV,
   HELPER_FDA_VALIDATION_MATRIX_READY_ENV,
   HELPER_PACKAGING_ENTITLEMENTS_READY_ENV,
   HELPER_PRIVILEGED_EXECUTABLE_READY_ENV,
+  HELPER_TEAM_ID_ENV,
   getHelperRegistrationContract,
   isConcreteMacOsVersion,
   isValidAppleTeamId,
@@ -42,6 +44,7 @@ export interface HelperPreflightAudit {
   confirmations: HelperPreflightAuditEvidence;
   effectiveEvidence: HelperPreflightAuditEvidence;
   readiness: HelperPreflightAuditReadiness;
+  remediation: HelperPreflightAuditRemediationAction[];
   details: HelperPreflightAuditDetails;
 }
 
@@ -49,6 +52,14 @@ export interface HelperPreflightAuditReadiness {
   enumerateReady: boolean;
   installBlockers: HelperRegistrationBlocker[];
   installReady: boolean;
+}
+
+export interface HelperPreflightAuditRemediationAction {
+  blocker: HelperRegistrationBlocker;
+  commands?: string[];
+  description: string;
+  requiredArtifacts?: string[];
+  requiredInputs?: string[];
 }
 
 export interface HelperPreflightAuditDetails {
@@ -105,12 +116,73 @@ export function buildHelperPreflightAudit(
       installBlockers,
       installReady: installBlockers.length === 0,
     },
+    remediation: preflight.blockers.map(remediationForBlocker),
     details: {
       privilegedHelperListenerRequirement:
         readListenerRequirementDetails(projectRoot),
       fdaValidationMatrix: readFdaValidationMatrixDetails(projectRoot),
     },
   };
+}
+
+function remediationForBlocker(
+  blocker: HelperRegistrationBlocker,
+): HelperPreflightAuditRemediationAction {
+  const actions: Record<
+    HelperRegistrationBlocker,
+    HelperPreflightAuditRemediationAction
+  > = {
+    "team-id-missing": {
+      blocker,
+      description: "Set the production Apple Developer Team ID.",
+      requiredInputs: [HELPER_TEAM_ID_ENV],
+    },
+    "designated-requirement-missing": {
+      blocker,
+      description:
+        "Set the designated requirement that matches the production app signing identity.",
+      requiredInputs: [HELPER_DESIGNATED_REQUIREMENT_ENV],
+    },
+    "packaging-entitlements-missing": {
+      blocker,
+      description:
+        "Confirm macOS hardened runtime and entitlement files are present and explicitly approved.",
+      requiredArtifacts: [
+        "electron-builder.json",
+        "resources/entitlements/mac.plist",
+        "resources/entitlements/mac.inherit.plist",
+      ],
+      requiredInputs: [HELPER_PACKAGING_ENTITLEMENTS_READY_ENV],
+    },
+    "privileged-helper-executable-missing": {
+      blocker,
+      commands: ["pnpm build:native:privileged-helper"],
+      description:
+        "Build and explicitly approve the packaged privileged helper executable.",
+      requiredArtifacts: [DISK_SCAN_HELPER_EXECUTABLE_SOURCE_RELATIVE_PATH],
+      requiredInputs: [HELPER_PRIVILEGED_EXECUTABLE_READY_ENV],
+    },
+    "privileged-helper-listener-requirement-missing": {
+      blocker,
+      commands: ["pnpm build:native:privileged-helper"],
+      description:
+        "Generate listener requirement metadata from the configured production Team ID.",
+      requiredArtifacts: [DISK_SCAN_HELPER_REQUIREMENT_METADATA_SOURCE_RELATIVE_PATH],
+    },
+    "fda-validation-matrix-missing": {
+      blocker,
+      commands: [
+        "pnpm record:helper-fda-scenario --list",
+        "pnpm record:helper-fda-scenario --scenario <scenario-id> --target-macos <macos-version> --validator <validator> --notes <notes>",
+      ],
+      description:
+        "Record every required FDA validation scenario for the target macOS version.",
+      requiredArtifacts: [DISK_SCAN_HELPER_FDA_MATRIX_SOURCE_RELATIVE_PATH],
+      requiredInputs: [HELPER_FDA_VALIDATION_MATRIX_READY_ENV],
+    },
+  };
+
+  return actions[blocker];
 }
 
 export function resolveHelperPreflightAuditStrictExitCode(

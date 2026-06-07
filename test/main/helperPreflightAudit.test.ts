@@ -165,6 +165,36 @@ describe("helperPreflightAudit", () => {
           "installed-helper-with-helper-specific-fda",
         ],
       });
+      expect(audit.remediation).toEqual([
+        {
+          blocker: "team-id-missing",
+          description: expect.any(String),
+          requiredInputs: ["SCAN_HELPER_TEAM_ID"],
+        },
+        {
+          blocker: "designated-requirement-missing",
+          description: expect.any(String),
+          requiredInputs: ["SCAN_HELPER_DESIGNATED_REQUIREMENT"],
+        },
+        {
+          blocker: "privileged-helper-listener-requirement-missing",
+          commands: ["pnpm build:native:privileged-helper"],
+          description: expect.any(String),
+          requiredArtifacts: [
+            "resources/helper/LaunchServices/com.example.diskvisualizer.privileged-helper.requirement.json",
+          ],
+        },
+        {
+          blocker: "fda-validation-matrix-missing",
+          commands: [
+            "pnpm record:helper-fda-scenario --list",
+            "pnpm record:helper-fda-scenario --scenario <scenario-id> --target-macos <macos-version> --validator <validator> --notes <notes>",
+          ],
+          description: expect.any(String),
+          requiredArtifacts: ["docs/helper-fda-validation-matrix.json"],
+          requiredInputs: ["SCAN_HELPER_FDA_VALIDATION_MATRIX_READY"],
+        },
+      ]);
     } finally {
       fs.rmSync(projectRoot, { force: true, recursive: true });
     }
@@ -329,6 +359,18 @@ describe("helperPreflightAudit", () => {
         installBlockers: [],
         installReady: true,
       });
+      expect(audit.remediation).toEqual([
+        {
+          blocker: "fda-validation-matrix-missing",
+          commands: [
+            "pnpm record:helper-fda-scenario --list",
+            "pnpm record:helper-fda-scenario --scenario <scenario-id> --target-macos <macos-version> --validator <validator> --notes <notes>",
+          ],
+          description: expect.any(String),
+          requiredArtifacts: ["docs/helper-fda-validation-matrix.json"],
+          requiredInputs: ["SCAN_HELPER_FDA_VALIDATION_MATRIX_READY"],
+        },
+      ]);
       expect(resolveHelperPreflightAuditStrictExitCode(audit, "install")).toBe(0);
       expect(resolveHelperPreflightAuditStrictExitCode(audit, "enumerate")).toBe(1);
     } finally {
