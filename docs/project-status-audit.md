@@ -527,6 +527,50 @@ Cold assessment:
 - It does not disable native fallback.
 - It does not enable helper-backed scan execution by default.
 
+## Phase B6 Helper Control Request Envelopes
+
+Facts:
+
+- Phase B6 is scoped in
+  `docs/superpowers/plans/2026-06-08-phase-b6-helper-control-request-envelopes.md`.
+- `helperClient.ts` now exposes explicit builders for `health.check` and
+  `version.get` helper request envelopes.
+- The new control request builders keep `scanId` and `stageId` explicit because
+  the current shared helper envelope schema requires those fields for every
+  operation.
+- Generated control requests are validated through
+  `HelperRequestEnvelopeSchema` inside the builders.
+- The helper remains disabled by default.
+
+Verification commands run for this Phase B6 slice:
+
+- `pnpm test test/main/helperClient.test.ts`: passed, 23 tests.
+- `pnpm test`: passed, 45 files, 190 tests.
+- `pnpm typecheck`: passed.
+- `pnpm lint`: passed.
+- `pnpm build`: passed.
+- `cargo test --manifest-path native/scanner/Cargo.toml`: passed, 8 tests,
+  with the existing 6 Rust dead-code warnings.
+- `pnpm audit:helper-readiness`: reported `status: "blocked"`,
+  `canEnableHelperByDefault: false`, and local
+  `serviceManagementStatus: "not-implemented"`.
+
+External blockers still missing:
+
+- Production XPC peer identity validation.
+- Real ServiceManagement registration evidence from a packaged app/helper.
+- Real Team ID and designated requirement.
+- Real listener requirement metadata generated from that Team ID.
+- Full FDA validation matrix on the target macOS version.
+- Production signing, packaging, and notarization evidence.
+
+Cold assessment:
+
+- This mini phase removes an ad hoc future IPC gap for helper control
+  operations.
+- It does not implement real XPC health/version transport calls.
+- It does not enable helper-backed scan execution by default.
+
 ## Findings
 
 ### P1: Privileged Helper Is Still Blocked by Real Identity and FDA Evidence

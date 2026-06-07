@@ -7,6 +7,8 @@ import path from "node:path";
 import { HelperEventSchema } from "../../src/shared/schemas/helperProtocol";
 import {
   buildHelperEnumerateRequest,
+  buildHelperHealthCheckRequest,
+  buildHelperVersionGetRequest,
   createDefaultHelperClient,
   createDefaultHelperTransport,
   DisabledHelperClient,
@@ -25,6 +27,68 @@ import { resolveNativeVolumePlan } from "../../src/main/services/scan/nativeScan
 import { resolveScanOptions } from "../../src/main/services/scan/scanRuntimeOptions";
 
 describe("helperClient", () => {
+  it("builds explicit helper health and version control request envelopes", () => {
+    expect(
+      buildHelperHealthCheckRequest({
+        scanId: "scan-1",
+        stageId: "control",
+        issuedAtMs: 1_765_000_000_000,
+        nonce: "0123456789abcdef",
+        requestId: "health-request-1",
+      }),
+    ).toEqual({
+      schemaVersion: 1,
+      requestId: "health-request-1",
+      scanId: "scan-1",
+      stageId: "control",
+      operation: "health.check",
+      issuedAtMs: 1_765_000_000_000,
+      nonce: "0123456789abcdef",
+      payload: {},
+    });
+
+    expect(
+      buildHelperVersionGetRequest({
+        scanId: "scan-1",
+        stageId: "control",
+        issuedAtMs: 1_765_000_000_001,
+        nonce: "abcdef0123456789",
+        requestId: "version-request-1",
+      }),
+    ).toEqual({
+      schemaVersion: 1,
+      requestId: "version-request-1",
+      scanId: "scan-1",
+      stageId: "control",
+      operation: "version.get",
+      issuedAtMs: 1_765_000_000_001,
+      nonce: "abcdef0123456789",
+      payload: {},
+    });
+  });
+
+  it("validates helper control request envelope fields before transport use", () => {
+    expect(() =>
+      buildHelperHealthCheckRequest({
+        scanId: "",
+        stageId: "control",
+        issuedAtMs: 1_765_000_000_000,
+        nonce: "0123456789abcdef",
+        requestId: "health-request-1",
+      }),
+    ).toThrow();
+
+    expect(() =>
+      buildHelperVersionGetRequest({
+        scanId: "scan-1",
+        stageId: "control",
+        issuedAtMs: 0,
+        nonce: "abcdef0123456789",
+        requestId: "version-request-1",
+      }),
+    ).toThrow();
+  });
+
   it("keeps the default helper client disabled until Phase B gates are resolved", async () => {
     const client = createDefaultHelperClient();
 

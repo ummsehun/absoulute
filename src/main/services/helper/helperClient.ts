@@ -53,6 +53,14 @@ export interface HelperEnumerateInput {
   traversalPolicyPlanId?: string;
 }
 
+export interface HelperControlRequestInput {
+  scanId: string;
+  stageId: string;
+  issuedAtMs?: number;
+  nonce?: string;
+  requestId?: string;
+}
+
 export interface HelperEnumerateHandlers {
   onEvent: (event: HelperEvent) => void;
 }
@@ -179,13 +187,8 @@ export function buildHelperEnumerateRequest(
   input: HelperEnumerateInput,
 ): HelperRequestEnvelope {
   const request = {
-    schemaVersion: 1,
-    requestId: input.requestId ?? crypto.randomUUID(),
-    scanId: input.scanId,
-    stageId: input.stageId,
+    ...buildBaseHelperRequestEnvelope(input),
     operation: "scan.enumerate",
-    issuedAtMs: input.issuedAtMs ?? Date.now(),
-    nonce: input.nonce ?? crypto.randomBytes(16).toString("hex"),
     payload: {
       root: input.rootPath,
       scanMode: input.scanMode,
@@ -205,6 +208,37 @@ export function buildHelperEnumerateRequest(
   };
 
   return HelperRequestEnvelopeSchema.parse(request);
+}
+
+export function buildHelperHealthCheckRequest(
+  input: HelperControlRequestInput,
+): HelperRequestEnvelope {
+  return HelperRequestEnvelopeSchema.parse({
+    ...buildBaseHelperRequestEnvelope(input),
+    operation: "health.check",
+    payload: {},
+  });
+}
+
+export function buildHelperVersionGetRequest(
+  input: HelperControlRequestInput,
+): HelperRequestEnvelope {
+  return HelperRequestEnvelopeSchema.parse({
+    ...buildBaseHelperRequestEnvelope(input),
+    operation: "version.get",
+    payload: {},
+  });
+}
+
+function buildBaseHelperRequestEnvelope(input: HelperControlRequestInput) {
+  return {
+    schemaVersion: 1,
+    requestId: input.requestId ?? crypto.randomUUID(),
+    scanId: input.scanId,
+    stageId: input.stageId,
+    issuedAtMs: input.issuedAtMs ?? Date.now(),
+    nonce: input.nonce ?? crypto.randomBytes(16).toString("hex"),
+  } as const;
 }
 
 function readBooleanEnv(value: string | undefined): boolean {
