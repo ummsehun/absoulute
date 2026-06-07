@@ -2975,3 +2975,68 @@ Interpretation:
   instead of shell env setup.
 - It does not supply production identity, ServiceManagement registration, FDA
   evidence, or default helper scanning.
+
+## Phase B53 ServiceManagement Control Evidence Options
+
+Date: 2026-06-08
+
+Facts:
+
+- `control-helper-service-management` now accepts explicit identity options for
+  register preflight:
+  - `--team-id`;
+  - `--designated-requirement`.
+- It also accepts explicit artifact confirmation flags:
+  - `--confirm-packaging-entitlements`;
+  - `--confirm-privileged-helper-executable`;
+  - `--confirm-helper-xpc-enumerate-bridge`;
+  - `--confirm-fda-validation-matrix`.
+- These options overlay existing helper evidence env variables for that control
+  invocation only.
+- The required `--confirm` safety gate is unchanged.
+- Existing probe env behavior, controller result validation, option value
+  parsing, blocker semantics, and helper default activation are unchanged.
+- Helper default activation remains disabled.
+
+Verification so far:
+
+- RED was confirmed before implementation:
+  - explicit evidence options did not reach the register preflight env;
+  - new valued options were not parsed and missing-value errors were not
+    emitted.
+- `pnpm test test/main/helperServiceManagementControlScript.test.ts` passed, 1
+  file and 9 tests.
+- `pnpm test test/main/helperServiceManagementControlScript.test.ts test/main/macosServiceManagementProbe.test.ts test/main/helperPreflightAuditScript.test.ts test/main/helperPreflightAudit.test.ts test/main/helperReadinessAuditScript.test.ts test/main/helperReadinessBundleScript.test.ts test/main/helperReadinessAudit.test.ts test/main/helperReadinessBundle.test.ts test/main/helperServiceManagementAuditScript.test.ts test/main/helperIdentityAuditScript.test.ts test/main/helperRegistration.test.ts`
+  passed, 11 files and 98 tests.
+- `pnpm test` passed, 55 files and 310 tests.
+- `pnpm typecheck` passed.
+- `pnpm lint` passed.
+- `pnpm build` passed.
+- `cargo test --manifest-path native/scanner/Cargo.toml` passed. Existing Rust
+  dead-code warnings remain.
+- `pnpm audit:helper-readiness --platform darwin --resources-path resources`
+  and `pnpm audit:helper-readiness-bundle` remain intentionally blocked.
+- Sub-agent review reported no Critical or Important findings. One Minor test
+  coverage suggestion was addressed by exercising the XPC enumerate bridge and
+  FDA validation matrix confirmation flags in the confirmed register test. The
+  review was static and did not rerun tests.
+- After the review follow-up, `pnpm test
+  test/main/helperServiceManagementControlScript.test.ts` passed, 1 file and 9
+  tests.
+- Current-state verification after the review follow-up:
+  - `pnpm test` passed, 55 files and 310 tests.
+  - `pnpm typecheck` passed.
+  - `pnpm lint` passed.
+  - `pnpm build` passed.
+  - `cargo test --manifest-path native/scanner/Cargo.toml` passed. Existing
+    Rust dead-code warnings remain.
+  - `pnpm audit:helper-readiness --platform darwin --resources-path resources`
+    and `pnpm audit:helper-readiness-bundle` reported blocked and exited 1 as
+    expected.
+
+Interpretation:
+
+- This phase lets manual ServiceManagement register rehearsals use the same
+  explicit evidence inputs as preflight/readiness audits.
+- It does not perform real helper registration in normal audits, supply
+  production identity, provide FDA evidence, or enable default helper scanning.
