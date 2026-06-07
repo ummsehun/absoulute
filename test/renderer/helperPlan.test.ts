@@ -6,6 +6,7 @@ describe("renderer helper plan formatting", () => {
     expect(
       getHelperPlanLabel({
         engine: "helper",
+        productionReadiness: "ready",
         transport: "xpc",
         lifecycle: {
           state: "ready",
@@ -19,7 +20,7 @@ describe("renderer helper plan formatting", () => {
           },
         },
       }),
-    ).toBe("helper xpc ready");
+    ).toBe("helper ready xpc ready");
   });
 
   it("formats native fallback plans", () => {
@@ -27,6 +28,7 @@ describe("renderer helper plan formatting", () => {
       getHelperPlanLabel({
         engine: "native",
         fallbackReason: "helper-unavailable",
+        productionReadiness: "unavailable",
         registrationBlockers: [
           "team-id-missing",
           "helper-xpc-enumerate-bridge-missing",
@@ -44,6 +46,16 @@ describe("renderer helper plan formatting", () => {
           },
         },
       }),
-    ).toBe("helper fallback helper-unavailable xpc not-implemented");
+    ).toBe("helper unavailable fallback helper-unavailable xpc not-implemented");
+  });
+
+  it("formats prototype-only helper plans without implying production readiness", () => {
+    expect(
+      getHelperPlanLabel({
+        engine: "helper",
+        productionReadiness: "prototype-only",
+        transport: "xpc",
+      }),
+    ).toBe("helper prototype-only xpc unknown");
   });
 });

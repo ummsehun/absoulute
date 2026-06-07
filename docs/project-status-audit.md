@@ -1,6 +1,6 @@
 # Project Status Audit
 
-Date: 2026-06-07
+Date: 2026-06-08
 
 ## Scope
 
@@ -47,6 +47,15 @@ Facts:
 - Helper-backed enumeration is gated by platform, exact deep scan mode, helper
   transport availability, explicit prototype opt-in, and registration
   preflight status.
+- Helper prototype enumeration evidence is now classified separately from
+  production helper readiness. Scan-plan messages and prototype audit summaries
+  report `productionReadiness: "prototype-only"` when the helper path is used
+  through the explicit prototype enumerate escape hatch without an available
+  production helper.
+- The `productionReadiness` helper-plan field is part of the shared scan
+  diagnostics schema and renderer helper-plan label, so the classification is
+  preserved across IPC-facing diagnostics instead of existing only in native
+  orchestrator internals.
 - `bun run audit:helper-readiness` reports `status: "blocked"` with
   `canEnableHelperByDefault: false`.
 
@@ -64,6 +73,8 @@ Facts:
 - `docs/helper-fda-validation-matrix.json` exists, but required FDA scenarios
   are not all passed.
 - The helper must stay disabled by default until these gates are resolved.
+- Prototype helper scan evidence must not be treated as proof of production
+  helper readiness.
 
 Required remaining work:
 
@@ -121,7 +132,7 @@ Files over 500 lines:
 
 | File | LOC |
 | --- | ---: |
-| None | 0 |
+| `src/main/services/scan/nativeScanOrchestrator.ts` | 676 |
 
 Files at or below 500 lines but still large:
 
@@ -131,7 +142,6 @@ Files at or below 500 lines but still large:
 | `native/macos-helper/enumerate/main.swift` | 500 |
 | `src/main/services/scan/portableScanService.ts` | 491 |
 | `src/main/services/native/nativeRustScannerClient.ts` | 483 |
-| `src/main/services/scan/nativeScanOrchestrator.ts` | 463 |
 | `src/main/services/scan/scanEventBus.ts` | 445 |
 | `native/scanner/src/protocol.rs` | 443 |
 | `src/renderer/src/hooks/useScanLogic.ts` | 437 |
@@ -139,8 +149,11 @@ Files at or below 500 lines but still large:
 
 Conclusion:
 
-- The inspected production app/native files now satisfy a strict
-  "all files at or below 500 LOC" standard.
+- The earlier "all files at or below 500 LOC" statement is no longer accurate
+  for the current worktree. `src/main/services/scan/nativeScanOrchestrator.ts`
+  was already 644 LOC at `HEAD` before B55 and is 676 LOC after the B55
+  classification change.
+- A follow-up split is needed if the project keeps the strict 500 LOC ceiling.
 - `nativeRustScannerClient.ts` is no longer over 500 LOC after extracting native
   protocol parsing and binary resolution.
 - `DiskScanService` is no longer over 500 LOC after extracting scan job

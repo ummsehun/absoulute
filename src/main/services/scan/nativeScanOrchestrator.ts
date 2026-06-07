@@ -75,6 +75,11 @@ export interface NativeHelperPlanMessage {
   engine: HelperScanPlan["engine"];
   fallbackReason?: HelperScanPlan["reason"];
   lifecycle?: HelperLifecycleStatus;
+  productionReadiness:
+    | "ready"
+    | "prototype-only"
+    | "blocked"
+    | "unavailable";
   prototypeEnumerate?: boolean;
   registrationBlockers?: NonNullable<
     HelperClientStatus["registrationPreflight"]
@@ -186,6 +191,11 @@ export class NativeScanOrchestrator {
           : undefined,
         helperUnavailableReason: helperStatus.reason,
         helperPrototypeEnumerate: this.helperPrototypeEnumerate,
+        helperProductionReadiness: resolveHelperProductionReadiness({
+          helperPlan,
+          helperStatus,
+          helperPrototypeEnumerate: this.helperPrototypeEnumerate,
+        }),
         helperTransport: helperStatus.transport,
         accuracyMode: context.options.accuracyMode,
         deepPolicyPreset: context.options.deepPolicyPreset,
@@ -193,6 +203,11 @@ export class NativeScanOrchestrator {
     });
     const helperPlanMessage: NativeHelperPlanMessage = {
       engine: helperPlan.engine,
+      productionReadiness: resolveHelperProductionReadiness({
+        helperPlan,
+        helperStatus,
+        helperPrototypeEnumerate: this.helperPrototypeEnumerate,
+      }),
       transport: helperStatus.transport,
     };
     if (helperPlan.reason) {
@@ -480,6 +495,23 @@ export function resolveHelperPrototypeEnumerateFromEnv(
 ): boolean {
   const value = env[SCAN_HELPER_PROTOTYPE_ENUMERATE_ENV]?.trim().toLowerCase();
   return value === "1" || value === "true" || value === "yes";
+}
+
+function resolveHelperProductionReadiness(input: {
+  helperPlan: HelperScanPlan;
+  helperStatus: HelperClientStatus;
+  helperPrototypeEnumerate: boolean;
+}): NativeHelperPlanMessage["productionReadiness"] {
+  if (input.helperPlan.engine === "helper") {
+    return input.helperStatus.available ? "ready" : "prototype-only";
+  }
+  if (input.helperStatus.registrationPreflight?.status === "blocked") {
+    return "blocked";
+  }
+  if (input.helperPrototypeEnumerate) {
+    return "prototype-only";
+  }
+  return "unavailable";
 }
 
 function dispatchNativeStageMessage(

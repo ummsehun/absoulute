@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildScanDiagnostics } from "../../src/main/services/diagnostics/scanDiagnostics";
+import { ScanDiagnosticsSchema } from "../../src/shared/schemas/scan";
 
 describe("buildScanDiagnostics", () => {
   it("preserves skip cause samples", () => {
@@ -85,6 +86,7 @@ describe("buildScanDiagnostics", () => {
         helperPlan: {
           engine: "native",
           fallbackReason: "helper-unavailable",
+          productionReadiness: "unavailable",
           registrationBlockers: [
             "team-id-missing",
             "helper-xpc-enumerate-bridge-missing",
@@ -108,6 +110,7 @@ describe("buildScanDiagnostics", () => {
     expect(diagnostics.helperPlan).toEqual({
       engine: "native",
       fallbackReason: "helper-unavailable",
+      productionReadiness: "unavailable",
       registrationBlockers: [
         "team-id-missing",
         "helper-xpc-enumerate-bridge-missing",
@@ -125,5 +128,9 @@ describe("buildScanDiagnostics", () => {
         },
       },
     });
+
+    expect(ScanDiagnosticsSchema.parse(diagnostics).helperPlan).toEqual(
+      diagnostics.helperPlan,
+    );
   });
 });

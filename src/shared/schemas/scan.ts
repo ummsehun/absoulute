@@ -132,6 +132,12 @@ export const ScanHelperPlanSchema = z.object({
   engine: z.enum(["helper", "native"]),
   fallbackReason: z.string().min(1).optional(),
   lifecycle: ScanHelperLifecycleSchema.optional(),
+  productionReadiness: z.enum([
+    "ready",
+    "prototype-only",
+    "blocked",
+    "unavailable",
+  ]),
   registrationBlockers: z.array(ScanHelperRegistrationBlockerSchema).optional(),
   transport: z.enum(["disabled", "xpc"]),
 });

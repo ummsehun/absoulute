@@ -33,6 +33,9 @@ export interface HelperPrototypeAuditSummary {
   maxDepth: number;
   engine: NativeHelperPlanMessage["engine"] | "unknown";
   transport: NativeHelperPlanMessage["transport"] | "unknown";
+  productionReadiness:
+    | NativeHelperPlanMessage["productionReadiness"]
+    | "unknown";
   prototypeEnumerate: boolean;
   resultEstimated: boolean;
   aggBatchCount: number;
@@ -72,6 +75,7 @@ export function summarizeHelperPrototypeAudit(
     maxDepth: input.maxDepth,
     engine: latestPlan?.engine ?? "unknown",
     transport: latestPlan?.transport ?? "unknown",
+    productionReadiness: latestPlan?.productionReadiness ?? "unknown",
     prototypeEnumerate: latestPlan?.prototypeEnumerate === true,
     resultEstimated: input.result.estimated,
     aggBatchCount: input.aggBatches.length,

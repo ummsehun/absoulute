@@ -6,9 +6,10 @@ export function getHelperPlanLabel(helperPlan?: ScanHelperPlan | null): string |
     }
 
     const lifecycleState = helperPlan.lifecycle?.state ?? "unknown";
+    const readiness = helperPlan.productionReadiness;
     if (helperPlan.engine === "helper") {
-        return `helper ${helperPlan.transport} ${lifecycleState}`;
+        return `helper ${readiness} ${helperPlan.transport} ${lifecycleState}`;
     }
 
-    return `helper fallback ${helperPlan.fallbackReason ?? "native"} ${helperPlan.transport} ${lifecycleState}`;
+    return `helper ${readiness} fallback ${helperPlan.fallbackReason ?? "native"} ${helperPlan.transport} ${lifecycleState}`;
 }

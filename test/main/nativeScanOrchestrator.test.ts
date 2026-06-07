@@ -251,6 +251,7 @@ describe("nativeScanOrchestrator", () => {
     expect(handlers.helperPlans).toEqual([
       {
         engine: "helper",
+        productionReadiness: "ready",
         transport: "xpc",
       },
     ]);
@@ -315,6 +316,7 @@ describe("nativeScanOrchestrator", () => {
     expect(handlers.helperPlans).toEqual([
       {
         engine: "helper",
+        productionReadiness: "ready",
         transport: "xpc",
       },
     ]);
@@ -493,6 +495,7 @@ describe("nativeScanOrchestrator", () => {
       {
         engine: "native",
         fallbackReason: "helper-unavailable",
+        productionReadiness: "unavailable",
         transport: "disabled",
       },
     ]);
@@ -659,6 +662,7 @@ describe("nativeScanOrchestrator", () => {
       {
         engine: "native",
         fallbackReason: "registration-preflight-blocked",
+        productionReadiness: "blocked",
         registrationBlockers: [
           "team-id-missing",
           "helper-xpc-enumerate-bridge-missing",
@@ -1035,6 +1039,7 @@ describe("nativeScanOrchestrator", () => {
       expect(handlers.helperPlans).toEqual([
         {
           engine: "helper",
+          productionReadiness: "prototype-only",
           prototypeEnumerate: true,
           transport: "xpc",
         },

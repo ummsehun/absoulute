@@ -13,6 +13,7 @@ describe("helperPrototypeAuditSummary", () => {
         helperPlans: [
           {
             engine: "helper",
+            productionReadiness: "prototype-only",
             prototypeEnumerate: true,
             registrationBlockers: [],
             transport: "xpc",
@@ -103,6 +104,7 @@ describe("helperPrototypeAuditSummary", () => {
       maxDepth: 8,
       engine: "helper",
       transport: "xpc",
+      productionReadiness: "prototype-only",
       prototypeEnumerate: true,
       resultEstimated: false,
       aggBatchCount: 1,
@@ -137,12 +139,14 @@ describe("helperPrototypeAuditSummary", () => {
           {
             engine: "native",
             fallbackReason: "helper-unavailable",
+            productionReadiness: "unavailable",
             registrationBlockers: ["team-id-missing"],
             transport: "xpc",
           },
           {
             engine: "native",
             fallbackReason: "registration-preflight-blocked",
+            productionReadiness: "blocked",
             registrationBlockers: [
               "team-id-missing",
               "helper-xpc-enumerate-bridge-missing",
@@ -160,6 +164,7 @@ describe("helperPrototypeAuditSummary", () => {
     ).toMatchObject({
       engine: "native",
       fallbackUsed: false,
+      productionReadiness: "blocked",
       registrationBlocked: true,
       registrationBlockers: [
         "team-id-missing",
@@ -179,6 +184,7 @@ describe("helperPrototypeAuditSummary", () => {
           {
             engine: "native",
             fallbackReason: "registration-preflight-blocked",
+            productionReadiness: "blocked",
             registrationBlockers: [
               "team-id-missing",
               "human readable fallback reason",
