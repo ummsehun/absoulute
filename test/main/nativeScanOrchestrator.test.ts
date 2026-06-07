@@ -412,10 +412,23 @@ describe("nativeScanOrchestrator", () => {
       const fallback = entries.find(
         (entry) => entry.event === "native_helper_scan_fallback",
       ) as { details?: Record<string, unknown> } | undefined;
+      const helperTerminal = entries.find(
+        (entry) => entry.event === "native_helper_scan_terminal",
+      ) as { details?: Record<string, unknown>; level?: string } | undefined;
 
       expect(fallback?.details).toMatchObject({
         reason: "helper-error:E_INVALID_CLIENT:Rejected caller identity",
         fallbackEngine: "native",
+      });
+      expect(helperTerminal?.level).toBe("error");
+      expect(helperTerminal?.details).toMatchObject({
+        code: "E_INVALID_CLIENT",
+        message: "Rejected caller identity",
+        operation: "scan.enumerate",
+        requestId: "request-1",
+        rootPath: "/Users/tester",
+        terminalStatus: "error",
+        volumePolicy: "same-device",
       });
     } finally {
       await fs.rm(logDir, { recursive: true, force: true });
@@ -651,6 +664,11 @@ describe("nativeScanOrchestrator", () => {
       unregister: async () => ({ available: false, transport: "xpc" }),
       enumerate: async (_input, handlers) => {
         handlers.onEvent({
+          type: "ready",
+          requestId: "request-1",
+          helperVersion: "test-helper",
+        });
+        handlers.onEvent({
           type: "done",
           requestId: "request-1",
           elapsedMs: 1,
@@ -692,6 +710,12 @@ describe("nativeScanOrchestrator", () => {
       const helperPlan = entries.find(
         (entry) => entry.event === "native_helper_scan_plan",
       ) as { details?: Record<string, unknown> } | undefined;
+      const helperReady = entries.find(
+        (entry) => entry.event === "native_helper_scan_ready",
+      ) as { details?: Record<string, unknown> } | undefined;
+      const helperTerminal = entries.find(
+        (entry) => entry.event === "native_helper_scan_terminal",
+      ) as { details?: Record<string, unknown> } | undefined;
 
       expect(helperPlan?.details).toMatchObject({
         engine: "helper",
@@ -718,6 +742,22 @@ describe("nativeScanOrchestrator", () => {
             serviceManagementModel: "smappservice-daemon",
           },
         },
+      });
+      expect(helperReady?.details).toMatchObject({
+        helperVersion: "test-helper",
+        operation: "scan.enumerate",
+        plannedRoots: ["/Users/tester"],
+        requestId: "request-1",
+        rootPath: "/Users/tester",
+        volumePolicy: "same-device",
+      });
+      expect(helperTerminal?.details).toMatchObject({
+        elapsedMs: 1,
+        operation: "scan.enumerate",
+        requestId: "request-1",
+        rootPath: "/Users/tester",
+        terminalStatus: "done",
+        volumePolicy: "same-device",
       });
     } finally {
       await fs.rm(logDir, { recursive: true, force: true });

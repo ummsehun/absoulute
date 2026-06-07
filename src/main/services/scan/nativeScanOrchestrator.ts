@@ -249,9 +249,57 @@ export class NativeScanOrchestrator {
         },
         {
           onEvent: (event) => {
+            if (event.type === "ready") {
+              appendNativeScannerLog({
+                event: "native_helper_scan_ready",
+                scanId: context.scanId,
+                stage: input.mode,
+                details: {
+                  helperVersion: event.helperVersion,
+                  operation: "scan.enumerate",
+                  plannedRoots: volumePlan.plannedRoots,
+                  requestId: event.requestId,
+                  rootPath: context.rootPath,
+                  volumePolicy: volumePlan.volumePolicy,
+                },
+              });
+            }
             if (event.type === "error") {
               terminalHelperErrorReason =
                 `helper-error:${event.code}:${event.message}`;
+              appendNativeScannerLog({
+                event: "native_helper_scan_terminal",
+                level: "error",
+                scanId: context.scanId,
+                stage: input.mode,
+                details: {
+                  code: event.code,
+                  message: event.message,
+                  operation: "scan.enumerate",
+                  plannedRoots: volumePlan.plannedRoots,
+                  requestId: event.requestId,
+                  rootPath: context.rootPath,
+                  terminalStatus: "error",
+                  volumePolicy: volumePlan.volumePolicy,
+                },
+              });
+            }
+            if (event.type === "done") {
+              appendNativeScannerLog({
+                event: "native_helper_scan_terminal",
+                scanId: context.scanId,
+                stage: input.mode,
+                details: {
+                  elapsedMs: event.elapsedMs,
+                  estimated: event.estimated,
+                  operation: "scan.enumerate",
+                  plannedRoots: volumePlan.plannedRoots,
+                  requestId: event.requestId,
+                  rootPath: context.rootPath,
+                  terminalStatus: "done",
+                  volumePolicy: volumePlan.volumePolicy,
+                },
+              });
             }
             for (const message of mapHelperEventToNativeMessages(event)) {
               if (message.type === "done") {

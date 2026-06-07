@@ -658,6 +658,50 @@ Cold assessment:
 - It does not implement real XPC health/version transport calls.
 - It does not enable helper-backed scan execution by default.
 
+## Phase B9 Helper Ready And Terminal Audit Log
+
+Facts:
+
+- Phase B9 is scoped in
+  `docs/superpowers/plans/2026-06-08-phase-b9-helper-ready-terminal-audit-log.md`.
+- `NativeScanOrchestrator.runHelperStage()` now records
+  `native_helper_scan_ready` when a helper `ready` event arrives.
+- The ready log includes helper version, request ID, operation, root path,
+  volume policy, and planned roots.
+- Helper `done` and `error` events now record `native_helper_scan_terminal`.
+- Terminal logs include request ID, operation, root path, volume policy,
+  planned roots, and terminal status.
+- The helper remains disabled by default.
+
+Verification commands run for this Phase B9 slice:
+
+- `pnpm test test/main/nativeScanOrchestrator.test.ts`: passed, 15 tests.
+- `pnpm test`: passed, 45 files, 193 tests.
+- `pnpm typecheck`: passed.
+- `pnpm lint`: passed.
+- `pnpm build`: passed.
+- `cargo test --manifest-path native/scanner/Cargo.toml`: passed, 8 tests,
+  with the existing 6 Rust dead-code warnings.
+- `pnpm audit:helper-readiness`: reported `status: "blocked"`,
+  `canEnableHelperByDefault: false`, and local
+  `serviceManagementStatus: "not-implemented"`.
+
+External blockers still missing:
+
+- Production XPC peer identity validation.
+- Real ServiceManagement registration evidence from a packaged app/helper.
+- Real Team ID and designated requirement.
+- Real listener requirement metadata generated from that Team ID.
+- Full FDA validation matrix on the target macOS version.
+- Production signing, packaging, and notarization evidence.
+
+Cold assessment:
+
+- This mini phase improves helper-backed scan audit evidence for helper version
+  and terminal status.
+- It does not implement real XPC health/version transport calls.
+- It does not enable helper-backed scan execution by default.
+
 ## Findings
 
 ### P1: Privileged Helper Is Still Blocked by Real Identity and FDA Evidence
