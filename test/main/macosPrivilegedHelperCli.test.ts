@@ -43,6 +43,19 @@ describe("macOS privileged helper executable", () => {
     expect(source).toContain("@objc(DiskVisualizerPrivilegedHelperProtocol)");
     expect(source).toContain("func healthCheck(_ reply:");
     expect(source).toContain("func getVersion(_ reply:");
+    expect(source).toContain("func enumerate(_ requestJson:");
+    expect(source).toContain("withReply reply:");
+    expect(source).toContain("HelperEnumerateRequest");
+    expect(source).toContain("operation == \"scan.enumerate\"");
+    expect(source).toContain("validateEnumerateRequest");
+    expect(source).toContain("isAbsoluteNormalizedPath");
+    expect(source).toContain("rootOutsidePlannedRoots");
+    expect(source).toContain("request.payload.plannedRoots.contains(request.payload.root)");
+    expect(source).toContain("requestId.count >= 1 && requestId.count <= 128");
+    expect(source).toContain('"type": "ready"');
+    expect(source).toContain('"type": "error"');
+    expect(source).toContain('"E_INVALID_REQUEST"');
+    expect(source).toContain('"E_HELPER_INTERNAL"');
     expect(source).toContain("newConnection.exportedInterface");
     expect(source).toContain("newConnection.exportedObject");
     expect(source).toContain("newConnection.resume()");
@@ -50,6 +63,12 @@ describe("macOS privileged helper executable", () => {
     expect(source).toContain("expectedClientTeamId == \"TEAMID_NOT_CONFIGURED\"");
     expect(source).toContain("newConnection.invalidate()");
     expect(source).toContain("return false");
+    expect(source).not.toContain("shell");
+    expect(source).not.toContain("Process()");
+    expect(source).not.toContain("removeItem");
+    expect(source).not.toContain("chmod");
+    expect(source).not.toContain("chown");
+    expect(source).not.toContain("normalizePath(");
   });
 
   it("builds the privileged helper executable into the LaunchServices source path", () => {
