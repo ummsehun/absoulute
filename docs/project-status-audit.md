@@ -1246,7 +1246,7 @@ Verification commands run for this Phase B20 slice:
 - `pnpm test test/main/helperClient.test.ts test/main/helperRegistration.test.ts
   test/main/helperPreflightAudit.test.ts test/main/helperReadinessAudit.test.ts`:
   passed, 4 files, 62 tests.
-- `pnpm test`: passed, 45 files, 210 tests.
+- `pnpm test`: passed, 45 files, 211 tests.
 - `pnpm typecheck`: passed.
 - `pnpm lint`: passed.
 - `pnpm build`: passed.
@@ -1276,6 +1276,57 @@ Cold assessment:
 
 - This mini phase makes the B19 bridge visible to the helper readiness gate.
 - It does not make readiness pass from artifact presence alone.
+- It does not enable helper-backed scan execution by default.
+
+## Phase B21 ServiceManagement Probe Binary Evidence
+
+Facts:
+
+- Phase B21 is scoped in
+  `docs/superpowers/plans/2026-06-08-phase-b21-service-management-probe-binary-evidence.md`.
+- `resolveMacOsServiceManagementProbeBinary` now returns a path only when the
+  candidate exists, is a file, and has an executable bit.
+- The executable-file guard applies to both `SCAN_HELPER_SM_PROBE_BIN` and the
+  packaged `<resourcesPath>/bin/service-management-probe-macos` fallback.
+- Executable script probes remain supported for tests and manual audit
+  fixtures.
+- Missing or non-executable probe/control paths now fall back to
+  `NotImplementedMacOsServiceManagementProbe` or `null` controller instead of
+  being selected as usable ServiceManagement evidence.
+- The Swift `SMAppService` probe implementation was not changed.
+- The helper remains disabled by default and readiness remains blocked without
+  real ServiceManagement registration, production identity, and FDA evidence.
+
+Verification commands run for this Phase B21 slice:
+
+- `pnpm test test/main/macosServiceManagementProbe.test.ts`: passed, 1 file,
+  11 tests before review, then 12 tests after addressing review feedback.
+- `pnpm test test/main/helperReadinessAuditScript.test.ts
+  test/main/helperClient.test.ts test/main/macosServiceManagementProbe.test.ts`:
+  passed, 3 files, 46 tests.
+- `pnpm test`: passed, 45 files, 210 tests.
+- `pnpm typecheck`: passed.
+- `pnpm lint`: passed.
+- `pnpm build`: passed.
+- `cargo test --manifest-path native/scanner/Cargo.toml`: passed, 8 tests,
+  with the existing 6 Rust dead-code warnings.
+- `pnpm audit:helper-preflight`: reported blocked preflight while production
+  identity/FDA confirmations remain missing.
+- `pnpm audit:helper-readiness`: reported `status: "blocked"` and
+  `canEnableHelperByDefault: false`.
+
+External blockers still missing:
+
+- Installed privileged helper ServiceManagement evidence.
+- Production XPC peer identity validation with a real Team ID.
+- Full FDA validation matrix on the target macOS version.
+- Production signing, packaging, and notarization evidence.
+
+Cold assessment:
+
+- This mini phase prevents placeholder or typo probe paths from entering the
+  ServiceManagement probe/control path.
+- It does not make ServiceManagement registered.
 - It does not enable helper-backed scan execution by default.
 
 ## Findings

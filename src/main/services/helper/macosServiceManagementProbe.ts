@@ -177,7 +177,7 @@ export function resolveMacOsServiceManagementProbeBinary(
 ): string | null {
   const envPath = env[HELPER_SERVICE_MANAGEMENT_PROBE_BIN_ENV]?.trim();
   if (envPath) {
-    return envPath;
+    return hasExecutableFileEvidence(envPath) ? envPath : null;
   }
 
   if (!resourcesPath) {
@@ -189,7 +189,16 @@ export function resolveMacOsServiceManagementProbeBinary(
     "bin",
     MACOS_SERVICE_MANAGEMENT_PROBE_BINARY_NAME,
   );
-  return fs.existsSync(bundledCandidate) ? bundledCandidate : null;
+  return hasExecutableFileEvidence(bundledCandidate) ? bundledCandidate : null;
+}
+
+function hasExecutableFileEvidence(candidatePath: string): boolean {
+  try {
+    const stat = fs.statSync(candidatePath);
+    return stat.isFile() && (stat.mode & 0o111) !== 0;
+  } catch {
+    return false;
+  }
 }
 
 function parseProbeOutput(output: string): MacOsServiceManagementProbeResult {

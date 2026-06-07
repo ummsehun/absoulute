@@ -9,6 +9,7 @@ import {
   CommandMacOsServiceManagementController,
   createMacOsServiceManagementControllerFromEnv,
   createMacOsServiceManagementProbeFromEnv,
+  resolveMacOsServiceManagementProbeBinary,
 } from "../../src/main/services/helper/macosServiceManagementProbe";
 
 describe("macosServiceManagementProbe", () => {
@@ -184,39 +185,91 @@ describe("macosServiceManagementProbe", () => {
     });
   });
 
-  it("selects the command probe only on darwin with an explicit probe binary", () => {
-    expect(
-      createMacOsServiceManagementProbeFromEnv(
-        { SCAN_HELPER_SM_PROBE_BIN: "/tmp/probe-sm-status" },
-        "darwin",
-      ),
-    ).toBeInstanceOf(CommandMacOsServiceManagementProbe);
+  it("selects the command probe only on darwin with an executable explicit probe binary", () => {
+    const tempDir = fs.mkdtempSync(
+      path.join(os.tmpdir(), "diskviz-sm-probe-env-"),
+    );
+    const probePath = path.join(tempDir, "probe-sm-status");
 
-    expect(
-      createMacOsServiceManagementProbeFromEnv(
-        { SCAN_HELPER_SM_PROBE_BIN: "/tmp/probe-sm-status" },
-        "linux",
-      ).constructor.name,
-    ).toBe("NotImplementedMacOsServiceManagementProbe");
+    try {
+      expect(
+        createMacOsServiceManagementProbeFromEnv(
+          { SCAN_HELPER_SM_PROBE_BIN: probePath },
+          "darwin",
+        ).constructor.name,
+      ).toBe("NotImplementedMacOsServiceManagementProbe");
+
+      fs.writeFileSync(probePath, "#!/bin/sh\nexit 0\n");
+
+      expect(
+        resolveMacOsServiceManagementProbeBinary(
+          { SCAN_HELPER_SM_PROBE_BIN: probePath },
+          null,
+        ),
+      ).toBeNull();
+
+      fs.chmodSync(probePath, 0o755);
+
+      expect(
+        createMacOsServiceManagementProbeFromEnv(
+          { SCAN_HELPER_SM_PROBE_BIN: probePath },
+          "darwin",
+        ),
+      ).toBeInstanceOf(CommandMacOsServiceManagementProbe);
+      expect(
+        resolveMacOsServiceManagementProbeBinary(
+          { SCAN_HELPER_SM_PROBE_BIN: probePath },
+          null,
+        ),
+      ).toBe(probePath);
+
+      expect(
+        createMacOsServiceManagementProbeFromEnv(
+          { SCAN_HELPER_SM_PROBE_BIN: probePath },
+          "linux",
+        ).constructor.name,
+      ).toBe("NotImplementedMacOsServiceManagementProbe");
+    } finally {
+      fs.rmSync(tempDir, { force: true, recursive: true });
+    }
   });
 
-  it("selects the command controller only on darwin with an explicit ServiceManagement binary", () => {
-    expect(
-      createMacOsServiceManagementControllerFromEnv(
-        { SCAN_HELPER_SM_PROBE_BIN: "/tmp/control-sm-service" },
-        "darwin",
-      ),
-    ).toBeInstanceOf(CommandMacOsServiceManagementController);
+  it("selects the command controller only on darwin with an executable ServiceManagement binary", () => {
+    const tempDir = fs.mkdtempSync(
+      path.join(os.tmpdir(), "diskviz-sm-control-env-"),
+    );
+    const controlPath = path.join(tempDir, "control-sm-service");
 
-    expect(
-      createMacOsServiceManagementControllerFromEnv(
-        { SCAN_HELPER_SM_PROBE_BIN: "/tmp/control-sm-service" },
-        "linux",
-      ),
-    ).toBeNull();
+    try {
+      expect(
+        createMacOsServiceManagementControllerFromEnv(
+          { SCAN_HELPER_SM_PROBE_BIN: controlPath },
+          "darwin",
+        ),
+      ).toBeNull();
+
+      fs.writeFileSync(controlPath, "#!/bin/sh\nexit 0\n");
+      fs.chmodSync(controlPath, 0o755);
+
+      expect(
+        createMacOsServiceManagementControllerFromEnv(
+          { SCAN_HELPER_SM_PROBE_BIN: controlPath },
+          "darwin",
+        ),
+      ).toBeInstanceOf(CommandMacOsServiceManagementController);
+
+      expect(
+        createMacOsServiceManagementControllerFromEnv(
+          { SCAN_HELPER_SM_PROBE_BIN: controlPath },
+          "linux",
+        ),
+      ).toBeNull();
+    } finally {
+      fs.rmSync(tempDir, { force: true, recursive: true });
+    }
   });
 
-  it("falls back to the packaged probe binary in Electron resources on macOS", () => {
+  it("falls back to the executable packaged probe binary in Electron resources on macOS", () => {
     const resourcesRoot = fs.mkdtempSync(
       path.join(os.tmpdir(), "diskviz-sm-probe-resources-"),
     );
@@ -234,8 +287,61 @@ describe("macosServiceManagementProbe", () => {
           {},
           "darwin",
           resourcesRoot,
+        ).constructor.name,
+      ).toBe("NotImplementedMacOsServiceManagementProbe");
+      expect(resolveMacOsServiceManagementProbeBinary({}, resourcesRoot)).toBeNull();
+
+      fs.chmodSync(probePath, 0o755);
+
+      expect(
+        createMacOsServiceManagementProbeFromEnv(
+          {},
+          "darwin",
+          resourcesRoot,
         ),
       ).toBeInstanceOf(CommandMacOsServiceManagementProbe);
+      expect(resolveMacOsServiceManagementProbeBinary({}, resourcesRoot)).toBe(
+        probePath,
+      );
+    } finally {
+      fs.rmSync(resourcesRoot, { force: true, recursive: true });
+    }
+  });
+
+  it("does not fall back to the packaged probe when an explicit probe path is invalid", () => {
+    const resourcesRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "diskviz-sm-probe-invalid-env-"),
+    );
+    const probePath = path.join(
+      resourcesRoot,
+      "bin",
+      "service-management-probe-macos",
+    );
+    const invalidEnvPath = path.join(resourcesRoot, "missing-probe");
+
+    try {
+      fs.mkdirSync(path.dirname(probePath), { recursive: true });
+      fs.writeFileSync(probePath, "#!/bin/sh\nexit 0\n");
+      fs.chmodSync(probePath, 0o755);
+
+      expect(resolveMacOsServiceManagementProbeBinary(
+        { SCAN_HELPER_SM_PROBE_BIN: invalidEnvPath },
+        resourcesRoot,
+      )).toBeNull();
+      expect(
+        createMacOsServiceManagementProbeFromEnv(
+          { SCAN_HELPER_SM_PROBE_BIN: invalidEnvPath },
+          "darwin",
+          resourcesRoot,
+        ).constructor.name,
+      ).toBe("NotImplementedMacOsServiceManagementProbe");
+      expect(
+        createMacOsServiceManagementControllerFromEnv(
+          { SCAN_HELPER_SM_PROBE_BIN: invalidEnvPath },
+          "darwin",
+          resourcesRoot,
+        ),
+      ).toBeNull();
     } finally {
       fs.rmSync(resourcesRoot, { force: true, recursive: true });
     }
