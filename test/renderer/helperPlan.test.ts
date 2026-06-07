@@ -27,6 +27,10 @@ describe("renderer helper plan formatting", () => {
       getHelperPlanLabel({
         engine: "native",
         fallbackReason: "helper-unavailable",
+        registrationBlockers: [
+          "team-id-missing",
+          "helper-xpc-enumerate-bridge-missing",
+        ],
         transport: "xpc",
         lifecycle: {
           state: "not-implemented",

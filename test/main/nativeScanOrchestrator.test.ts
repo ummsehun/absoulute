@@ -329,6 +329,99 @@ describe("nativeScanOrchestrator", () => {
     ]);
   });
 
+  it("preserves helper registration blockers in helper plan diagnostics", async () => {
+    vi.spyOn(os, "platform").mockReturnValue("darwin");
+    const nativeInputs: unknown[] = [];
+    const helperClient: HelperClient = {
+      getStatus: async () => ({
+        available: false,
+        reason: "registration-preflight-blocked:team-id-missing",
+        transport: "xpc",
+        registrationPreflight: {
+          status: "blocked",
+          blockers: [
+            "team-id-missing",
+            "helper-xpc-enumerate-bridge-missing",
+          ],
+          contract: {
+            appBundleIdentifier: "com.example.diskvisualizer",
+            helperExecutableBundleRelativePath:
+              "Contents/Library/LaunchServices/com.example.diskvisualizer.privileged-helper",
+            helperLabel: "com.example.diskvisualizer.privileged-helper",
+            launchDaemonBundleRelativePath:
+              "Contents/Library/LaunchDaemons/com.example.diskvisualizer.privileged-helper.plist",
+            launchDaemonPlistName:
+              "com.example.diskvisualizer.privileged-helper.plist",
+            serviceManagementModel: "smappservice-daemon",
+          },
+        },
+      }),
+      getVersion: async () => "test-helper",
+      healthCheck: async () => ({ available: false, transport: "xpc" }),
+      register: async () => ({ available: false, transport: "xpc" }),
+      unregister: async () => ({ available: false, transport: "xpc" }),
+      enumerate: async () => {
+        throw new Error("helper should not be selected");
+      },
+    };
+    const handlers = createRecordingHandlers();
+    const orchestrator = new NativeScanOrchestrator(helperClient, {
+      createNativeSession: () => ({
+        binaryPath: "test-native-scanner",
+        dispose: () => undefined,
+        pid: 1,
+        sendControl: () => undefined,
+        waitForExit: async () => undefined,
+        runStage: async (input, nativeHandlers) => {
+          nativeInputs.push(input);
+          nativeHandlers.onMessage({
+            type: "done",
+            elapsedMs: 1,
+            estimated: false,
+          });
+        },
+      }),
+    });
+
+    await orchestrator.runStage(
+      {
+        scanId: "scan-helper-blocked",
+        rootPath: "/Users/tester",
+        permissionDeniedRoots: [],
+        paused: false,
+        cancelled: false,
+        options: resolveScanOptions(
+          {
+            rootPath: "/Users/tester",
+            optInProtected: false,
+            accuracyMode: "full",
+            deepPolicyPreset: "exact",
+          },
+          "/Users/tester",
+        ),
+      },
+      {
+        mode: "deep",
+        maxDepth: 128,
+        timeBudgetMs: 0,
+      },
+      handlers,
+    );
+
+    expect(nativeInputs).toHaveLength(1);
+    expect(handlers.helperPlans).toEqual([
+      {
+        engine: "native",
+        fallbackReason: "registration-preflight-blocked",
+        registrationBlockers: [
+          "team-id-missing",
+          "helper-xpc-enumerate-bridge-missing",
+        ],
+        transport: "xpc",
+      },
+    ]);
+  });
+
   it("preserves helper terminal error details in fallback logs", async () => {
     vi.spyOn(os, "platform").mockReturnValue("darwin");
     const logDir = await fs.mkdtemp(

@@ -117,10 +117,21 @@ export const ScanHelperLifecycleSchema = z.object({
   }),
 });
 
+export const ScanHelperRegistrationBlockerSchema = z.enum([
+  "team-id-missing",
+  "designated-requirement-missing",
+  "packaging-entitlements-missing",
+  "privileged-helper-executable-missing",
+  "helper-xpc-enumerate-bridge-missing",
+  "privileged-helper-listener-requirement-missing",
+  "fda-validation-matrix-missing",
+]);
+
 export const ScanHelperPlanSchema = z.object({
   engine: z.enum(["helper", "native"]),
   fallbackReason: z.string().min(1).optional(),
   lifecycle: ScanHelperLifecycleSchema.optional(),
+  registrationBlockers: z.array(ScanHelperRegistrationBlockerSchema).optional(),
   transport: z.enum(["disabled", "xpc"]),
 });
 

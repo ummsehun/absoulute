@@ -76,6 +76,9 @@ export interface NativeHelperPlanMessage {
   fallbackReason?: HelperScanPlan["reason"];
   lifecycle?: HelperLifecycleStatus;
   prototypeEnumerate?: boolean;
+  registrationBlockers?: NonNullable<
+    HelperClientStatus["registrationPreflight"]
+  >["blockers"];
   transport: HelperClientStatus["transport"];
 }
 
@@ -192,6 +195,11 @@ export class NativeScanOrchestrator {
     }
     if (helperStatus.lifecycle) {
       helperPlanMessage.lifecycle = helperStatus.lifecycle;
+    }
+    if (helperStatus.registrationPreflight?.blockers.length) {
+      helperPlanMessage.registrationBlockers = [
+        ...helperStatus.registrationPreflight.blockers,
+      ];
     }
     if (this.helperPrototypeEnumerate) {
       helperPlanMessage.prototypeEnumerate = true;

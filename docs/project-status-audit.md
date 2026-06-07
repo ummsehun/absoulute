@@ -1329,6 +1329,52 @@ Cold assessment:
 - It does not make ServiceManagement registered.
 - It does not enable helper-backed scan execution by default.
 
+## Phase B22 Helper Plan Registration Blockers
+
+Facts:
+
+- Phase B22 is scoped in
+  `docs/superpowers/plans/2026-06-08-phase-b22-helper-plan-registration-blockers.md`.
+- `ScanHelperPlanSchema` now accepts optional `registrationBlockers`.
+- `NativeScanOrchestrator` now copies helper registration preflight blocker
+  codes into `NativeHelperPlanMessage.registrationBlockers` when blockers are
+  present.
+- Existing helper plan label formatting remains stable and ignores this
+  diagnostic metadata.
+- Helper plan engine selection did not change.
+- The helper remains disabled by default and readiness remains blocked without
+  real ServiceManagement registration, production identity, and FDA evidence.
+
+Verification commands run for this Phase B22 slice:
+
+- `pnpm test test/main/nativeScanOrchestrator.test.ts
+  test/main/scanDiagnostics.test.ts test/renderer/helperPlan.test.ts`: passed,
+  3 files, 21 tests.
+- `pnpm test`: passed, 45 files, 212 tests.
+- `pnpm typecheck`: passed.
+- `pnpm lint`: passed.
+- `pnpm build`: passed.
+- `cargo test --manifest-path native/scanner/Cargo.toml`: passed, 8 tests,
+  with the existing 6 Rust dead-code warnings.
+- `pnpm audit:helper-preflight`: reported blocked preflight while production
+  identity/FDA confirmations remain missing.
+- `pnpm audit:helper-readiness`: reported `status: "blocked"` and
+  `canEnableHelperByDefault: false`.
+
+External blockers still missing:
+
+- Installed privileged helper ServiceManagement evidence.
+- Production XPC peer identity validation with a real Team ID.
+- Full FDA validation matrix on the target macOS version.
+- Production signing, packaging, and notarization evidence.
+
+Cold assessment:
+
+- This mini phase makes helper fallback diagnostics more explainable to
+  renderer/diagnostics consumers.
+- It does not make helper readiness pass.
+- It does not enable helper-backed scan execution by default.
+
 ## Findings
 
 ### P1: Privileged Helper Is Still Blocked by Real Identity and FDA Evidence

@@ -85,6 +85,10 @@ describe("buildScanDiagnostics", () => {
         helperPlan: {
           engine: "native",
           fallbackReason: "helper-unavailable",
+          registrationBlockers: [
+            "team-id-missing",
+            "helper-xpc-enumerate-bridge-missing",
+          ],
           transport: "xpc",
           lifecycle: {
             state: "not-implemented",
@@ -104,6 +108,10 @@ describe("buildScanDiagnostics", () => {
     expect(diagnostics.helperPlan).toEqual({
       engine: "native",
       fallbackReason: "helper-unavailable",
+      registrationBlockers: [
+        "team-id-missing",
+        "helper-xpc-enumerate-bridge-missing",
+      ],
       transport: "xpc",
       lifecycle: {
         state: "not-implemented",
