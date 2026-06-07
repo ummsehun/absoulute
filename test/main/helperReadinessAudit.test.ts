@@ -254,7 +254,160 @@ describe("helper readiness audit", () => {
       confirmationReady: false,
       effectiveReady: false,
       key: "xpc-enumerate-bridge",
-      reason: "helper-xpc-enumerate-bridge-missing",
+      reason: "xpc-enumerate-bridge-confirmation-missing",
+      status: "fail",
+    }));
+  });
+
+  it("reports confirmation-missing reasons when artifacts are present but confirmations are absent", () => {
+    const report = buildHelperReadinessReport({
+      preflightEvidence: {
+        artifactEvidence: {
+          designatedRequirement: false,
+          fdaValidationMatrix: true,
+          helperXpcEnumerateBridge: true,
+          packagingEntitlements: true,
+          privilegedHelperExecutable: true,
+          privilegedHelperListenerRequirement: false,
+          teamId: false,
+        },
+        confirmations: {
+          designatedRequirement: false,
+          fdaValidationMatrix: false,
+          helperXpcEnumerateBridge: false,
+          packagingEntitlements: false,
+          privilegedHelperExecutable: false,
+          privilegedHelperListenerRequirement: false,
+          teamId: false,
+        },
+        effectiveEvidence: {
+          designatedRequirement: false,
+          fdaValidationMatrix: false,
+          helperXpcEnumerateBridge: false,
+          packagingEntitlements: false,
+          privilegedHelperExecutable: false,
+          privilegedHelperListenerRequirement: false,
+          teamId: false,
+        },
+      },
+      registrationPreflight: {
+        status: "blocked",
+        blockers: [
+          "packaging-entitlements-missing",
+          "privileged-helper-executable-missing",
+          "helper-xpc-enumerate-bridge-missing",
+          "fda-validation-matrix-missing",
+        ],
+        contract: {
+          appBundleIdentifier: "com.example.diskvisualizer",
+          helperExecutableBundleRelativePath:
+            "Contents/Library/LaunchServices/com.example.diskvisualizer.privileged-helper",
+          helperLabel: "com.example.diskvisualizer.privileged-helper",
+          launchDaemonBundleRelativePath:
+            "Contents/Library/LaunchDaemons/com.example.diskvisualizer.privileged-helper.plist",
+          launchDaemonPlistName:
+            "com.example.diskvisualizer.privileged-helper.plist",
+          serviceManagementModel: "smappservice-daemon",
+        },
+      },
+      fdaMatrixStatus: "blocked",
+      serviceManagementStatus: "registered",
+    });
+
+    expect(report.blockers).toEqual([
+      "fda-validation-matrix-missing",
+      "helper-xpc-enumerate-bridge-missing",
+      "packaging-entitlements-missing",
+      "privileged-helper-executable-missing",
+    ]);
+    expect(report.evidence).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        artifactReady: true,
+        confirmationReady: false,
+        effectiveReady: false,
+        key: "fda-validation-matrix",
+        reason: "fda-validation-matrix-confirmation-missing",
+      }),
+      expect.objectContaining({
+        artifactReady: true,
+        confirmationReady: false,
+        effectiveReady: false,
+        key: "packaging-entitlements",
+        reason: "packaging-entitlements-confirmation-missing",
+      }),
+      expect.objectContaining({
+        artifactReady: true,
+        confirmationReady: false,
+        effectiveReady: false,
+        key: "privileged-helper-executable",
+        reason: "privileged-helper-executable-confirmation-missing",
+      }),
+      expect.objectContaining({
+        artifactReady: true,
+        confirmationReady: false,
+        effectiveReady: false,
+        key: "xpc-enumerate-bridge",
+        reason: "xpc-enumerate-bridge-confirmation-missing",
+      }),
+    ]));
+  });
+
+  it("reports effective-evidence-missing when artifact and confirmation are present but the gate is false", () => {
+    const report = buildHelperReadinessReport({
+      preflightEvidence: {
+        artifactEvidence: {
+          designatedRequirement: false,
+          fdaValidationMatrix: false,
+          helperXpcEnumerateBridge: true,
+          packagingEntitlements: false,
+          privilegedHelperExecutable: false,
+          privilegedHelperListenerRequirement: false,
+          teamId: false,
+        },
+        confirmations: {
+          designatedRequirement: false,
+          fdaValidationMatrix: false,
+          helperXpcEnumerateBridge: true,
+          packagingEntitlements: false,
+          privilegedHelperExecutable: false,
+          privilegedHelperListenerRequirement: false,
+          teamId: false,
+        },
+        effectiveEvidence: {
+          designatedRequirement: false,
+          fdaValidationMatrix: false,
+          helperXpcEnumerateBridge: false,
+          packagingEntitlements: false,
+          privilegedHelperExecutable: false,
+          privilegedHelperListenerRequirement: false,
+          teamId: false,
+        },
+      },
+      registrationPreflight: {
+        status: "blocked",
+        blockers: ["helper-xpc-enumerate-bridge-missing"],
+        contract: {
+          appBundleIdentifier: "com.example.diskvisualizer",
+          helperExecutableBundleRelativePath:
+            "Contents/Library/LaunchServices/com.example.diskvisualizer.privileged-helper",
+          helperLabel: "com.example.diskvisualizer.privileged-helper",
+          launchDaemonBundleRelativePath:
+            "Contents/Library/LaunchDaemons/com.example.diskvisualizer.privileged-helper.plist",
+          launchDaemonPlistName:
+            "com.example.diskvisualizer.privileged-helper.plist",
+          serviceManagementModel: "smappservice-daemon",
+        },
+      },
+      fdaMatrixStatus: "ready",
+      serviceManagementStatus: "registered",
+    });
+
+    expect(report.evidence).toContainEqual(expect.objectContaining({
+      artifactReady: true,
+      confirmationReady: true,
+      effectiveReady: false,
+      key: "xpc-enumerate-bridge",
+      reason: "xpc-enumerate-bridge-effective-evidence-missing",
       status: "fail",
     }));
   });

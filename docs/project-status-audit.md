@@ -2834,3 +2834,49 @@ Interpretation:
   helper audit option parsing.
 - It does not provide ServiceManagement registration, production identity, FDA
   evidence, or default helper scanning.
+
+## Phase B50 Readiness Evidence Reasons
+
+Date: 2026-06-08
+
+Facts:
+
+- Helper readiness evidence now distinguishes artifact absence from explicit
+  confirmation absence.
+- When artifact evidence is present but the confirmation input is absent,
+  readiness evidence reports `<key>-confirmation-missing`.
+- When artifact and confirmation evidence are present but the effective gate is
+  still false, readiness evidence reports `<key>-effective-evidence-missing`.
+- Existing blocker names are unchanged.
+- Preflight, ServiceManagement, FDA, identity, and helper default activation
+  semantics are unchanged.
+- Helper default activation remains disabled.
+
+Verification so far:
+
+- RED was confirmed before implementation:
+  - readiness evidence emitted broad blocker reasons even when
+    `artifactReady: true`, `confirmationReady: false`, and
+    `effectiveReady: false`.
+- `pnpm test test/main/helperReadinessAudit.test.ts` passed, 1 file and 10
+  tests.
+- `pnpm test test/main/helperReadinessAudit.test.ts test/main/helperReadinessBundle.test.ts test/main/helperReadinessAuditScript.test.ts test/main/helperReadinessBundleScript.test.ts test/main/helperPreflightAudit.test.ts test/main/helperPreflightAuditScript.test.ts test/main/helperServiceManagementAuditScript.test.ts test/main/helperIdentityAuditScript.test.ts test/main/helperRegistration.test.ts`
+  passed, 9 files and 68 tests.
+- `pnpm test` passed, 55 files and 301 tests.
+- `pnpm typecheck` passed.
+- `pnpm lint` passed.
+- `pnpm build` passed.
+- `cargo test --manifest-path native/scanner/Cargo.toml` passed. Existing Rust
+  dead-code warnings remain.
+- `pnpm audit:helper-readiness --platform darwin --resources-path resources`
+  and `pnpm audit:helper-readiness-bundle` remain intentionally blocked.
+- Sub-agent review reported no Critical or Important findings. One Minor
+  effective-evidence branch coverage suggestion was addressed with a focused
+  test. The review was static and did not rerun tests.
+
+Interpretation:
+
+- This phase makes helper readiness output clearer for current artifact-present
+  but confirmation-missing states.
+- It does not remove production identity, ServiceManagement registration, FDA
+  evidence, or default helper scanning blockers.

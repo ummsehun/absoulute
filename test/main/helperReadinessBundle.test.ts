@@ -64,7 +64,7 @@ describe("helperReadinessBundle", () => {
       confirmationReady: false,
       effectiveReady: false,
       key: "xpc-enumerate-bridge",
-      reason: "helper-xpc-enumerate-bridge-missing",
+      reason: "xpc-enumerate-bridge-confirmation-missing",
       status: "fail",
     }));
   });

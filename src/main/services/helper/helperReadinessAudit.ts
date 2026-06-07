@@ -145,13 +145,37 @@ function evidenceForBlocker(
     return null;
   }
 
+  const evidenceState = preflightEvidenceStateForKey(input, key);
+
   return {
-    ...preflightEvidenceStateForKey(input, key),
+    ...evidenceState,
     guidance: guidanceForEvidenceKey(key),
     key,
     status: "fail",
-    reason: blocker,
+    reason: reasonForPreflightEvidenceFailure(key, blocker, evidenceState),
   };
+}
+
+function reasonForPreflightEvidenceFailure(
+  key: string,
+  blocker: string,
+  evidenceState: Pick<
+    HelperReadinessEvidence,
+    "artifactReady" | "confirmationReady" | "effectiveReady"
+  >,
+): string {
+  if (evidenceState.artifactReady === true
+    && evidenceState.confirmationReady === false) {
+    return `${key}-confirmation-missing`;
+  }
+
+  if (evidenceState.artifactReady === true
+    && evidenceState.confirmationReady === true
+    && evidenceState.effectiveReady === false) {
+    return `${key}-effective-evidence-missing`;
+  }
+
+  return blocker;
 }
 
 function guidanceForEvidenceKey(
