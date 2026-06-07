@@ -4,7 +4,12 @@ import {
   resolveHelperRegistrationPreflightInputFromEnv,
 } from "../src/main/services/helper/helperRegistration";
 import { createMacOsServiceManagementProbeFromEnv } from "../src/main/services/helper/macosServiceManagementProbe";
+import {
+  resolveAuditOutputPath,
+  writeAuditOutputFile,
+} from "./helper-audit-output";
 
+const auditOutputPath = resolveAuditOutputPath(process.argv.slice(2));
 const registrationPreflight = resolveHelperRegistrationPreflight(
   resolveHelperRegistrationPreflightInputFromEnv(process.env),
 );
@@ -18,8 +23,10 @@ const report = buildHelperReadinessReport({
     : "ready",
   serviceManagementStatus,
 });
+const reportJson = JSON.stringify(report, null, 2);
 
-console.log(JSON.stringify(report, null, 2));
+console.log(reportJson);
+writeAuditOutputFile(auditOutputPath, reportJson);
 
 if (report.status !== "ready") {
   process.exitCode = 1;

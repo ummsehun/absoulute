@@ -3,6 +3,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { spawnSync } from "node:child_process";
 import { describe, expect, it } from "vitest";
 import {
   DISK_SCAN_HELPER_EXECUTABLE_SOURCE_RELATIVE_PATH,
@@ -454,5 +455,33 @@ describe("helperPreflightAudit", () => {
     expect(packageJson.scripts?.["audit:helper-preflight"]).toBe(
       "bun run scripts/audit-helper-preflight.ts",
     );
+  });
+
+  it("writes the preflight audit to an explicit output file", () => {
+    const tempDir = fs.mkdtempSync(
+      path.join(os.tmpdir(), "diskviz-helper-preflight-out-"),
+    );
+    const outputPath = path.join(tempDir, "nested", "preflight.json");
+
+    try {
+      const result = spawnSync(
+        "bun",
+        ["run", "scripts/audit-helper-preflight.ts", "--out", outputPath],
+        {
+          cwd: process.cwd(),
+          env: process.env,
+          encoding: "utf8",
+        },
+      );
+
+      expect(result.status).toBe(0);
+      const stdoutAudit = JSON.parse(result.stdout);
+      const fileAudit = JSON.parse(fs.readFileSync(outputPath, "utf8"));
+      expect(fileAudit).toEqual(stdoutAudit);
+      expect(fileAudit.status).toBe("blocked");
+      expect(fileAudit.readiness.enumerateReady).toBe(false);
+    } finally {
+      fs.rmSync(tempDir, { force: true, recursive: true });
+    }
   });
 });

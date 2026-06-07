@@ -1422,6 +1422,65 @@ Cold assessment:
 - It does not make helper readiness pass.
 - It does not enable helper-backed scan execution by default.
 
+## Phase B24 Helper Audit Output Files
+
+Facts:
+
+- Phase B24 is scoped in
+  `docs/superpowers/plans/2026-06-08-phase-b24-helper-audit-output-files.md`.
+- `scripts/audit-helper-preflight.ts` now accepts `--out <path>`.
+- `scripts/audit-helper-readiness.ts` now accepts `--out <path>`.
+- Both scripts print the same JSON to stdout as before.
+- Both scripts write the same JSON payload to the requested UTF-8 output file
+  and create parent directories as needed.
+- `--out` without a file path now fails explicitly instead of being silently
+  ignored.
+- Generated audit JSON should be written to repo-external paths such as
+  `/tmp/...` unless a caller intentionally wants an untracked local artifact.
+- Preflight strict exit semantics did not change.
+- Readiness blocked exit semantics did not change.
+- No generated audit JSON files are committed.
+- Helper readiness gates did not change.
+- The helper remains disabled by default and readiness remains blocked without
+  real ServiceManagement registration, production identity, and FDA evidence.
+
+Verification commands run for this Phase B24 slice:
+
+- `pnpm test test/main/helperAuditOutput.test.ts
+  test/main/helperReadinessAuditScript.test.ts
+  test/main/helperPreflightAudit.test.ts` passed after implementation: 3 files,
+  14 tests.
+- `bun run scripts/audit-helper-preflight.ts --out` failed explicitly with
+  `--out requires an output file path`.
+- `pnpm test` passed: 46 files, 220 tests.
+- `pnpm typecheck` passed.
+- `pnpm lint` passed.
+- `pnpm build` passed.
+- `cargo test --manifest-path native/scanner/Cargo.toml` passed. Existing Rust
+  dead-code warnings remain.
+- `pnpm audit:helper-preflight` printed `status: "blocked"` and exited 0.
+- `pnpm audit:helper-readiness` printed `status: "blocked"`,
+  `canEnableHelperByDefault: false`, and exited 1 as intended.
+- Direct `--out` checks wrote `/tmp/luie-helper-audit-b24/preflight.json` and
+  `/tmp/luie-helper-audit-b24/readiness.json`; both parsed as JSON and retained
+  the intended blocked statuses.
+- Sub-agent review found no Critical or Important issues. Minor feedback about
+  missing `--out` values and generated artifact path guidance was addressed.
+
+External blockers still missing:
+
+- Installed privileged helper ServiceManagement evidence.
+- Production XPC peer identity validation with a real Team ID.
+- Full FDA validation matrix on the target macOS version.
+- Production signing, packaging, and notarization evidence.
+
+Cold assessment:
+
+- This mini phase gives Phase B audits durable file artifacts without changing
+  readiness semantics.
+- It does not make helper readiness pass.
+- It does not enable helper-backed scan execution by default.
+
 ## Findings
 
 ### P1: Privileged Helper Is Still Blocked by Real Identity and FDA Evidence
