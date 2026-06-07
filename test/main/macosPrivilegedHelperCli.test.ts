@@ -33,6 +33,16 @@ describe("macOS privileged helper executable", () => {
     expect(source).toContain("anchor apple generic");
     expect(source).toContain("certificate leaf[subject.OU]");
     expect(source).toContain("shouldAcceptNewConnection");
+    expect(source).toContain("@objc(DiskVisualizerPrivilegedHelperProtocol)");
+    expect(source).toContain("func healthCheck(_ reply:");
+    expect(source).toContain("func getVersion(_ reply:");
+    expect(source).toContain("newConnection.exportedInterface");
+    expect(source).toContain("newConnection.exportedObject");
+    expect(source).toContain("newConnection.resume()");
+    expect(source).toContain("return true");
+    expect(source).toContain("expectedClientTeamId == \"TEAMID_NOT_CONFIGURED\"");
+    expect(source).toContain("newConnection.invalidate()");
+    expect(source).toContain("return false");
   });
 
   it("builds the privileged helper executable into the LaunchServices source path", () => {
@@ -57,5 +67,17 @@ describe("macOS privileged helper executable", () => {
       "build:native:privileged-helper":
         "bun run scripts/build-macos-privileged-helper.ts",
     });
+  });
+
+  it("generates a real Team ID source that can reach the exported XPC surface", () => {
+    const source = fs.readFileSync(sourcePath, "utf8");
+    const generatedSource = source.replace("TEAMID_NOT_CONFIGURED", "ABCDE12345");
+
+    expect(generatedSource).toContain('let expectedClientTeamId = "ABCDE12345"');
+    expect(generatedSource).toContain('expectedClientTeamId == "TEAMID_NOT_CONFIGURED"');
+    expect(generatedSource).toContain("newConnection.exportedInterface");
+    expect(generatedSource).toContain("newConnection.exportedObject");
+    expect(generatedSource).toContain("newConnection.resume()");
+    expect(generatedSource).toContain("return true");
   });
 });

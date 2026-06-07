@@ -950,6 +950,55 @@ Cold assessment:
 - It does not make any external evidence pass.
 - It does not enable helper-backed scan execution by default.
 
+## Phase B15 Privileged Helper XPC Control Surface
+
+Facts:
+
+- Phase B15 is scoped in
+  `docs/superpowers/plans/2026-06-08-phase-b15-privileged-helper-xpc-control-surface.md`.
+- `native/macos-helper/privileged-helper/main.swift` now defines an
+  Objective-C-compatible `DiskVisualizerPrivilegedHelperProtocol`.
+- The privileged helper protocol exposes only `healthCheck` and `getVersion`
+  reply methods.
+- The listener still configures the caller code-signing requirement before
+  resuming the service.
+- Placeholder `TEAMID_NOT_CONFIGURED` builds explicitly invalidate and reject
+  connections instead of accepting a placeholder identity.
+- Real Team ID builds can export the health/version interface, set the exported
+  object, resume the XPC connection, and return `true`.
+- The privileged helper still does not expose scan enumeration APIs.
+- The helper remains disabled by default.
+
+Verification commands run for this Phase B15 slice:
+
+- `pnpm test test/main/macosPrivilegedHelperCli.test.ts`: passed, 3 tests.
+- `pnpm build:native:privileged-helper`: passed.
+- `pnpm test`: passed, 45 files, 202 tests.
+- `pnpm typecheck`: passed.
+- `pnpm lint`: passed.
+- `pnpm build`: passed.
+- `cargo test --manifest-path native/scanner/Cargo.toml`: passed, 8 tests,
+  with the existing 6 Rust dead-code warnings.
+- `pnpm audit:helper-preflight`: reported blocked preflight with placeholder
+  `TEAMID_NOT_CONFIGURED` listener metadata.
+- `pnpm audit:helper-readiness`: reported `status: "blocked"` and
+  `canEnableHelperByDefault: false`.
+
+External blockers still missing:
+
+- Production XPC peer identity validation with a real Team ID.
+- Real ServiceManagement registration evidence from a packaged app/helper.
+- Full FDA validation matrix on the target macOS version.
+- Production signing, packaging, and notarization evidence.
+
+Cold assessment:
+
+- This mini phase replaces the reject-all privileged helper placeholder with a
+  minimal read-only XPC control surface.
+- It does not wire a production Electron/Node XPC client.
+- It does not expose privileged scan enumeration.
+- It does not enable helper-backed scan execution by default.
+
 ## Findings
 
 ### P1: Privileged Helper Is Still Blocked by Real Identity and FDA Evidence
