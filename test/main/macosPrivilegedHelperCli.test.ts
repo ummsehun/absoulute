@@ -84,7 +84,11 @@ function writeMinimalPrivilegedHelperSources(projectRoot: string): void {
   fs.mkdirSync(path.dirname(helperSourcePath), { recursive: true });
   fs.writeFileSync(
     helperSourcePath,
-    'let expectedClientTeamId = "TEAMID_NOT_CONFIGURED"\n',
+    [
+      'let expectedClientTeamId = "TEAMID_NOT_CONFIGURED"',
+      'let expectedClientBundleIdentifier = "APP_BUNDLE_ID_NOT_CONFIGURED"',
+      "",
+    ].join("\n"),
   );
   fs.writeFileSync(traversalSourcePath, "func enumeratePrivileged() {}\n");
 }
@@ -179,7 +183,8 @@ describe("macOS privileged helper executable", () => {
     expect(source).toContain(`let helperMachServiceName = "${DISK_SCAN_HELPER_LABEL}"`);
     expect(source).toContain("NSXPCListener(machServiceName: helperMachServiceName)");
     expect(source).toContain("setConnectionCodeSigningRequirement");
-    expect(source).toContain(`identifier "${DISK_VISUALIZER_APP_BUNDLE_IDENTIFIER}"`);
+    expect(source).toContain('let expectedClientBundleIdentifier = "APP_BUNDLE_ID_NOT_CONFIGURED"');
+    expect(source).toContain('identifier "\\#(expectedClientBundleIdentifier)"');
     expect(source).toContain("anchor apple generic");
     expect(source).toContain("certificate leaf[subject.OU]");
     expect(source).toContain("shouldAcceptNewConnection");
@@ -231,7 +236,9 @@ describe("macOS privileged helper executable", () => {
     expect(source).toContain('"helper"');
     expect(source).toContain('"LaunchServices"');
     expect(source).toContain(`"${DISK_SCAN_HELPER_LABEL}"`);
-    expect(source).toContain("SCAN_HELPER_TEAM_ID");
+    expect(source).toContain("HELPER_TEAM_ID_ENV");
+    expect(source).toContain("HELPER_APP_BUNDLE_ID_ENV");
+    expect(source).toContain("buildHelperCodeSigningRequirement(teamId, effectiveAppBundleId)");
     expect(source).toContain("TEAMID_NOT_CONFIGURED");
     expect(source).toContain("anchor apple generic");
     expect(source).toContain(".requirement.json");
@@ -262,7 +269,8 @@ describe("macOS privileged helper executable", () => {
       artifactRoot,
       ".tmp",
       "swift-generated",
-      "privileged-helper-main.swift",
+      "privileged-helper",
+      "main.swift",
     );
     const artifactModuleCachePath = path.join(
       artifactRoot,
@@ -273,7 +281,8 @@ describe("macOS privileged helper executable", () => {
       cwdRoot,
       ".tmp",
       "swift-generated",
-      "privileged-helper-main.swift",
+      "privileged-helper",
+      "main.swift",
     );
     const argsLogPath = path.join(artifactRoot, "swiftc-args.log");
     const cwdOutputPath = path.join(
@@ -304,6 +313,7 @@ describe("macOS privileged helper executable", () => {
             FAKE_SWIFTC_ARGS_LOG: argsLogPath,
             PATH: `${fakeBinDir}${path.delimiter}${process.env.PATH ?? ""}`,
             SCAN_HELPER_TEAM_ID: "ABCDE12345",
+            SCAN_HELPER_APP_BUNDLE_ID: "com.acme.diskvisualizer",
           },
           encoding: "utf8",
         },
@@ -319,12 +329,80 @@ describe("macOS privileged helper executable", () => {
       expect(fs.readFileSync(argsLogPath, "utf8")).toContain(
         artifactGeneratedSourcePath,
       );
+      expect(fs.readFileSync(artifactGeneratedSourcePath, "utf8")).toContain(
+        'let expectedClientBundleIdentifier = "com.acme.diskvisualizer"',
+      );
       expect(
         JSON.parse(fs.readFileSync(`${artifactOutputPath}.requirement.json`, "utf8")),
       ).toEqual({
+        appBundleIdentifier: "com.acme.diskvisualizer",
         ready: true,
         requirement:
-          'identifier "com.example.diskvisualizer" and anchor apple generic and certificate leaf[subject.OU] = "ABCDE12345"',
+          'identifier "com.acme.diskvisualizer" and anchor apple generic and certificate leaf[subject.OU] = "ABCDE12345"',
+        teamId: "ABCDE12345",
+      });
+    } finally {
+      fs.rmSync(cwdRoot, { force: true, recursive: true });
+      fs.rmSync(artifactRoot, { force: true, recursive: true });
+      fs.rmSync(fakeBinDir, { force: true, recursive: true });
+    }
+  });
+
+  it("keeps listener requirement metadata unready without a production app bundle id", () => {
+    const cwdRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "diskviz-helper-build-dev-id-cwd-"),
+    );
+    const artifactRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "diskviz-helper-build-dev-id-artifacts-"),
+    );
+    const fakeBinDir = fs.mkdtempSync(
+      path.join(os.tmpdir(), "diskviz-helper-build-dev-id-bin-"),
+    );
+    const artifactOutputPath = path.join(
+      artifactRoot,
+      "resources",
+      "helper",
+      "LaunchServices",
+      DISK_SCAN_HELPER_LABEL,
+    );
+    const artifactGeneratedSourcePath = path.join(
+      artifactRoot,
+      ".tmp",
+      "swift-generated",
+      "privileged-helper",
+      "main.swift",
+    );
+
+    try {
+      writeMinimalPrivilegedHelperSources(cwdRoot);
+      writeMinimalPrivilegedHelperSources(artifactRoot);
+      writeFakeSwiftCompiler(fakeBinDir);
+
+      const result = spawnSync(
+        "bun",
+        ["run", buildScriptPath, "--project-root", artifactRoot],
+        {
+          cwd: cwdRoot,
+          env: {
+            ...process.env,
+            PATH: `${fakeBinDir}${path.delimiter}${process.env.PATH ?? ""}`,
+            SCAN_HELPER_TEAM_ID: "ABCDE12345",
+          },
+          encoding: "utf8",
+        },
+      );
+
+      expect(result.status).toBe(0);
+      expect(fs.readFileSync(artifactGeneratedSourcePath, "utf8")).toContain(
+        `let expectedClientBundleIdentifier = "${DISK_VISUALIZER_APP_BUNDLE_IDENTIFIER}"`,
+      );
+      expect(
+        JSON.parse(fs.readFileSync(`${artifactOutputPath}.requirement.json`, "utf8")),
+      ).toEqual({
+        appBundleIdentifier: DISK_VISUALIZER_APP_BUNDLE_IDENTIFIER,
+        ready: false,
+        requirement:
+          `identifier "${DISK_VISUALIZER_APP_BUNDLE_IDENTIFIER}" and anchor apple generic and certificate leaf[subject.OU] = "ABCDE12345"`,
         teamId: "ABCDE12345",
       });
     } finally {

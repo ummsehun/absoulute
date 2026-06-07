@@ -2,8 +2,10 @@ import Foundation
 
 let helperMachServiceName = "com.example.diskvisualizer.privileged-helper"
 let expectedClientTeamId = "TEAMID_NOT_CONFIGURED"
-let allowedClientRequirement = #"identifier "com.example.diskvisualizer" and anchor apple generic and certificate leaf[subject.OU] = "\#(expectedClientTeamId)""#
+let expectedClientBundleIdentifier = "com.example.diskvisualizer"
+let allowedClientRequirement = #"identifier "\#(expectedClientBundleIdentifier)" and anchor apple generic and certificate leaf[subject.OU] = "\#(expectedClientTeamId)""#
 let helperVersion = "dev-privileged-helper-0.1.0"
+let peerValidation = "listener-code-signing-requirement"
 
 @objc(DiskVisualizerPrivilegedHelperProtocol)
 protocol DiskVisualizerPrivilegedHelperProtocol {
@@ -17,7 +19,10 @@ final class DiskVisualizerPrivilegedHelperService:
     DiskVisualizerPrivilegedHelperProtocol
 {
     func healthCheck(_ reply: @escaping (String) -> Void) {
-        reply("ok")
+        reply(helperEvent([
+            "helperVersion": helperVersion,
+            "peerValidation": peerValidation,
+        ]))
     }
 
     func getVersion(_ reply: @escaping (String) -> Void) {

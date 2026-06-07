@@ -140,6 +140,41 @@ Phase B59 verification so far:
   - `pnpm audit:helper-readiness --platform darwin --resources-path resources`
     reported blocked and exited 1 as expected.
 
+Phase B60 verification so far:
+
+- RED was confirmed before implementation: the privileged helper build script
+  ignored `SCAN_HELPER_APP_BUNDLE_ID`, so generated listener requirement
+  metadata could not match production app bundle identity evidence.
+- The privileged helper Swift source now uses an
+  `APP_BUNDLE_ID_NOT_CONFIGURED` placeholder for the expected client bundle id
+  instead of hard-coding the development app id in the listener requirement.
+- `scripts/build-macos-privileged-helper.ts` now reads
+  `SCAN_HELPER_APP_BUNDLE_ID`, writes the effective app bundle id into generated
+  Swift source and `.requirement.json`, and calls
+  `buildHelperCodeSigningRequirement(teamId, effectiveAppBundleId)`.
+- Listener requirement metadata `ready` now requires both a valid Team ID and a
+  production app bundle id. A Team ID alone does not create ready metadata.
+- Generated Swift source moved from
+  `.tmp/swift-generated/privileged-helper-main.swift` to
+  `.tmp/swift-generated/privileged-helper/main.swift`. This fixed the real
+  Swift build failure where top-level executable statements were rejected while
+  compiling multiple Swift files.
+- Focused verification:
+  - `pnpm test test/main/macosPrivilegedHelperCli.test.ts
+    test/main/helperRegistration.test.ts` passed, 2 files and 36 tests.
+  - `pnpm typecheck` passed.
+  - `pnpm build:native:privileged-helper` passed.
+  - `pnpm audit:helper-preflight --project-root .
+    --confirm-packaging-entitlements --confirm-privileged-helper-executable
+    --confirm-helper-xpc-enumerate-bridge --confirm-fda-validation-matrix`
+    still reported `status: "blocked"` with missing Team ID, production bundle
+    identifier, designated requirement, listener requirement, and FDA matrix.
+  - `pnpm audit:helper-readiness --platform darwin --resources-path resources`
+    still reported `status: "blocked"` and `canEnableHelperByDefault: false`.
+- This phase does not enable helper scanning by default, does not register the
+  helper with ServiceManagement, and does not prove that the 3 GB scan symptom
+  is fixed.
+
 ### Remaining Phase B Work
 
 Facts:

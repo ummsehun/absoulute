@@ -3,6 +3,10 @@ import { dirname, join } from "node:path";
 import { spawnSync } from "node:child_process";
 import {
   buildHelperCodeSigningRequirement,
+  DISK_VISUALIZER_APP_BUNDLE_IDENTIFIER,
+  HELPER_APP_BUNDLE_ID_ENV,
+  HELPER_TEAM_ID_ENV,
+  isProductionAppBundleIdentifier,
 } from "../src/main/services/helper/helperRegistration";
 
 const rawArgs = process.argv.slice(2);
@@ -38,24 +42,30 @@ const generatedSourcePath = join(
   projectRoot,
   ".tmp",
   "swift-generated",
-  "privileged-helper-main.swift",
+  "privileged-helper",
+  "main.swift",
 );
-const teamId = process.env.SCAN_HELPER_TEAM_ID?.trim();
+const teamId = process.env[HELPER_TEAM_ID_ENV]?.trim();
+const appBundleIdentifier = process.env[HELPER_APP_BUNDLE_ID_ENV]?.trim();
+const hasProductionAppBundleId =
+  isProductionAppBundleIdentifier(appBundleIdentifier);
 const effectiveTeamId = isValidAppleTeamIdText(teamId)
   ? teamId
   : "TEAMID_NOT_CONFIGURED";
+const effectiveAppBundleId = hasProductionAppBundleId
+  ? appBundleIdentifier
+  : DISK_VISUALIZER_APP_BUNDLE_IDENTIFIER;
 const requirement = isValidAppleTeamIdText(teamId)
-  ? buildHelperCodeSigningRequirement(teamId)
-  : `identifier "com.example.diskvisualizer" and anchor apple generic and certificate leaf[subject.OU] = "${effectiveTeamId}"`;
+  ? buildHelperCodeSigningRequirement(teamId, effectiveAppBundleId)
+  : `identifier "${effectiveAppBundleId}" and anchor apple generic and certificate leaf[subject.OU] = "${effectiveTeamId}"`;
 
 mkdirSync(dirname(outputPath), { recursive: true });
 mkdirSync(moduleCachePath, { recursive: true });
 mkdirSync(dirname(generatedSourcePath), { recursive: true });
 
-const generatedSource = readFileSync(sourcePath, "utf8").replace(
-  "TEAMID_NOT_CONFIGURED",
-  effectiveTeamId,
-);
+const generatedSource = readFileSync(sourcePath, "utf8")
+  .replace("TEAMID_NOT_CONFIGURED", effectiveTeamId)
+  .replace("APP_BUNDLE_ID_NOT_CONFIGURED", effectiveAppBundleId);
 writeFileSync(generatedSourcePath, generatedSource);
 
 const result = spawnSync(
@@ -85,7 +95,8 @@ if (result.status !== 0) {
 writeFileSync(
   requirementMetadataPath,
   `${JSON.stringify({
-    ready: isValidAppleTeamIdText(teamId),
+    appBundleIdentifier: effectiveAppBundleId,
+    ready: isValidAppleTeamIdText(teamId) && hasProductionAppBundleId,
     requirement,
     teamId: effectiveTeamId,
   }, null, 2)}\n`,

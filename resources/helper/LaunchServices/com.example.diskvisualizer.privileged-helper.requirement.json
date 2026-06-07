@@ -1,4 +1,5 @@
 {
+  "appBundleIdentifier": "com.example.diskvisualizer",
   "ready": false,
   "requirement": "identifier \"com.example.diskvisualizer\" and anchor apple generic and certificate leaf[subject.OU] = \"TEAMID_NOT_CONFIGURED\"",
   "teamId": "TEAMID_NOT_CONFIGURED"
