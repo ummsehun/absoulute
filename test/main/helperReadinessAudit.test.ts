@@ -138,4 +138,100 @@ describe("helper readiness audit", () => {
       },
     ]);
   });
+
+  it("keeps pending ServiceManagement approval blocked", () => {
+    const report = buildHelperReadinessReport({
+      registrationPreflight: {
+        status: "ready",
+        blockers: [],
+        contract: {
+          appBundleIdentifier: "com.example.diskvisualizer",
+          helperExecutableBundleRelativePath:
+            "Contents/Library/LaunchServices/com.example.diskvisualizer.privileged-helper",
+          helperLabel: "com.example.diskvisualizer.privileged-helper",
+          launchDaemonBundleRelativePath:
+            "Contents/Library/LaunchDaemons/com.example.diskvisualizer.privileged-helper.plist",
+          launchDaemonPlistName:
+            "com.example.diskvisualizer.privileged-helper.plist",
+          serviceManagementModel: "smappservice-daemon",
+        },
+      },
+      fdaMatrixStatus: "ready",
+      serviceManagementStatus: "pending-approval",
+    });
+
+    expect(report.status).toBe("blocked");
+    expect(report.blockers).toEqual(["service-management-not-registered"]);
+    expect(report.evidence).toEqual([
+      {
+        key: "service-management",
+        reason: "service-management-not-registered:pending-approval",
+        status: "fail",
+      },
+    ]);
+  });
+
+  it("keeps missing ServiceManagement probe implementation blocked", () => {
+    const report = buildHelperReadinessReport({
+      registrationPreflight: {
+        status: "ready",
+        blockers: [],
+        contract: {
+          appBundleIdentifier: "com.example.diskvisualizer",
+          helperExecutableBundleRelativePath:
+            "Contents/Library/LaunchServices/com.example.diskvisualizer.privileged-helper",
+          helperLabel: "com.example.diskvisualizer.privileged-helper",
+          launchDaemonBundleRelativePath:
+            "Contents/Library/LaunchDaemons/com.example.diskvisualizer.privileged-helper.plist",
+          launchDaemonPlistName:
+            "com.example.diskvisualizer.privileged-helper.plist",
+          serviceManagementModel: "smappservice-daemon",
+        },
+      },
+      fdaMatrixStatus: "ready",
+      serviceManagementStatus: "not-implemented",
+    });
+
+    expect(report.status).toBe("blocked");
+    expect(report.blockers).toEqual(["service-management-not-registered"]);
+    expect(report.evidence).toEqual([
+      {
+        key: "service-management",
+        reason: "service-management-not-registered:not-implemented",
+        status: "fail",
+      },
+    ]);
+  });
+
+  it("keeps unknown ServiceManagement status blocked when other evidence is ready", () => {
+    const report = buildHelperReadinessReport({
+      registrationPreflight: {
+        status: "ready",
+        blockers: [],
+        contract: {
+          appBundleIdentifier: "com.example.diskvisualizer",
+          helperExecutableBundleRelativePath:
+            "Contents/Library/LaunchServices/com.example.diskvisualizer.privileged-helper",
+          helperLabel: "com.example.diskvisualizer.privileged-helper",
+          launchDaemonBundleRelativePath:
+            "Contents/Library/LaunchDaemons/com.example.diskvisualizer.privileged-helper.plist",
+          launchDaemonPlistName:
+            "com.example.diskvisualizer.privileged-helper.plist",
+          serviceManagementModel: "smappservice-daemon",
+        },
+      },
+      fdaMatrixStatus: "ready",
+      serviceManagementStatus: "unknown",
+    });
+
+    expect(report.status).toBe("blocked");
+    expect(report.blockers).toEqual(["service-management-not-registered"]);
+    expect(report.evidence).toEqual([
+      {
+        key: "service-management",
+        reason: "service-management-not-registered:unknown",
+        status: "fail",
+      },
+    ]);
+  });
 });

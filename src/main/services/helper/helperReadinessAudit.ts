@@ -6,7 +6,12 @@ import type {
 export interface HelperReadinessReportInput {
   registrationPreflight: HelperRegistrationPreflight;
   fdaMatrixStatus: "ready" | "blocked";
-  serviceManagementStatus: "registered" | "not-installed" | "unknown";
+  serviceManagementStatus:
+    | "registered"
+    | "not-installed"
+    | "pending-approval"
+    | "not-implemented"
+    | "unknown";
 }
 
 export interface HelperReadinessReport {

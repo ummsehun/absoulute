@@ -342,6 +342,55 @@ Cold assessment:
 - It does not make the helper production-ready.
 - It does not enable helper-backed scan execution by default.
 
+## Phase B2 ServiceManagement Readiness
+
+Facts:
+
+- Phase B2 is scoped in
+  `docs/superpowers/plans/2026-06-07-phase-b2-service-management-readiness.md`.
+- `HelperReadinessReportInput.serviceManagementStatus` now accepts the full
+  ServiceManagement probe state set used by
+  `macosServiceManagementProbe.ts`: `registered`, `not-installed`,
+  `pending-approval`, `not-implemented`, and `unknown`.
+- Only `registered` is treated as ServiceManagement pass evidence.
+- `pending-approval`, `not-installed`, `not-implemented`, and `unknown` keep
+  readiness blocked with `service-management-not-registered`.
+- `scripts/audit-helper-readiness.ts` now calls the existing
+  `createMacOsServiceManagementProbeFromEnv()` boundary instead of hard-coding
+  ServiceManagement status to `unknown`.
+- If the probe throws unexpectedly, the audit script falls back to `unknown`
+  and does not claim readiness.
+
+Verification commands run for this Phase B2 slice:
+
+- `pnpm test test/main/helperReadinessAudit.test.ts`: passed, 6 tests.
+- `pnpm test test/main/helperReadinessAuditScript.test.ts`: passed, 1 test.
+- `pnpm test`: passed, 45 files, 181 tests.
+- `pnpm typecheck`: passed.
+- `pnpm lint`: passed.
+- `pnpm build`: passed.
+- `cargo test --manifest-path native/scanner/Cargo.toml`: passed, 8 tests,
+  with the existing 6 Rust dead-code warnings.
+- `pnpm audit:helper-readiness`: reported `status: "blocked"`,
+  `canEnableHelperByDefault: false`, and local
+  `serviceManagementStatus: "not-implemented"` because no usable
+  ServiceManagement probe evidence is currently available.
+
+External blockers still missing:
+
+- Real ServiceManagement registration evidence from a packaged app/helper.
+- Real Team ID and designated requirement.
+- Real listener requirement metadata generated from that Team ID.
+- Full FDA validation matrix on the target macOS version.
+- Production signing, packaging, and notarization evidence.
+
+Cold assessment:
+
+- This mini phase improves audit fidelity by distinguishing missing probe
+  implementation from unknown status.
+- It does not register the helper.
+- It does not enable helper-backed scan execution by default.
+
 ## Findings
 
 ### P1: Privileged Helper Is Still Blocked by Real Identity and FDA Evidence
