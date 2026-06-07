@@ -216,6 +216,47 @@ describe("audit-helper-readiness script", () => {
     }
   });
 
+  it("uses explicit artifact confirmation flags", () => {
+    const result = spawnSync(
+      "bun",
+      [
+        "run",
+        "scripts/audit-helper-readiness.ts",
+        "--platform",
+        "darwin",
+        "--resources-path",
+        "resources",
+        "--confirm-packaging-entitlements",
+        "--confirm-privileged-helper-executable",
+        "--confirm-helper-xpc-enumerate-bridge",
+      ],
+      {
+        cwd: process.cwd(),
+        env: process.env,
+        encoding: "utf8",
+      },
+    );
+
+    expect(result.status).toBe(1);
+    const report = JSON.parse(result.stdout);
+    expect(report.canEnableHelperByDefault).toBe(false);
+    expect(report.blockers).not.toContain("packaging-entitlements-missing");
+    expect(report.blockers).not.toContain("privileged-helper-executable-missing");
+    expect(report.blockers).not.toContain("helper-xpc-enumerate-bridge-missing");
+    expect(report.evidence).not.toContainEqual(expect.objectContaining({
+      key: "packaging-entitlements",
+      status: "fail",
+    }));
+    expect(report.evidence).not.toContainEqual(expect.objectContaining({
+      key: "privileged-helper-executable",
+      status: "fail",
+    }));
+    expect(report.evidence).not.toContainEqual(expect.objectContaining({
+      key: "xpc-enumerate-bridge",
+      status: "fail",
+    }));
+  });
+
   it("fails explicitly when project root is missing", () => {
     const result = spawnSync(
       "bun",

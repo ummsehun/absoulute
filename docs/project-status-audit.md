@@ -2880,3 +2880,49 @@ Interpretation:
   but confirmation-missing states.
 - It does not remove production identity, ServiceManagement registration, FDA
   evidence, or default helper scanning blockers.
+
+## Phase B51 Readiness Confirmation Flags
+
+Date: 2026-06-08
+
+Facts:
+
+- `audit-helper-readiness` now accepts explicit artifact confirmation flags.
+- `audit-helper-readiness-bundle` now accepts the same confirmation flags.
+- Added flags:
+  - `--confirm-packaging-entitlements`;
+  - `--confirm-privileged-helper-executable`;
+  - `--confirm-helper-xpc-enumerate-bridge`;
+  - `--confirm-fda-validation-matrix`.
+- The flags overlay the existing readiness confirmation env variables for that
+  audit invocation only.
+- Existing env behavior and option value parsing are unchanged.
+- Helper default activation remains disabled.
+
+Verification so far:
+
+- RED was confirmed before implementation:
+  - confirmation flags were ignored and artifact-backed blockers remained in
+    readiness output.
+- `pnpm test test/main/helperReadinessAuditScript.test.ts test/main/helperReadinessBundleScript.test.ts`
+  passed, 2 files and 18 tests.
+- `pnpm test test/main/helperReadinessAuditScript.test.ts test/main/helperReadinessBundleScript.test.ts test/main/helperReadinessAudit.test.ts test/main/helperReadinessBundle.test.ts test/main/helperPreflightAudit.test.ts test/main/helperPreflightAuditScript.test.ts test/main/helperServiceManagementAuditScript.test.ts test/main/helperIdentityAuditScript.test.ts test/main/helperRegistration.test.ts`
+  passed, 9 files and 70 tests.
+- `pnpm test` passed, 55 files and 303 tests.
+- `pnpm typecheck` passed.
+- `pnpm lint` passed.
+- `pnpm build` passed.
+- `cargo test --manifest-path native/scanner/Cargo.toml` passed. Existing Rust
+  dead-code warnings remain.
+- `pnpm audit:helper-readiness --platform darwin --resources-path resources`
+  and `pnpm audit:helper-readiness-bundle` remain intentionally blocked.
+- Sub-agent review reported no Critical or Important findings. One Minor FDA
+  confirmation flag coverage suggestion was addressed with a focused test. The
+  review was static and did not rerun tests.
+
+Interpretation:
+
+- This phase makes manual readiness rehearsals easier without relying on shell
+  env setup.
+- It does not supply production identity, ServiceManagement registration, FDA
+  evidence, or default helper scanning.

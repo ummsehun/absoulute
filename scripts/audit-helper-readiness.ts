@@ -2,7 +2,11 @@ import { buildHelperReadinessReport } from "../src/main/services/helper/helperRe
 import { buildHelperPreflightAudit } from "../src/main/services/helper/helperPreflightAudit";
 import {
   HELPER_DESIGNATED_REQUIREMENT_ENV,
+  HELPER_FDA_VALIDATION_MATRIX_READY_ENV,
+  HELPER_PACKAGING_ENTITLEMENTS_READY_ENV,
+  HELPER_PRIVILEGED_EXECUTABLE_READY_ENV,
   HELPER_TEAM_ID_ENV,
+  HELPER_XPC_ENUMERATE_BRIDGE_READY_ENV,
   resolveHelperRegistrationPreflight,
   resolveHelperRegistrationPreflightInputFromEnv,
 } from "../src/main/services/helper/helperRegistration";
@@ -82,7 +86,29 @@ function buildAuditEnv(rawArgs: string[]): NodeJS.ProcessEnv {
     ...(designatedRequirement
       ? { [HELPER_DESIGNATED_REQUIREMENT_ENV]: designatedRequirement }
       : {}),
+    ...confirmationEnv(rawArgs),
   };
+}
+
+function confirmationEnv(rawArgs: string[]): NodeJS.ProcessEnv {
+  return {
+    ...(hasFlag(rawArgs, "--confirm-packaging-entitlements")
+      ? { [HELPER_PACKAGING_ENTITLEMENTS_READY_ENV]: "true" }
+      : {}),
+    ...(hasFlag(rawArgs, "--confirm-privileged-helper-executable")
+      ? { [HELPER_PRIVILEGED_EXECUTABLE_READY_ENV]: "true" }
+      : {}),
+    ...(hasFlag(rawArgs, "--confirm-helper-xpc-enumerate-bridge")
+      ? { [HELPER_XPC_ENUMERATE_BRIDGE_READY_ENV]: "true" }
+      : {}),
+    ...(hasFlag(rawArgs, "--confirm-fda-validation-matrix")
+      ? { [HELPER_FDA_VALIDATION_MATRIX_READY_ENV]: "true" }
+      : {}),
+  };
+}
+
+function hasFlag(rawArgs: string[], name: string): boolean {
+  return rawArgs.includes(name);
 }
 
 function resolvePlatform(rawArgs: string[]): NodeJS.Platform {

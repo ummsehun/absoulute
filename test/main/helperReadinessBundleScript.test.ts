@@ -114,6 +114,44 @@ describe("audit-helper-readiness-bundle script", () => {
     }
   });
 
+  it("uses explicit artifact confirmation flags", () => {
+    const result = spawnSync(
+      "bun",
+      [
+        "run",
+        "scripts/audit-helper-readiness-bundle.ts",
+        "--project-root",
+        process.cwd(),
+        "--platform",
+        "darwin",
+        "--resources-path",
+        "resources",
+        "--confirm-packaging-entitlements",
+        "--confirm-privileged-helper-executable",
+        "--confirm-helper-xpc-enumerate-bridge",
+        "--confirm-fda-validation-matrix",
+      ],
+      {
+        cwd: process.cwd(),
+        env: process.env,
+        encoding: "utf8",
+      },
+    );
+
+    expect(result.status).toBe(1);
+    const bundle = JSON.parse(result.stdout);
+    expect(bundle.canEnableHelperByDefault).toBe(false);
+    expect(bundle.blockers).not.toContain("packaging-entitlements-missing");
+    expect(bundle.blockers).not.toContain("privileged-helper-executable-missing");
+    expect(bundle.blockers).not.toContain("helper-xpc-enumerate-bridge-missing");
+    expect(bundle.preflight.confirmations).toMatchObject({
+      fdaValidationMatrix: true,
+      helperXpcEnumerateBridge: true,
+      packagingEntitlements: true,
+      privilegedHelperExecutable: true,
+    });
+  });
+
   it("uses the shared output path error when --out is missing", () => {
     const result = spawnSync(
       "bun",

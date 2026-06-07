@@ -1,4 +1,10 @@
 import { buildHelperReadinessBundle } from "../src/main/services/helper/helperReadinessBundle";
+import {
+  HELPER_FDA_VALIDATION_MATRIX_READY_ENV,
+  HELPER_PACKAGING_ENTITLEMENTS_READY_ENV,
+  HELPER_PRIVILEGED_EXECUTABLE_READY_ENV,
+  HELPER_XPC_ENUMERATE_BRIDGE_READY_ENV,
+} from "../src/main/services/helper/helperRegistration";
 import { HELPER_SERVICE_MANAGEMENT_PROBE_BIN_ENV } from "../src/main/services/helper/macosServiceManagementProbe";
 import {
   resolveAuditOutputPath,
@@ -26,9 +32,32 @@ if (bundle.status !== "ready") {
 
 function buildAuditEnv(rawArgs: string[]): NodeJS.ProcessEnv {
   const probeBin = resolveOptionalArg(rawArgs, "--probe-bin");
-  return probeBin
-    ? { ...process.env, [HELPER_SERVICE_MANAGEMENT_PROBE_BIN_ENV]: probeBin }
-    : process.env;
+  return {
+    ...process.env,
+    ...(probeBin ? { [HELPER_SERVICE_MANAGEMENT_PROBE_BIN_ENV]: probeBin } : {}),
+    ...confirmationEnv(rawArgs),
+  };
+}
+
+function confirmationEnv(rawArgs: string[]): NodeJS.ProcessEnv {
+  return {
+    ...(hasFlag(rawArgs, "--confirm-packaging-entitlements")
+      ? { [HELPER_PACKAGING_ENTITLEMENTS_READY_ENV]: "true" }
+      : {}),
+    ...(hasFlag(rawArgs, "--confirm-privileged-helper-executable")
+      ? { [HELPER_PRIVILEGED_EXECUTABLE_READY_ENV]: "true" }
+      : {}),
+    ...(hasFlag(rawArgs, "--confirm-helper-xpc-enumerate-bridge")
+      ? { [HELPER_XPC_ENUMERATE_BRIDGE_READY_ENV]: "true" }
+      : {}),
+    ...(hasFlag(rawArgs, "--confirm-fda-validation-matrix")
+      ? { [HELPER_FDA_VALIDATION_MATRIX_READY_ENV]: "true" }
+      : {}),
+  };
+}
+
+function hasFlag(rawArgs: string[], name: string): boolean {
+  return rawArgs.includes(name);
 }
 
 function resolvePlatform(rawArgs: string[]): NodeJS.Platform {
