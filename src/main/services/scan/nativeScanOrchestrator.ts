@@ -149,9 +149,14 @@ export class NativeScanOrchestrator {
         plannedRoots: volumePlan.plannedRoots,
       },
     });
-    const helperStatus = await this.resolveHelperStatus();
+    const platform = os.platform();
+    const helperStatus = await this.resolveHelperStatus({
+      options: context.options,
+      platform,
+      stage: input.mode,
+    });
     const helperPlan = resolveNativeHelperScanPlan({
-      platform: os.platform(),
+      platform,
       stage: input.mode,
       options: context.options,
       helperStatus,
@@ -441,9 +446,15 @@ export class NativeScanOrchestrator {
     return created;
   }
 
-  private async resolveHelperStatus(): Promise<HelperClientStatus> {
+  private async resolveHelperStatus(input: {
+    options: Pick<ResolvedScanOptions, "accuracyMode" | "deepPolicyPreset">;
+    platform: NodeJS.Platform;
+    stage: NativeScanPhaseMode;
+  }): Promise<HelperClientStatus> {
     try {
-      return await this.helperClient.getStatus();
+      return shouldProbeHelperHealthForStage(input)
+        ? await this.helperClient.healthCheck()
+        : await this.helperClient.getStatus();
     } catch (error) {
       return {
         available: false,
@@ -614,6 +625,17 @@ export function resolveNativeVolumePlan(
     sameDeviceOnly: true,
     plannedRoots: [rootPath],
   };
+}
+
+function shouldProbeHelperHealthForStage(input: {
+  options: Pick<ResolvedScanOptions, "accuracyMode" | "deepPolicyPreset">;
+  platform: NodeJS.Platform;
+  stage: NativeScanPhaseMode;
+}): boolean {
+  return input.platform === "darwin"
+    && input.stage === "deep"
+    && input.options.accuracyMode === "full"
+    && input.options.deepPolicyPreset === "exact";
 }
 
 function normalizePlanRoot(rootPath: string): string {

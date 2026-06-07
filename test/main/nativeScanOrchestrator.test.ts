@@ -4,7 +4,10 @@ import os from "node:os";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { HelperClient } from "../../src/main/services/helper/helperClient";
+import type {
+  HelperClient,
+  HelperClientStatus,
+} from "../../src/main/services/helper/helperClient";
 import {
   NativeScanOrchestrator,
   SCAN_HELPER_PROTOTYPE_ENUMERATE_ENV,
@@ -253,6 +256,248 @@ describe("nativeScanOrchestrator", () => {
     ]);
   });
 
+  it("uses helper health check evidence before planning exact deep scans", async () => {
+    vi.spyOn(os, "platform").mockReturnValue("darwin");
+    const calls: string[] = [];
+    const helperInputs: unknown[] = [];
+    const helperClient: HelperClient = {
+      getStatus: async () => {
+        calls.push("getStatus");
+        return { available: false, transport: "xpc" };
+      },
+      getVersion: async () => "test-helper",
+      healthCheck: async () => {
+        calls.push("healthCheck");
+        return { available: true, transport: "xpc" };
+      },
+      register: async () => ({ available: false, transport: "xpc" }),
+      unregister: async () => ({ available: false, transport: "xpc" }),
+      enumerate: async (input, handlers) => {
+        helperInputs.push(input);
+        handlers.onEvent({
+          type: "done",
+          requestId: input.requestId ?? "missing-request-id",
+          elapsedMs: 1,
+          estimated: false,
+        });
+      },
+    };
+    const orchestrator = new NativeScanOrchestrator(helperClient);
+    const handlers = createRecordingHandlers();
+
+    const result = await orchestrator.runStage(
+      {
+        scanId: "scan-1",
+        rootPath: "/Users/tester",
+        permissionDeniedRoots: [],
+        paused: false,
+        cancelled: false,
+        options: resolveScanOptions(
+          {
+            rootPath: "/Users/tester",
+            optInProtected: false,
+            accuracyMode: "full",
+          },
+          "/Users/tester",
+        ),
+      },
+      {
+        mode: "deep",
+        maxDepth: 128,
+        timeBudgetMs: 0,
+      },
+      handlers,
+    );
+
+    expect(result).toEqual({ estimated: false });
+    expect(calls).toEqual(["healthCheck"]);
+    expect(helperInputs).toHaveLength(1);
+    expect(handlers.helperPlans).toEqual([
+      {
+        engine: "helper",
+        transport: "xpc",
+      },
+    ]);
+  });
+
+  it("does not probe helper health for scan stages that cannot use the helper", async () => {
+    const cases = [
+      {
+        name: "quick exact macOS",
+        platform: "darwin" as NodeJS.Platform,
+        stage: "quick" as const,
+        options: resolveScanOptions(
+          {
+            rootPath: "/Users/tester",
+            optInProtected: false,
+            accuracyMode: "full",
+          },
+          "/Users/tester",
+        ),
+      },
+      {
+        name: "preview deep macOS",
+        platform: "darwin" as NodeJS.Platform,
+        stage: "deep" as const,
+        options: resolveScanOptions(
+          {
+            rootPath: "/Users/tester",
+            optInProtected: false,
+            accuracyMode: "preview",
+          },
+          "/Users/tester",
+        ),
+      },
+      {
+        name: "exact deep non-macOS",
+        platform: "linux" as NodeJS.Platform,
+        stage: "deep" as const,
+        options: resolveScanOptions(
+          {
+            rootPath: "/Users/tester",
+            optInProtected: false,
+            accuracyMode: "full",
+          },
+          "/Users/tester",
+        ),
+      },
+    ];
+
+    for (const testCase of cases) {
+      vi.spyOn(os, "platform").mockReturnValue(testCase.platform);
+      const calls: string[] = [];
+      const nativeInputs: unknown[] = [];
+      const helperClient: HelperClient = {
+        getStatus: async () => {
+          calls.push("getStatus");
+          return { available: true, transport: "xpc" };
+        },
+        getVersion: async () => "test-helper",
+        healthCheck: async () => {
+          calls.push("healthCheck");
+          return { available: true, transport: "xpc" };
+        },
+        register: async () => ({ available: false, transport: "xpc" }),
+        unregister: async () => ({ available: false, transport: "xpc" }),
+        enumerate: async () => {
+          throw new Error(`helper should not be selected for ${testCase.name}`);
+        },
+      };
+      const orchestrator = new NativeScanOrchestrator(helperClient, {
+        createNativeSession: () => ({
+          binaryPath: "test-native-scanner",
+          dispose: () => undefined,
+          pid: 1,
+          sendControl: () => undefined,
+          waitForExit: async () => undefined,
+          runStage: async (input, nativeHandlers) => {
+            nativeInputs.push(input);
+            nativeHandlers.onMessage({
+              type: "done",
+              elapsedMs: 1,
+              estimated: false,
+            });
+          },
+        }),
+      });
+
+      await orchestrator.runStage(
+        {
+          scanId: `scan-${testCase.name}`,
+          rootPath: "/Users/tester",
+          permissionDeniedRoots: [],
+          paused: false,
+          cancelled: false,
+          options: testCase.options,
+        },
+        {
+          mode: testCase.stage,
+          maxDepth: 128,
+          timeBudgetMs: 0,
+        },
+        createRecordingHandlers(),
+      );
+
+      expect(calls, testCase.name).toEqual(["getStatus"]);
+      expect(nativeInputs, testCase.name).toHaveLength(1);
+      vi.restoreAllMocks();
+    }
+  });
+
+  it("falls back to native planning when helper health check fails", async () => {
+    vi.spyOn(os, "platform").mockReturnValue("darwin");
+    const calls: string[] = [];
+    const nativeInputs: unknown[] = [];
+    const helperClient: HelperClient = {
+      getStatus: async () => {
+        calls.push("getStatus");
+        return { available: true, transport: "xpc" };
+      },
+      getVersion: async () => "test-helper",
+      healthCheck: async () => {
+        calls.push("healthCheck");
+        throw new Error("health failed");
+      },
+      register: async () => ({ available: false, transport: "xpc" }),
+      unregister: async () => ({ available: false, transport: "xpc" }),
+      enumerate: async () => {
+        throw new Error("helper should not be selected");
+      },
+    };
+    const handlers = createRecordingHandlers();
+    const orchestrator = new NativeScanOrchestrator(helperClient, {
+      createNativeSession: () => ({
+        binaryPath: "test-native-scanner",
+        dispose: () => undefined,
+        pid: 1,
+        sendControl: () => undefined,
+        waitForExit: async () => undefined,
+        runStage: async (input, nativeHandlers) => {
+          nativeInputs.push(input);
+          nativeHandlers.onMessage({
+            type: "done",
+            elapsedMs: 1,
+            estimated: false,
+          });
+        },
+      }),
+    });
+
+    await orchestrator.runStage(
+      {
+        scanId: "scan-health-failed",
+        rootPath: "/Users/tester",
+        permissionDeniedRoots: [],
+        paused: false,
+        cancelled: false,
+        options: resolveScanOptions(
+          {
+            rootPath: "/Users/tester",
+            optInProtected: false,
+            accuracyMode: "full",
+          },
+          "/Users/tester",
+        ),
+      },
+      {
+        mode: "deep",
+        maxDepth: 128,
+        timeBudgetMs: 0,
+      },
+      handlers,
+    );
+
+    expect(calls).toEqual(["healthCheck"]);
+    expect(nativeInputs).toHaveLength(1);
+    expect(handlers.helperPlans).toEqual([
+      {
+        engine: "native",
+        fallbackReason: "helper-unavailable",
+        transport: "disabled",
+      },
+    ]);
+  });
+
   it("falls back to native scanning when the selected helper enumerate stage fails", async () => {
     vi.spyOn(os, "platform").mockReturnValue("darwin");
     const helperInputs: unknown[] = [];
@@ -332,32 +577,33 @@ describe("nativeScanOrchestrator", () => {
   it("preserves helper registration blockers in helper plan diagnostics", async () => {
     vi.spyOn(os, "platform").mockReturnValue("darwin");
     const nativeInputs: unknown[] = [];
-    const helperClient: HelperClient = {
-      getStatus: async () => ({
-        available: false,
-        reason: "registration-preflight-blocked:team-id-missing",
-        transport: "xpc",
-        registrationPreflight: {
-          status: "blocked",
-          blockers: [
-            "team-id-missing",
-            "helper-xpc-enumerate-bridge-missing",
-          ],
-          contract: {
-            appBundleIdentifier: "com.example.diskvisualizer",
-            helperExecutableBundleRelativePath:
-              "Contents/Library/LaunchServices/com.example.diskvisualizer.privileged-helper",
-            helperLabel: "com.example.diskvisualizer.privileged-helper",
-            launchDaemonBundleRelativePath:
-              "Contents/Library/LaunchDaemons/com.example.diskvisualizer.privileged-helper.plist",
-            launchDaemonPlistName:
-              "com.example.diskvisualizer.privileged-helper.plist",
-            serviceManagementModel: "smappservice-daemon",
-          },
+    const blockedStatus: HelperClientStatus = {
+      available: false,
+      reason: "registration-preflight-blocked:team-id-missing",
+      transport: "xpc",
+      registrationPreflight: {
+        status: "blocked",
+        blockers: [
+          "team-id-missing",
+          "helper-xpc-enumerate-bridge-missing",
+        ],
+        contract: {
+          appBundleIdentifier: "com.example.diskvisualizer",
+          helperExecutableBundleRelativePath:
+            "Contents/Library/LaunchServices/com.example.diskvisualizer.privileged-helper",
+          helperLabel: "com.example.diskvisualizer.privileged-helper",
+          launchDaemonBundleRelativePath:
+            "Contents/Library/LaunchDaemons/com.example.diskvisualizer.privileged-helper.plist",
+          launchDaemonPlistName:
+            "com.example.diskvisualizer.privileged-helper.plist",
+          serviceManagementModel: "smappservice-daemon",
         },
-      }),
+      },
+    };
+    const helperClient: HelperClient = {
+      getStatus: async () => blockedStatus,
       getVersion: async () => "test-helper",
-      healthCheck: async () => ({ available: false, transport: "xpc" }),
+      healthCheck: async () => blockedStatus,
       register: async () => ({ available: false, transport: "xpc" }),
       unregister: async () => ({ available: false, transport: "xpc" }),
       enumerate: async () => {
@@ -821,39 +1067,40 @@ describe("nativeScanOrchestrator", () => {
     );
     process.env.SCAN_LOG_DIR = logDir;
     const helperInputs: unknown[] = [];
+    const readyStatus: HelperClientStatus = {
+      available: true,
+      lifecycle: {
+        state: "ready",
+        reason: "ready",
+        checks: {
+          "service-management": "pass",
+          "helper-install": "pass",
+          "caller-identity": "pass",
+          "full-disk-access": "unknown",
+          "xpc-channel": "pass",
+        },
+      },
+      registrationPreflight: {
+        contract: {
+          appBundleIdentifier: "com.example.diskvisualizer",
+          helperLabel: "com.example.diskvisualizer.privileged-helper",
+          helperExecutableBundleRelativePath:
+            "Contents/Library/LaunchServices/com.example.diskvisualizer.privileged-helper",
+          launchDaemonPlistName:
+            "com.example.diskvisualizer.privileged-helper.plist",
+          launchDaemonBundleRelativePath:
+            "Contents/Library/LaunchDaemons/com.example.diskvisualizer.privileged-helper.plist",
+          serviceManagementModel: "smappservice-daemon",
+        },
+        status: "ready",
+        blockers: [],
+      },
+      transport: "xpc",
+    };
     const helperClient: HelperClient = {
-      getStatus: async () => ({
-        available: true,
-        lifecycle: {
-          state: "ready",
-          reason: "ready",
-          checks: {
-            "service-management": "pass",
-            "helper-install": "pass",
-            "caller-identity": "pass",
-            "full-disk-access": "unknown",
-            "xpc-channel": "pass",
-          },
-        },
-        registrationPreflight: {
-          contract: {
-            appBundleIdentifier: "com.example.diskvisualizer",
-            helperLabel: "com.example.diskvisualizer.privileged-helper",
-            helperExecutableBundleRelativePath:
-              "Contents/Library/LaunchServices/com.example.diskvisualizer.privileged-helper",
-            launchDaemonPlistName:
-              "com.example.diskvisualizer.privileged-helper.plist",
-            launchDaemonBundleRelativePath:
-              "Contents/Library/LaunchDaemons/com.example.diskvisualizer.privileged-helper.plist",
-            serviceManagementModel: "smappservice-daemon",
-          },
-          status: "ready",
-          blockers: [],
-        },
-        transport: "xpc",
-      }),
+      getStatus: async () => readyStatus,
       getVersion: async () => "test-helper",
-      healthCheck: async () => ({ available: true, transport: "xpc" }),
+      healthCheck: async () => readyStatus,
       register: async () => ({ available: false, transport: "xpc" }),
       unregister: async () => ({ available: false, transport: "xpc" }),
       enumerate: async (input, handlers) => {

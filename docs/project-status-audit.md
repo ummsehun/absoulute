@@ -1881,6 +1881,56 @@ Cold assessment:
 - It still keeps the helper disabled by default in the current repo.
 - It does not make helper readiness pass.
 
+## Phase B31 Helper Health Planning
+
+Facts:
+
+- Phase B31 is scoped in
+  `docs/superpowers/plans/2026-06-08-phase-b31-helper-health-planning.md`.
+- `src/main/services/scan/nativeScanOrchestrator.ts` now probes helper
+  `healthCheck()` before planning only for exact deep macOS scan stages.
+- Quick, preview, responsive, and non-macOS scans still avoid helper selection
+  through the existing planner gates.
+- Planning now uses one captured platform value for both helper health probing
+  and helper plan resolution.
+- The helper planner rules did not change.
+- Registration preflight blockers still force native fallback.
+- Current repo helper readiness remains blocked.
+- Helper-backed production scans remain blocked on external production evidence.
+
+Verification commands run for this Phase B31 slice:
+
+- `pnpm test test/main/nativeScanOrchestrator.test.ts` passed after
+  implementation and review feedback: 1 file, 19 tests.
+- `pnpm test test/main/nativeScanOrchestrator.test.ts
+  test/main/helperClient.test.ts test/main/helperScanPlanner.test.ts` passed:
+  3 files, 64 tests.
+- `pnpm test` passed: 52 files, 249 tests.
+- `pnpm typecheck` passed.
+- `pnpm lint` passed.
+- `pnpm build` passed.
+- `cargo test --manifest-path native/scanner/Cargo.toml` passed. Existing Rust
+  dead-code warnings remain.
+- `pnpm audit:helper-readiness-bundle` printed `status: "blocked"`,
+  `canEnableHelperByDefault: false`, all component statuses blocked, and exited
+  1 as intended.
+- `pnpm audit:helper-readiness` printed `status: "blocked"`,
+  `canEnableHelperByDefault: false`, and exited 1 as intended.
+
+External blockers still missing:
+
+- Production Team ID and designated requirement evidence.
+- Listener requirement metadata generated from the production Team ID.
+- Installed privileged helper ServiceManagement registration evidence.
+- Full FDA validation matrix on the target macOS version.
+- Production signing, packaging, and notarization evidence.
+
+Cold assessment:
+
+- This mini phase connects B29 health-based availability to real scan planning.
+- It still keeps helper-backed production scans blocked in the current repo.
+- It does not make helper readiness pass.
+
 ## Findings
 
 ### P1: Privileged Helper Is Still Blocked by Real Identity and FDA Evidence
