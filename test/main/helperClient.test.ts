@@ -576,6 +576,47 @@ describe("helperClient", () => {
     expect(runCount).toBe(1);
   });
 
+  it("rejects non-enumerate helper requests before invoking the command transport", async () => {
+    const requests = [
+      {
+        request: buildHelperHealthCheckRequest({
+          scanId: "scan-1",
+          stageId: "control",
+          issuedAtMs: 1_765_000_000_000,
+          nonce: "0123456789abcdef",
+          requestId: "health-request-1",
+        }),
+        reason: "helper-enumerate-unsupported-operation:health.check",
+      },
+      {
+        request: buildHelperVersionGetRequest({
+          scanId: "scan-1",
+          stageId: "control",
+          issuedAtMs: 1_765_000_000_001,
+          nonce: "abcdef0123456789",
+          requestId: "version-request-1",
+        }),
+        reason: "helper-enumerate-unsupported-operation:version.get",
+      },
+    ];
+
+    for (const { request, reason } of requests) {
+      let runCalled = false;
+      const enumerator = new CommandMacOsHelperEnumerator({
+        commandPath: "/test/helper-enumerate-macos",
+        run: async () => {
+          runCalled = true;
+          return { exitCode: 0, stderr: "" };
+        },
+      });
+
+      await expect(
+        enumerator.enumerate(request, { onEvent: () => undefined }),
+      ).rejects.toThrow(reason);
+      expect(runCalled).toBe(false);
+    }
+  });
+
   it("rejects helper enumerate events with a mismatched request id", async () => {
     const events: unknown[] = [];
     const enumerator = new CommandMacOsHelperEnumerator({

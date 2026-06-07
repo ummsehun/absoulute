@@ -571,6 +571,49 @@ Cold assessment:
 - It does not implement real XPC health/version transport calls.
 - It does not enable helper-backed scan execution by default.
 
+## Phase B7 Helper Enumerate Operation Allowlist
+
+Facts:
+
+- Phase B7 is scoped in
+  `docs/superpowers/plans/2026-06-08-phase-b7-helper-enumerate-operation-allowlist.md`.
+- `CommandMacOsHelperEnumerator.enumerate()` now rejects helper request
+  envelopes whose operation is not `scan.enumerate` before replay registration
+  or runner dispatch.
+- Non-enumerate envelopes fail with
+  `helper-enumerate-unsupported-operation:<operation>`.
+- The existing replay guard and request-id event binding remain in place.
+- The helper remains disabled by default.
+
+Verification commands run for this Phase B7 slice:
+
+- `pnpm test test/main/helperClient.test.ts`: passed, 24 tests.
+- `pnpm test`: passed, 45 files, 191 tests.
+- `pnpm typecheck`: passed.
+- `pnpm lint`: passed.
+- `pnpm build`: passed.
+- `cargo test --manifest-path native/scanner/Cargo.toml`: passed, 8 tests,
+  with the existing 6 Rust dead-code warnings.
+- `pnpm audit:helper-readiness`: reported `status: "blocked"`,
+  `canEnableHelperByDefault: false`, and local
+  `serviceManagementStatus: "not-implemented"`.
+
+External blockers still missing:
+
+- Production XPC peer identity validation.
+- Real ServiceManagement registration evidence from a packaged app/helper.
+- Real Team ID and designated requirement.
+- Real listener requirement metadata generated from that Team ID.
+- Full FDA validation matrix on the target macOS version.
+- Production signing, packaging, and notarization evidence.
+
+Cold assessment:
+
+- This mini phase hardens the main-process enumerate adapter operation
+  allowlist before helper-backed scan execution expands.
+- It does not implement real XPC health/version transport calls.
+- It does not enable helper-backed scan execution by default.
+
 ## Findings
 
 ### P1: Privileged Helper Is Still Blocked by Real Identity and FDA Evidence

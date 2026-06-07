@@ -57,6 +57,10 @@ export class CommandMacOsHelperEnumerator implements MacOsHelperEnumerator {
     request: HelperRequestEnvelope,
     handlers: HelperTransportHandlers,
   ): Promise<void> {
+    if (request.operation !== "scan.enumerate") {
+      throw new Error(`helper-enumerate-unsupported-operation:${request.operation}`);
+    }
+
     const replayKey = buildReplayKey(request);
     if (this.replayedRequestKeys.has(replayKey)) {
       throw new Error("helper-enumerate-replayed-request");
