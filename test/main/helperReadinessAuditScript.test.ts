@@ -5,6 +5,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { DISK_SCAN_HELPER_REQUIREMENT_METADATA_SOURCE_RELATIVE_PATH } from "../../src/main/services/helper/helperRegistration";
 
 describe("audit-helper-readiness script", () => {
   const itOnDarwin = process.platform === "darwin" ? it : it.skip;
@@ -132,6 +133,157 @@ describe("audit-helper-readiness script", () => {
     } finally {
       fs.rmSync(resourcesRoot, { force: true, recursive: true });
     }
+  });
+
+  it("uses explicit project root and identity options", () => {
+    const projectRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "diskviz-helper-readiness-identity-root-"),
+    );
+    const metadataPath = path.join(
+      projectRoot,
+      DISK_SCAN_HELPER_REQUIREMENT_METADATA_SOURCE_RELATIVE_PATH,
+    );
+    const probePath = path.join(projectRoot, "sm-probe");
+    const requirement =
+      'identifier "com.example.diskvisualizer" and anchor apple generic and certificate leaf[subject.OU] = "ABCDE12345"';
+
+    try {
+      fs.mkdirSync(path.dirname(metadataPath), { recursive: true });
+      fs.writeFileSync(
+        metadataPath,
+        JSON.stringify({
+          ready: true,
+          requirement,
+          teamId: "ABCDE12345",
+        }),
+      );
+      fs.writeFileSync(
+        probePath,
+        "#!/bin/sh\nprintf '%s\\n' '{\"state\":\"registered\",\"reason\":\"enabled\"}'\n",
+      );
+      fs.chmodSync(probePath, 0o755);
+
+      const result = spawnSync(
+        "bun",
+        [
+          "run",
+          "scripts/audit-helper-readiness.ts",
+          "--project-root",
+          projectRoot,
+          "--team-id",
+          "ABCDE12345",
+          "--designated-requirement",
+          requirement,
+          "--platform",
+          "darwin",
+          "--probe-bin",
+          probePath,
+        ],
+        {
+          cwd: process.cwd(),
+          env: {
+            ...process.env,
+            SCAN_HELPER_PACKAGING_ENTITLEMENTS_READY: "true",
+            SCAN_HELPER_PRIVILEGED_EXECUTABLE_READY: "true",
+            SCAN_HELPER_XPC_ENUMERATE_BRIDGE_READY: "true",
+          },
+          encoding: "utf8",
+        },
+      );
+
+      expect(result.status).toBe(1);
+      const report = JSON.parse(result.stdout);
+      expect(report.serviceManagementStatus).toBe("registered");
+      expect(report.evidence).toContainEqual(expect.objectContaining({
+        key: "service-management",
+        reason: "registered",
+        status: "pass",
+      }));
+      expect(report.blockers).not.toContain("team-id-missing");
+      expect(report.blockers).not.toContain("designated-requirement-missing");
+      expect(report.blockers).not.toContain(
+        "privileged-helper-listener-requirement-missing",
+      );
+      expect(report.blockers).toEqual([
+        "fda-validation-matrix-missing",
+        "helper-xpc-enumerate-bridge-missing",
+        "packaging-entitlements-missing",
+        "privileged-helper-executable-missing",
+      ]);
+      expect(report.canEnableHelperByDefault).toBe(false);
+    } finally {
+      fs.rmSync(projectRoot, { force: true, recursive: true });
+    }
+  });
+
+  it("fails explicitly when project root is missing", () => {
+    const result = spawnSync(
+      "bun",
+      ["run", "scripts/audit-helper-readiness.ts", "--project-root"],
+      {
+        cwd: process.cwd(),
+        env: process.env,
+        encoding: "utf8",
+      },
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("missing value for --project-root");
+  });
+
+  it("fails explicitly when project root is followed by another option", () => {
+    const result = spawnSync(
+      "bun",
+      [
+        "run",
+        "scripts/audit-helper-readiness.ts",
+        "--project-root",
+        "--team-id",
+      ],
+      {
+        cwd: process.cwd(),
+        env: process.env,
+        encoding: "utf8",
+      },
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("missing value for --project-root");
+  });
+
+  it("fails explicitly when team id is missing", () => {
+    const result = spawnSync(
+      "bun",
+      ["run", "scripts/audit-helper-readiness.ts", "--team-id"],
+      {
+        cwd: process.cwd(),
+        env: process.env,
+        encoding: "utf8",
+      },
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("missing value for --team-id");
+  });
+
+  it("fails explicitly when designated requirement is followed by another option", () => {
+    const result = spawnSync(
+      "bun",
+      [
+        "run",
+        "scripts/audit-helper-readiness.ts",
+        "--designated-requirement",
+        "--platform",
+      ],
+      {
+        cwd: process.cwd(),
+        env: process.env,
+        encoding: "utf8",
+      },
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("missing value for --designated-requirement");
   });
 
   itOnDarwin("uses the ServiceManagement probe state in the readiness report", () => {

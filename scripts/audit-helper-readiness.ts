@@ -1,6 +1,8 @@
 import { buildHelperReadinessReport } from "../src/main/services/helper/helperReadinessAudit";
 import { buildHelperPreflightAudit } from "../src/main/services/helper/helperPreflightAudit";
 import {
+  HELPER_DESIGNATED_REQUIREMENT_ENV,
+  HELPER_TEAM_ID_ENV,
   resolveHelperRegistrationPreflight,
   resolveHelperRegistrationPreflightInputFromEnv,
 } from "../src/main/services/helper/helperRegistration";
@@ -15,13 +17,15 @@ import {
 
 const rawArgs = process.argv.slice(2);
 const auditOutputPath = resolveAuditOutputPath(rawArgs);
-const env = buildAuditEnv(rawArgs);
-const platform = resolvePlatform(rawArgs);
+const projectRoot = resolveOptionalArg(rawArgs, "--project-root")
+  ?? process.cwd();
 const resourcesPath = resolveOptionalArg(rawArgs, "--resources-path")
   ?? (typeof process.resourcesPath === "string" ? process.resourcesPath : null);
-const preflight = buildHelperPreflightAudit({ env });
+const env = buildAuditEnv(rawArgs);
+const platform = resolvePlatform(rawArgs);
+const preflight = buildHelperPreflightAudit({ env, projectRoot });
 const registrationPreflight = resolveHelperRegistrationPreflight(
-  resolveHelperRegistrationPreflightInputFromEnv(env),
+  resolveHelperRegistrationPreflightInputFromEnv(env, projectRoot),
 );
 const serviceManagementStatus = await resolveServiceManagementStatus();
 const report = buildHelperReadinessReport({
@@ -65,9 +69,20 @@ async function resolveServiceManagementStatus(): Promise<
 
 function buildAuditEnv(rawArgs: string[]): NodeJS.ProcessEnv {
   const probeBin = resolveOptionalArg(rawArgs, "--probe-bin");
-  return probeBin
-    ? { ...process.env, [HELPER_SERVICE_MANAGEMENT_PROBE_BIN_ENV]: probeBin }
-    : process.env;
+  const teamId = resolveOptionalArg(rawArgs, "--team-id");
+  const designatedRequirement = resolveOptionalArg(
+    rawArgs,
+    "--designated-requirement",
+  );
+
+  return {
+    ...process.env,
+    ...(probeBin ? { [HELPER_SERVICE_MANAGEMENT_PROBE_BIN_ENV]: probeBin } : {}),
+    ...(teamId ? { [HELPER_TEAM_ID_ENV]: teamId } : {}),
+    ...(designatedRequirement
+      ? { [HELPER_DESIGNATED_REQUIREMENT_ENV]: designatedRequirement }
+      : {}),
+  };
 }
 
 function resolvePlatform(rawArgs: string[]): NodeJS.Platform {
@@ -84,7 +99,7 @@ function resolveOptionalArg(
   }
 
   const value = rawArgs[index + 1]?.trim();
-  if (!value) {
+  if (!value || value.startsWith("--")) {
     throw new Error(`missing value for ${name}`);
   }
 

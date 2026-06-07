@@ -2406,6 +2406,8 @@ Verification so far:
   dead-code warnings remain.
 - `pnpm audit:helper-readiness --platform darwin --resources-path resources`
   and `pnpm audit:helper-readiness-bundle` remain intentionally blocked.
+- Sub-agent review reported no Critical, Important, or Minor findings. The
+  review was static and did not rerun tests.
 
 Interpretation:
 
@@ -2646,3 +2648,49 @@ Interpretation:
   passed, instead of only reporting ServiceManagement success.
 - It does not remove the current external blockers or enable default helper
   scanning.
+
+## Phase B46 Readiness CLI Identity Root Options
+
+Date: 2026-06-08
+
+Facts:
+
+- `audit-helper-readiness` now accepts `--project-root <path>`.
+- `audit-helper-readiness` now accepts `--team-id <team-id>` and
+  `--designated-requirement <requirement>`.
+- Explicit identity options are overlaid into the audit environment for that
+  script invocation only.
+- The explicit project root is used for preflight evidence and registration
+  input resolution.
+- `--project-root`, `--team-id`, and `--designated-requirement` reject missing
+  or option-looking values.
+- Readiness semantics, ServiceManagement probing semantics, and
+  `canEnableHelperByDefault: false` are unchanged.
+- Helper default activation remains disabled.
+
+Verification so far:
+
+- RED was confirmed before implementation:
+  - explicit identity/root options were ignored;
+  - `--project-root` missing values did not produce a missing-value error.
+- `pnpm test test/main/helperReadinessAuditScript.test.ts` passed, 1 file and
+  9 tests.
+- `pnpm test test/main/helperReadinessAuditScript.test.ts test/main/helperReadinessBundleScript.test.ts test/main/helperIdentityAuditScript.test.ts test/main/helperPreflightAuditScript.test.ts test/main/helperReadinessAudit.test.ts test/main/helperReadinessBundle.test.ts test/main/helperRegistration.test.ts`
+  passed, 7 files and 44 tests.
+- `pnpm test` passed, 55 files and 289 tests.
+- `pnpm typecheck` passed.
+- `pnpm lint` passed.
+- `pnpm build` passed.
+- `cargo test --manifest-path native/scanner/Cargo.toml` passed. Existing Rust
+  dead-code warnings remain.
+- `pnpm audit:helper-readiness --platform darwin --resources-path resources`
+  and `pnpm audit:helper-readiness-bundle` remain intentionally blocked.
+- Sub-agent review reported no Critical, Important, or Minor findings. The
+  review was static and did not rerun tests.
+
+Interpretation:
+
+- This phase lets the single readiness audit CLI rehearse production identity
+  and metadata evidence in isolated roots, matching the readiness bundle path.
+- It does not remove current FDA, artifact approval, or ServiceManagement
+  blockers, and it does not enable default helper scanning.
