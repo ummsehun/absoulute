@@ -335,6 +335,7 @@ describe("nativeScanOrchestrator", () => {
       path.join(process.cwd(), ".tmp-tests", "helper-error-fallback-log-"),
     );
     process.env.SCAN_LOG_DIR = logDir;
+    const helperInputs: unknown[] = [];
     const nativeInputs: unknown[] = [];
     const helperClient: HelperClient = {
       getStatus: async () => ({ available: true, transport: "xpc" }),
@@ -342,10 +343,12 @@ describe("nativeScanOrchestrator", () => {
       healthCheck: async () => ({ available: true, transport: "xpc" }),
       register: async () => ({ available: false, transport: "xpc" }),
       unregister: async () => ({ available: false, transport: "xpc" }),
-      enumerate: async (_input, handlers) => {
+      enumerate: async (input, handlers) => {
+        helperInputs.push(input);
+        const requestId = input.requestId ?? "missing-request-id";
         handlers.onEvent({
           type: "entry_batch",
-          requestId: "request-1",
+          requestId,
           items: [
             {
               path: "/Users/tester/broken.dat",
@@ -358,41 +361,41 @@ describe("nativeScanOrchestrator", () => {
         });
         handlers.onEvent({
           type: "warn",
-          requestId: "request-1",
+          requestId,
           code: "E_HELPER_PERMISSION",
           path: "/Users/tester/Private",
           message: "permission denied",
         });
         handlers.onEvent({
           type: "warn",
-          requestId: "request-1",
+          requestId,
           code: "E_TCC_PERMISSION",
           path: "/Users/tester/Library/Messages",
           message: "TCC denied",
         });
         handlers.onEvent({
           type: "warn",
-          requestId: "request-1",
+          requestId,
           code: "E_IO",
           path: "/Users/tester/Broken",
           message: "IO failed",
         });
         handlers.onEvent({
           type: "warn",
-          requestId: "request-1",
+          requestId,
           code: "E_SCOPE",
           path: "/Users/other",
           message: "scope rejected",
         });
         handlers.onEvent({
           type: "warn",
-          requestId: "request-1",
+          requestId,
           code: "E_CANCELLED",
           message: "cancelled",
         });
         handlers.onEvent({
           type: "error",
-          requestId: "request-1",
+          requestId,
           code: "E_INVALID_CLIENT",
           message: "Rejected caller identity",
         });
@@ -501,14 +504,24 @@ describe("nativeScanOrchestrator", () => {
         reason: "helper-error:E_INVALID_CLIENT:Rejected caller identity",
         fallbackEngine: "native",
       });
+      expect(helperInputs).toHaveLength(1);
+      expect(helperInputs[0]).toMatchObject({
+        requestId: expect.any(String),
+        traversalPolicyPlanId: "scan-helper-error:deep:exact",
+      });
+      const helperRequest = helperInputs[0] as {
+        requestId: string;
+        traversalPolicyPlanId: string;
+      };
       expect(helperTerminal?.level).toBe("error");
       expect(helperTerminal?.details).toMatchObject({
         code: "E_INVALID_CLIENT",
         message: "Rejected caller identity",
         operation: "scan.enumerate",
-        requestId: "request-1",
+        requestId: helperRequest.requestId,
         rootPath: "/Users/tester",
         terminalStatus: "error",
+        traversalPolicyPlanId: helperRequest.traversalPolicyPlanId,
         volumePolicy: "same-device",
         entryCount: 1,
         permissionFailureCount: 1,
@@ -714,6 +727,7 @@ describe("nativeScanOrchestrator", () => {
       path.join(process.cwd(), ".tmp-tests", "helper-plan-log-"),
     );
     process.env.SCAN_LOG_DIR = logDir;
+    const helperInputs: unknown[] = [];
     const helperClient: HelperClient = {
       getStatus: async () => ({
         available: true,
@@ -749,15 +763,16 @@ describe("nativeScanOrchestrator", () => {
       healthCheck: async () => ({ available: true, transport: "xpc" }),
       register: async () => ({ available: false, transport: "xpc" }),
       unregister: async () => ({ available: false, transport: "xpc" }),
-      enumerate: async (_input, handlers) => {
+      enumerate: async (input, handlers) => {
+        helperInputs.push(input);
         handlers.onEvent({
           type: "ready",
-          requestId: "request-1",
+          requestId: input.requestId ?? "missing-request-id",
           helperVersion: "test-helper",
         });
         handlers.onEvent({
           type: "entry_batch",
-          requestId: "request-1",
+          requestId: input.requestId ?? "missing-request-id",
           items: [
             {
               path: "/Users/tester/file-a.txt",
@@ -777,7 +792,7 @@ describe("nativeScanOrchestrator", () => {
         });
         handlers.onEvent({
           type: "coverage",
-          requestId: "request-1",
+          requestId: input.requestId ?? "missing-request-id",
           scannedCount: 2,
           permissionFailures: 3,
           ioFailures: 4,
@@ -785,20 +800,20 @@ describe("nativeScanOrchestrator", () => {
         });
         handlers.onEvent({
           type: "warn",
-          requestId: "request-1",
+          requestId: input.requestId ?? "missing-request-id",
           code: "E_TCC_PERMISSION",
           path: "/Users/tester/Library/Messages",
           message: "TCC denied",
         });
         handlers.onEvent({
           type: "warn",
-          requestId: "request-1",
+          requestId: input.requestId ?? "missing-request-id",
           code: "E_CANCELLED",
           message: "cancelled",
         });
         handlers.onEvent({
           type: "done",
-          requestId: "request-1",
+          requestId: input.requestId ?? "missing-request-id",
           elapsedMs: 1,
           estimated: false,
         });
@@ -838,6 +853,9 @@ describe("nativeScanOrchestrator", () => {
       const helperPlan = entries.find(
         (entry) => entry.event === "native_helper_scan_plan",
       ) as { details?: Record<string, unknown> } | undefined;
+      const helperStart = entries.find(
+        (entry) => entry.event === "native_helper_scan_start",
+      ) as { details?: Record<string, unknown> } | undefined;
       const helperReady = entries.find(
         (entry) => entry.event === "native_helper_scan_ready",
       ) as { details?: Record<string, unknown> } | undefined;
@@ -871,20 +889,37 @@ describe("nativeScanOrchestrator", () => {
           },
         },
       });
+      expect(helperInputs).toHaveLength(1);
+      expect(helperInputs[0]).toMatchObject({
+        requestId: expect.any(String),
+        traversalPolicyPlanId: "scan-log-1:deep:exact",
+      });
+      const helperRequest = helperInputs[0] as {
+        requestId: string;
+        traversalPolicyPlanId: string;
+      };
+      expect(helperRequest.requestId.length).toBeGreaterThan(0);
+      expect(helperStart?.details).toMatchObject({
+        operation: "scan.enumerate",
+        requestId: helperRequest.requestId,
+        traversalPolicyPlanId: helperRequest.traversalPolicyPlanId,
+      });
       expect(helperReady?.details).toMatchObject({
         helperVersion: "test-helper",
         operation: "scan.enumerate",
         plannedRoots: ["/Users/tester"],
-        requestId: "request-1",
+        requestId: helperRequest.requestId,
         rootPath: "/Users/tester",
+        traversalPolicyPlanId: helperRequest.traversalPolicyPlanId,
         volumePolicy: "same-device",
       });
       expect(helperTerminal?.details).toMatchObject({
         elapsedMs: 1,
         operation: "scan.enumerate",
-        requestId: "request-1",
+        requestId: helperRequest.requestId,
         rootPath: "/Users/tester",
         terminalStatus: "done",
+        traversalPolicyPlanId: helperRequest.traversalPolicyPlanId,
         volumePolicy: "same-device",
         entryCount: 2,
         permissionFailureCount: 3,

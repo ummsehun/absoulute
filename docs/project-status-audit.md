@@ -750,6 +750,51 @@ Cold assessment:
 - It does not implement real XPC health/version transport calls.
 - It does not enable helper-backed scan execution by default.
 
+## Phase B11 Helper Request Correlation
+
+Facts:
+
+- Phase B11 is scoped in
+  `docs/superpowers/plans/2026-06-08-phase-b11-helper-request-correlation.md`.
+- `NativeScanOrchestrator.runHelperStage()` now generates the helper
+  `requestId` before calling `helperClient.enumerate()`.
+- The orchestrator now derives `traversalPolicyPlanId` from scan ID, stage ID,
+  and deep policy preset before helper dispatch.
+- The same `requestId` and `traversalPolicyPlanId` are passed to the helper
+  request and recorded in helper start, ready, and terminal audit logs.
+- Helper request correlation remains local to the helper-backed stage and does
+  not move scan policy ownership into the helper.
+- The helper remains disabled by default.
+
+Verification commands run for this Phase B11 slice:
+
+- `pnpm test test/main/nativeScanOrchestrator.test.ts`: passed, 15 tests.
+- `pnpm test`: passed, 45 files, 193 tests.
+- `pnpm typecheck`: passed.
+- `pnpm lint`: passed.
+- `pnpm build`: passed.
+- `cargo test --manifest-path native/scanner/Cargo.toml`: passed, 8 tests,
+  with the existing 6 Rust dead-code warnings.
+- `pnpm audit:helper-readiness`: reported `status: "blocked"`,
+  `canEnableHelperByDefault: false`, and local
+  `serviceManagementStatus: "not-implemented"`.
+
+External blockers still missing:
+
+- Production XPC peer identity validation.
+- Real ServiceManagement registration evidence from a packaged app/helper.
+- Real Team ID and designated requirement.
+- Real listener requirement metadata generated from that Team ID.
+- Full FDA validation matrix on the target macOS version.
+- Production signing, packaging, and notarization evidence.
+
+Cold assessment:
+
+- This mini phase improves helper request audit correlation for Phase B
+  logging and policy-plan traceability.
+- It does not implement real XPC health/version transport calls.
+- It does not enable helper-backed scan execution by default.
+
 ## Findings
 
 ### P1: Privileged Helper Is Still Blocked by Real Identity and FDA Evidence

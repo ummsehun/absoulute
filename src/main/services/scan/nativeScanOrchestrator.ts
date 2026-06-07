@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import os from "node:os";
 import { appendNativeScannerLog } from "../diagnostics/nativeScannerLogger";
 import {
@@ -225,6 +226,12 @@ export class NativeScanOrchestrator {
     let doneEstimated = false;
     let doneReceived = false;
     let terminalHelperErrorReason: string | null = null;
+    const helperRequestId = crypto.randomUUID();
+    const traversalPolicyPlanId = buildHelperTraversalPolicyPlanId(
+      context.scanId,
+      input.mode,
+      context.options.deepPolicyPreset,
+    );
     const auditCounts: HelperStageAuditCounts = {
       cancellationCount: 0,
       entryCount: 0,
@@ -239,7 +246,10 @@ export class NativeScanOrchestrator {
       scanId: context.scanId,
       stage: input.mode,
       details: {
+        operation: "scan.enumerate",
+        requestId: helperRequestId,
         rootPath: context.rootPath,
+        traversalPolicyPlanId,
         volumePolicy: volumePlan.volumePolicy,
         plannedRoots: volumePlan.plannedRoots,
       },
@@ -255,6 +265,8 @@ export class NativeScanOrchestrator {
           options: context.options,
           volumePlan,
           maxDepth: input.maxDepth,
+          requestId: helperRequestId,
+          traversalPolicyPlanId,
         },
         {
           onEvent: (event) => {
@@ -270,6 +282,7 @@ export class NativeScanOrchestrator {
                   plannedRoots: volumePlan.plannedRoots,
                   requestId: event.requestId,
                   rootPath: context.rootPath,
+                  traversalPolicyPlanId,
                   volumePolicy: volumePlan.volumePolicy,
                 },
               });
@@ -291,6 +304,7 @@ export class NativeScanOrchestrator {
                   requestId: event.requestId,
                   rootPath: context.rootPath,
                   terminalStatus: "error",
+                  traversalPolicyPlanId,
                   volumePolicy: volumePlan.volumePolicy,
                 },
               });
@@ -309,6 +323,7 @@ export class NativeScanOrchestrator {
                   requestId: event.requestId,
                   rootPath: context.rootPath,
                   terminalStatus: "done",
+                  traversalPolicyPlanId,
                   volumePolicy: volumePlan.volumePolicy,
                 },
               });
@@ -534,6 +549,14 @@ function updateHelperStageAuditCounts(
     case "ready":
       return;
   }
+}
+
+function buildHelperTraversalPolicyPlanId(
+  scanId: string,
+  stageId: NativeScanPhaseMode,
+  deepPolicyPreset: ResolvedScanOptions["deepPolicyPreset"],
+): string {
+  return `${scanId}:${stageId}:${deepPolicyPreset}`;
 }
 
 export function resolveNativeSameDeviceOnly(context: Pick<NativeStageContext, "rootPath">): boolean {
