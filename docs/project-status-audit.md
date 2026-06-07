@@ -40,9 +40,8 @@ Facts:
 
 - The active phase is pre-helper architecture stabilization before continuing
   Phase B privileged-helper execution work.
-- Current uncommitted changes include earlier helper protocol/preflight
-  hardening plus the new architecture stabilization boundaries documented in
-  `docs/superpowers/specs/2026-06-07-pre-helper-architecture-stabilization-design.md`.
+- Current uncommitted changes are the Phase B57 peer-validation readiness gate
+  follow-up and its tests/docs.
 - The default scan engine remains the unprivileged Rust native scanner.
 - Helper-backed enumeration is gated by platform, exact deep scan mode, helper
   transport availability, explicit prototype opt-in, and registration
@@ -61,10 +60,33 @@ Facts:
   `caller-identity` as pass and become available. Missing peer-validation
   evidence keeps the transport unavailable with
   `helper-control-peer-validation-missing`.
+- Helper readiness audit now has an explicit `peer-validation` evidence gate.
+  Without `SCAN_HELPER_PEER_VALIDATION_READY` or
+  `--confirm-peer-validation`, readiness remains blocked with
+  `helper-peer-validation-missing`.
+- Helper readiness bundle generation uses the same peer-validation evidence
+  input, so bundle audits cannot become ready through identity, FDA, and
+  ServiceManagement evidence alone.
 - `bun run audit:helper-readiness` reports `status: "blocked"` with
   `canEnableHelperByDefault: false`.
 
 Phase B is not complete.
+
+Phase B57 verification:
+
+- Focused readiness/bundle tests passed: 4 files and 37 tests.
+- `pnpm test` passed, 55 files and 321 tests.
+- `pnpm typecheck` passed.
+- `pnpm lint` passed.
+- `pnpm build` passed.
+- `pnpm audit:helper-readiness --platform darwin --resources-path resources`
+  exited 1 as expected with `status: "blocked"` and
+  `helper-peer-validation-missing`.
+- `pnpm audit:helper-readiness-bundle --platform darwin --resources-path
+  resources` exited 1 as expected with `status: "blocked"` and
+  `helper-peer-validation-missing`.
+- Sub-agent review reported no Critical or Important findings. One Minor
+  duplicate-confirmation-flow finding was addressed in the bundle CLI.
 
 ### Remaining Phase B Work
 

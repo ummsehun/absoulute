@@ -1,4 +1,7 @@
-import { buildHelperReadinessReport } from "../src/main/services/helper/helperReadinessAudit";
+import {
+  buildHelperReadinessReport,
+  HELPER_PEER_VALIDATION_READY_ENV,
+} from "../src/main/services/helper/helperReadinessAudit";
 import { buildHelperPreflightAudit } from "../src/main/services/helper/helperPreflightAudit";
 import {
   HELPER_APP_BUNDLE_ID_ENV,
@@ -45,6 +48,11 @@ const report = buildHelperReadinessReport({
   )
     ? "blocked"
     : "ready",
+  peerValidationStatus: readBooleanEvidenceEnv(
+    env[HELPER_PEER_VALIDATION_READY_ENV],
+  )
+    ? "ready"
+    : "blocked",
   serviceManagementStatus,
 });
 const reportJson = JSON.stringify(report, null, 2);
@@ -107,6 +115,9 @@ function confirmationEnv(rawArgs: string[]): NodeJS.ProcessEnv {
     ...(hasFlag(rawArgs, "--confirm-fda-validation-matrix")
       ? { [HELPER_FDA_VALIDATION_MATRIX_READY_ENV]: "true" }
       : {}),
+    ...(hasFlag(rawArgs, "--confirm-peer-validation")
+      ? { [HELPER_PEER_VALIDATION_READY_ENV]: "true" }
+      : {}),
   };
 }
 
@@ -133,4 +144,9 @@ function resolveOptionalArg(
   }
 
   return value;
+}
+
+function readBooleanEvidenceEnv(value: string | undefined): boolean {
+  const normalized = value?.trim().toLowerCase();
+  return normalized === "1" || normalized === "true";
 }

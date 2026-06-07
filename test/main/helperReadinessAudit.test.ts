@@ -26,6 +26,7 @@ describe("helper readiness audit", () => {
         },
       },
       fdaMatrixStatus: "blocked",
+      peerValidationStatus: "ready",
       serviceManagementStatus: "not-installed",
     });
 
@@ -97,6 +98,7 @@ describe("helper readiness audit", () => {
         },
       },
       fdaMatrixStatus: "ready",
+      peerValidationStatus: "ready",
       serviceManagementStatus: "unknown",
     });
 
@@ -169,6 +171,7 @@ describe("helper readiness audit", () => {
         },
       },
       fdaMatrixStatus: "ready",
+      peerValidationStatus: "ready",
       serviceManagementStatus: "registered",
     });
 
@@ -196,6 +199,70 @@ describe("helper readiness audit", () => {
     ]);
   });
 
+  it("keeps readiness blocked without peer validation evidence", () => {
+    const report = buildHelperReadinessReport({
+      preflightEvidence: {
+        artifactEvidence: {
+          designatedRequirement: true,
+          fdaValidationMatrix: true,
+          helperXpcEnumerateBridge: true,
+          packagingEntitlements: true,
+          productionBundleIdentifier: true,
+          privilegedHelperExecutable: true,
+          privilegedHelperListenerRequirement: true,
+          teamId: true,
+        },
+        confirmations: {
+          designatedRequirement: true,
+          fdaValidationMatrix: true,
+          helperXpcEnumerateBridge: true,
+          packagingEntitlements: true,
+          productionBundleIdentifier: true,
+          privilegedHelperExecutable: true,
+          privilegedHelperListenerRequirement: true,
+          teamId: true,
+        },
+        effectiveEvidence: {
+          designatedRequirement: true,
+          fdaValidationMatrix: true,
+          helperXpcEnumerateBridge: true,
+          packagingEntitlements: true,
+          productionBundleIdentifier: true,
+          privilegedHelperExecutable: true,
+          privilegedHelperListenerRequirement: true,
+          teamId: true,
+        },
+      },
+      registrationPreflight: {
+        status: "ready",
+        blockers: [],
+        contract: {
+          appBundleIdentifier: "com.example.diskvisualizer",
+          helperExecutableBundleRelativePath:
+            "Contents/Library/LaunchServices/com.example.diskvisualizer.privileged-helper",
+          helperLabel: "com.example.diskvisualizer.privileged-helper",
+          launchDaemonBundleRelativePath:
+            "Contents/Library/LaunchDaemons/com.example.diskvisualizer.privileged-helper.plist",
+          launchDaemonPlistName:
+            "com.example.diskvisualizer.privileged-helper.plist",
+          serviceManagementModel: "smappservice-daemon",
+        },
+      },
+      fdaMatrixStatus: "ready",
+      peerValidationStatus: "blocked",
+      serviceManagementStatus: "registered",
+    });
+
+    expect(report.status).toBe("blocked");
+    expect(report.blockers).toEqual(["helper-peer-validation-missing"]);
+    expect(report.evidence).toContainEqual(expect.objectContaining({
+      key: "peer-validation",
+      reason: "helper-peer-validation-missing",
+      status: "fail",
+    }));
+    expect(report.canEnableHelperByDefault).toBe(false);
+  });
+
   it("reports XPC enumerate bridge blocker evidence explicitly", () => {
     const report = buildHelperReadinessReport({
       registrationPreflight: {
@@ -214,6 +281,7 @@ describe("helper readiness audit", () => {
         },
       },
       fdaMatrixStatus: "ready",
+      peerValidationStatus: "ready",
       serviceManagementStatus: "registered",
     });
 
@@ -292,6 +360,7 @@ describe("helper readiness audit", () => {
         },
       },
       fdaMatrixStatus: "ready",
+      peerValidationStatus: "ready",
       serviceManagementStatus: "registered",
     });
 
@@ -362,6 +431,7 @@ describe("helper readiness audit", () => {
         },
       },
       fdaMatrixStatus: "blocked",
+      peerValidationStatus: "ready",
       serviceManagementStatus: "registered",
     });
 
@@ -453,6 +523,7 @@ describe("helper readiness audit", () => {
         },
       },
       fdaMatrixStatus: "ready",
+      peerValidationStatus: "ready",
       serviceManagementStatus: "registered",
     });
 
@@ -516,6 +587,7 @@ describe("helper readiness audit", () => {
         },
       },
       fdaMatrixStatus: "ready",
+      peerValidationStatus: "ready",
       serviceManagementStatus: "registered",
     });
 
@@ -575,6 +647,15 @@ describe("helper readiness audit", () => {
             "resources/entitlements/mac.inherit.plist",
           ],
           requiredInputs: ["SCAN_HELPER_PACKAGING_ENTITLEMENTS_READY"],
+        },
+        reason: "ready",
+        status: "pass",
+      },
+      {
+        key: "peer-validation",
+        guidance: {
+          description: expect.any(String),
+          requiredInputs: ["SCAN_HELPER_PEER_VALIDATION_READY"],
         },
         reason: "ready",
         status: "pass",
@@ -662,6 +743,7 @@ describe("helper readiness audit", () => {
         },
       },
       fdaMatrixStatus: "ready",
+      peerValidationStatus: "ready",
       serviceManagementStatus: "pending-approval",
     });
 
@@ -699,6 +781,7 @@ describe("helper readiness audit", () => {
         },
       },
       fdaMatrixStatus: "ready",
+      peerValidationStatus: "ready",
       serviceManagementStatus: "not-implemented",
     });
 
@@ -736,6 +819,7 @@ describe("helper readiness audit", () => {
         },
       },
       fdaMatrixStatus: "ready",
+      peerValidationStatus: "ready",
       serviceManagementStatus: "unknown",
     });
 

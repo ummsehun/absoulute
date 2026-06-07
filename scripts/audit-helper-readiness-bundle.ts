@@ -1,4 +1,5 @@
 import { buildHelperReadinessBundle } from "../src/main/services/helper/helperReadinessBundle";
+import { HELPER_PEER_VALIDATION_READY_ENV } from "../src/main/services/helper/helperReadinessAudit";
 import {
   HELPER_FDA_VALIDATION_MATRIX_READY_ENV,
   HELPER_PACKAGING_ENTITLEMENTS_READY_ENV,
@@ -53,6 +54,9 @@ function confirmationEnv(rawArgs: string[]): NodeJS.ProcessEnv {
       : {}),
     ...(hasFlag(rawArgs, "--confirm-fda-validation-matrix")
       ? { [HELPER_FDA_VALIDATION_MATRIX_READY_ENV]: "true" }
+      : {}),
+    ...(hasFlag(rawArgs, "--confirm-peer-validation")
+      ? { [HELPER_PEER_VALIDATION_READY_ENV]: "true" }
       : {}),
   };
 }

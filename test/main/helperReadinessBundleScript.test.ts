@@ -42,6 +42,7 @@ describe("audit-helper-readiness-bundle script", () => {
       expect(fileBundle.canEnableHelperByDefault).toBe(false);
       expect(fileBundle.componentStatus.readiness).toBe("blocked");
       expect(fileBundle.blockers).toContain("service-management-not-registered");
+      expect(fileBundle.blockers).toContain("helper-peer-validation-missing");
     } finally {
       fs.rmSync(projectRoot, { recursive: true, force: true });
     }
@@ -155,6 +156,35 @@ describe("audit-helper-readiness-bundle script", () => {
     });
   });
 
+  it("uses explicit peer validation confirmation without clearing unrelated blockers", () => {
+    const result = spawnSync(
+      "bun",
+      [
+        "run",
+        "scripts/audit-helper-readiness-bundle.ts",
+        "--project-root",
+        process.cwd(),
+        "--platform",
+        "darwin",
+        "--resources-path",
+        "resources",
+        "--confirm-peer-validation",
+      ],
+      {
+        cwd: process.cwd(),
+        env: process.env,
+        encoding: "utf8",
+      },
+    );
+
+    expect(result.status).toBe(1);
+    const bundle = JSON.parse(result.stdout);
+    expect(bundle.canEnableHelperByDefault).toBe(false);
+    expect(bundle.blockers).not.toContain("helper-peer-validation-missing");
+    expect(bundle.blockers).toContain("team-id-missing");
+    expect(bundle.blockers).toContain("service-management-not-registered");
+  });
+
   it("uses the shared output path error when --out is missing", () => {
     const result = spawnSync(
       "bun",
@@ -196,24 +226,24 @@ describe("audit-helper-readiness-bundle script", () => {
     );
 
     try {
-    const result = spawnSync(
-      "bun",
-      [
-        "run",
-        "scripts/audit-helper-readiness-bundle.ts",
-        "--team-id",
-        "--project-root",
-        projectRoot,
-      ],
-      {
-        cwd: process.cwd(),
-        env: process.env,
-        encoding: "utf8",
-      },
-    );
+      const result = spawnSync(
+        "bun",
+        [
+          "run",
+          "scripts/audit-helper-readiness-bundle.ts",
+          "--team-id",
+          "--project-root",
+          projectRoot,
+        ],
+        {
+          cwd: process.cwd(),
+          env: process.env,
+          encoding: "utf8",
+        },
+      );
 
-    expect(result.status).toBe(1);
-    expect(result.stderr).toContain("missing value for --team-id");
+      expect(result.status).toBe(1);
+      expect(result.stderr).toContain("missing value for --team-id");
     } finally {
       fs.rmSync(projectRoot, { recursive: true, force: true });
     }

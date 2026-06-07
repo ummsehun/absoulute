@@ -26,6 +26,7 @@ describe("helperReadinessBundle", () => {
     });
     expect(bundle.blockers).toContain("team-id-missing");
     expect(bundle.blockers).toContain("fda-validation-matrix-missing");
+    expect(bundle.blockers).toContain("helper-peer-validation-missing");
     expect(bundle.blockers).toContain("service-management-not-registered");
     expect(bundle.identity.status).toBe("blocked");
     expect(bundle.fdaMatrix.status).toBe("blocked");
@@ -49,6 +50,25 @@ describe("helperReadinessBundle", () => {
     expect(bundle.status).toBe("blocked");
     expect(bundle.readiness.status).toBe("blocked");
     expect(bundle.blockers).toContain("team-id-missing");
+    expect(bundle.blockers).toContain("helper-peer-validation-missing");
+  });
+
+  it("passes explicit peer validation evidence into the readiness report", async () => {
+    const bundle = await buildHelperReadinessBundle({
+      env: {},
+      peerValidationReady: true,
+      platform: "darwin",
+      serviceManagementProbe: new RegisteredTestProbe(),
+    });
+
+    expect(bundle.readiness.evidence).not.toContainEqual(
+      expect.objectContaining({
+        key: "peer-validation",
+        status: "fail",
+      }),
+    );
+    expect(bundle.blockers).not.toContain("helper-peer-validation-missing");
+    expect(bundle.status).toBe("blocked");
   });
 
   it("propagates preflight artifact and confirmation state into readiness evidence", async () => {

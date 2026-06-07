@@ -209,11 +209,54 @@ describe("audit-helper-readiness script", () => {
       );
       expect(report.blockers).toEqual([
         "fda-validation-matrix-missing",
+        "helper-peer-validation-missing",
         "helper-xpc-enumerate-bridge-missing",
         "packaging-entitlements-missing",
         "privileged-helper-executable-missing",
       ]);
       expect(report.canEnableHelperByDefault).toBe(false);
+
+      const confirmedPeerResult = spawnSync(
+        "bun",
+        [
+          "run",
+          "scripts/audit-helper-readiness.ts",
+          "--project-root",
+          projectRoot,
+          "--app-bundle-id",
+          appBundleId,
+          "--team-id",
+          "ABCDE12345",
+          "--designated-requirement",
+          requirement,
+          "--platform",
+          "darwin",
+          "--probe-bin",
+          probePath,
+          "--confirm-peer-validation",
+        ],
+        {
+          cwd: process.cwd(),
+          env: {
+            ...process.env,
+            SCAN_HELPER_PACKAGING_ENTITLEMENTS_READY: "true",
+            SCAN_HELPER_PRIVILEGED_EXECUTABLE_READY: "true",
+            SCAN_HELPER_XPC_ENUMERATE_BRIDGE_READY: "true",
+          },
+          encoding: "utf8",
+        },
+      );
+      expect(confirmedPeerResult.status).toBe(1);
+      const confirmedPeerReport = JSON.parse(confirmedPeerResult.stdout);
+      expect(confirmedPeerReport.blockers).not.toContain(
+        "helper-peer-validation-missing",
+      );
+      expect(confirmedPeerReport.blockers).toEqual([
+        "fda-validation-matrix-missing",
+        "helper-xpc-enumerate-bridge-missing",
+        "packaging-entitlements-missing",
+        "privileged-helper-executable-missing",
+      ]);
     } finally {
       fs.rmSync(projectRoot, { force: true, recursive: true });
     }

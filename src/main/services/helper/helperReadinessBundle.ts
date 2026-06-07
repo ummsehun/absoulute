@@ -12,6 +12,7 @@ import {
 } from "./helperPreflightAudit";
 import {
   buildHelperReadinessReport,
+  HELPER_PEER_VALIDATION_READY_ENV,
   type HelperReadinessReport,
 } from "./helperReadinessAudit";
 import {
@@ -50,6 +51,7 @@ export interface BuildHelperReadinessBundleOptions {
   designatedRequirement?: string | null;
   env?: NodeJS.ProcessEnv;
   platform?: NodeJS.Platform;
+  peerValidationReady?: boolean;
   projectRoot?: string;
   resourcesPath?: string | null;
   serviceManagementProbe?: MacOsServiceManagementProbe;
@@ -84,6 +86,11 @@ export async function buildHelperReadinessBundle(
   );
   const readiness = buildHelperReadinessReport({
     fdaMatrixStatus: fdaMatrix.status,
+    peerValidationStatus: readBooleanEvidenceEnv(
+      env[HELPER_PEER_VALIDATION_READY_ENV],
+    )
+      ? "ready"
+      : "blocked",
     preflightEvidence: {
       artifactEvidence: preflight.artifactEvidence,
       confirmations: preflight.confirmations,
@@ -131,6 +138,14 @@ function buildEvidenceEnv(
   ) {
     env.SCAN_HELPER_DESIGNATED_REQUIREMENT = options.designatedRequirement;
   }
+  if (options.peerValidationReady === true) {
+    env[HELPER_PEER_VALIDATION_READY_ENV] = "true";
+  }
 
   return env;
+}
+
+function readBooleanEvidenceEnv(value: string | undefined): boolean {
+  const normalized = value?.trim().toLowerCase();
+  return normalized === "1" || normalized === "true";
 }

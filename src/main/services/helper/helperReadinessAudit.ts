@@ -23,10 +23,14 @@ import {
   MACOS_SERVICE_MANAGEMENT_PROBE_BINARY_NAME,
 } from "./macosServiceManagementProbe";
 
+export const HELPER_PEER_VALIDATION_READY_ENV =
+  "SCAN_HELPER_PEER_VALIDATION_READY";
+
 export interface HelperReadinessReportInput {
   registrationPreflight: HelperRegistrationPreflight;
   preflightEvidence?: HelperReadinessPreflightEvidenceState;
   fdaMatrixStatus: "ready" | "blocked";
+  peerValidationStatus?: "ready" | "blocked";
   serviceManagementStatus:
     | "registered"
     | "not-installed"
@@ -75,6 +79,9 @@ export function buildHelperReadinessReport(
   if (input.serviceManagementStatus !== "registered") {
     blockers.add("service-management-not-registered");
   }
+  if (input.peerValidationStatus !== "ready") {
+    blockers.add("helper-peer-validation-missing");
+  }
 
   return {
     status: blockers.size === 0 ? "ready" : "blocked",
@@ -121,6 +128,7 @@ function passEvidenceForReadyPreflightKeys(
     "fda-validation-matrix",
     "listener-requirement",
     "packaging-entitlements",
+    "peer-validation",
     "production-bundle-identifier",
     "privileged-helper-executable",
     "team-id",
@@ -212,6 +220,11 @@ function guidanceForEvidenceKey(
       ],
       requiredInputs: [HELPER_PACKAGING_ENTITLEMENTS_READY_ENV],
     },
+    "peer-validation": {
+      description:
+        "Provide XPC control health evidence with listener code-signing peer validation.",
+      requiredInputs: [HELPER_PEER_VALIDATION_READY_ENV],
+    },
     "production-bundle-identifier": {
       description:
         "Set the production app bundle identifier instead of the development com.example identifier.",
@@ -261,6 +274,10 @@ function blockerEvidenceKey(
     "privileged-helper-listener-requirement-missing": "listener-requirement",
     "team-id-missing": "team-id",
   };
+
+  if (blocker === "helper-peer-validation-missing") {
+    return "peer-validation";
+  }
 
   return evidenceKeys[blocker as HelperRegistrationBlocker] ?? null;
 }
