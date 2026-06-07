@@ -29,19 +29,14 @@ final class DiskVisualizerPrivilegedHelperService:
             let data = Data(requestJson.utf8)
             let request = try JSONDecoder().decode(HelperEnumerateRequest.self, from: data)
             try validateEnumerateRequest(request)
+            let traversalEvents = try enumeratePrivileged(request)
             reply(joinEvents([
                 helperEvent([
                     "type": "ready",
                     "requestId": request.requestId,
                     "helperVersion": helperVersion,
                 ]),
-                helperEvent([
-                    "type": "error",
-                    "requestId": request.requestId,
-                    "code": "E_HELPER_INTERNAL",
-                    "message": "privileged helper scan.enumerate traversal is not implemented in this phase",
-                ]),
-            ]))
+            ] + traversalEvents))
         } catch {
             let requestId = decodeRequestId(from: Data(requestJson.utf8)) ?? "unknown"
             reply(joinEvents([

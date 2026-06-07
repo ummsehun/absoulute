@@ -27,6 +27,13 @@ const controlSourcePath = path.join(
   "control",
   "main.swift",
 );
+const privilegedTraversalSourcePath = path.join(
+  process.cwd(),
+  "native",
+  "macos-helper",
+  "privileged-helper",
+  "enumerateTraversal.swift",
+);
 const packageJsonPath = path.join(process.cwd(), "package.json");
 
 describe("macOS privileged helper executable", () => {
@@ -81,6 +88,7 @@ describe("macOS privileged helper executable", () => {
     expect(source).toContain('"macos-helper"');
     expect(source).toContain('"privileged-helper"');
     expect(source).toContain('"main.swift"');
+    expect(source).toContain('"enumerateTraversal.swift"');
     expect(source).toContain('"resources"');
     expect(source).toContain('"helper"');
     expect(source).toContain('"LaunchServices"');
@@ -105,6 +113,36 @@ describe("macOS privileged helper executable", () => {
     expect(generatedSource).toContain("newConnection.exportedObject");
     expect(generatedSource).toContain("newConnection.resume()");
     expect(generatedSource).toContain("return true");
+  });
+
+  it("implements privileged helper scan.enumerate as read-only traversal events", () => {
+    const mainSource = fs.readFileSync(sourcePath, "utf8");
+    const traversalSource = fs.readFileSync(privilegedTraversalSourcePath, "utf8");
+
+    expect(mainSource).not.toContain("scan.enumerate traversal is not implemented");
+    expect(mainSource).toContain("enumeratePrivileged(request)");
+    expect(traversalSource).toContain("FileManager.default.enumerator");
+    expect(traversalSource).toContain("entry_batch");
+    expect(traversalSource).toContain("progress");
+    expect(traversalSource).toContain("coverage");
+    expect(traversalSource).toContain("warn");
+    expect(traversalSource).toContain("done");
+    expect(traversalSource).toContain("maxDepth");
+    expect(traversalSource).toContain("sameDeviceOnly");
+    expect(traversalSource).toContain("skipDescendants");
+    expect(traversalSource).toContain("E_HELPER_PERMISSION");
+    expect(traversalSource).toContain("E_IO");
+    expect(traversalSource).toContain("E_SCOPE");
+    expect(traversalSource).toContain("counters.ioFailures += 1");
+    expect(traversalSource).toContain("if let modificationDate");
+    expect(traversalSource).toContain("if let resourceIdentifier");
+    expect(traversalSource).toContain("if let entryDeviceId");
+    expect(traversalSource).not.toContain("removeItem");
+    expect(traversalSource).not.toContain("write(");
+    expect(traversalSource).not.toContain("Process()");
+    expect(traversalSource).not.toContain("chmod");
+    expect(traversalSource).not.toContain("chown");
+    expect(traversalSource).not.toContain("as Any");
   });
 
   it("builds a helper control command that probes only the privileged helper XPC control surface", () => {

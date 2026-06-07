@@ -1,6 +1,7 @@
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { spawnSync } from "node:child_process";
+import { tmpdir } from "node:os";
 import {
   buildHelperCodeSigningRequirement,
 } from "../src/main/services/helper/helperRegistration";
@@ -11,6 +12,13 @@ const sourcePath = join(
   "macos-helper",
   "privileged-helper",
   "main.swift",
+);
+const traversalSourcePath = join(
+  process.cwd(),
+  "native",
+  "macos-helper",
+  "privileged-helper",
+  "enumerateTraversal.swift",
 );
 const outputPath = join(
   process.cwd(),
@@ -31,6 +39,10 @@ const generatedSourcePath = join(
   "swift-generated",
   "privileged-helper-main.swift",
 );
+const compileGeneratedSourcePath = join(
+  mkdtempSync(join(tmpdir(), "diskviz-privileged-helper-")),
+  "main.swift",
+);
 const teamId = process.env.SCAN_HELPER_TEAM_ID?.trim();
 const effectiveTeamId = isValidAppleTeamIdText(teamId)
   ? teamId
@@ -43,13 +55,12 @@ mkdirSync(dirname(outputPath), { recursive: true });
 mkdirSync(moduleCachePath, { recursive: true });
 mkdirSync(dirname(generatedSourcePath), { recursive: true });
 
-writeFileSync(
-  generatedSourcePath,
-  readFileSync(sourcePath, "utf8").replace(
-    "TEAMID_NOT_CONFIGURED",
-    effectiveTeamId,
-  ),
+const generatedSource = readFileSync(sourcePath, "utf8").replace(
+  "TEAMID_NOT_CONFIGURED",
+  effectiveTeamId,
 );
+writeFileSync(generatedSourcePath, generatedSource);
+writeFileSync(compileGeneratedSourcePath, generatedSource);
 
 const result = spawnSync(
   "swiftc",
@@ -59,7 +70,8 @@ const result = spawnSync(
     "-O",
     "-o",
     outputPath,
-    generatedSourcePath,
+    compileGeneratedSourcePath,
+    traversalSourcePath,
   ],
   {
     env: {

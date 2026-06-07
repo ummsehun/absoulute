@@ -1105,6 +1105,62 @@ Cold assessment:
 - It does not make readiness pass without external production evidence.
 - It does not enable helper-backed scan execution by default.
 
+## Phase B18 Privileged Helper Read-Only Traversal
+
+Facts:
+
+- Phase B18 is scoped in
+  `docs/superpowers/plans/2026-06-08-phase-b18-privileged-helper-readonly-traversal.md`.
+- `native/macos-helper/privileged-helper/enumerateTraversal.swift` now contains
+  the privileged helper read-only traversal implementation.
+- `native/macos-helper/privileged-helper/main.swift` remains under the 500 LOC
+  stabilization target and delegates valid `scan.enumerate` requests to
+  `enumeratePrivileged`.
+- The privileged helper now emits read-only traversal helper protocol events:
+  `entry_batch`, `progress`, `coverage`, `warn`, and `done`.
+- Traversal respects `maxDepth`, `sameDeviceOnly`, and batch sizing.
+- Permission failures are reported as `E_HELPER_PERMISSION`, IO failures as
+  `E_IO`, and cross-device skips as `E_SCOPE`.
+- `scripts/build-macos-privileged-helper.ts` now compiles both generated
+  `main.swift` and `enumerateTraversal.swift`.
+- The helper remains disabled by default and readiness remains blocked without
+  production evidence.
+
+Verification commands run for this Phase B18 slice:
+
+- `pnpm test test/main/macosPrivilegedHelperCli.test.ts`: passed, 5 tests.
+- `pnpm build:native:privileged-helper`: passed.
+- `pnpm test`: passed, 45 files, 204 tests.
+- `pnpm typecheck`: passed.
+- `pnpm lint`: passed.
+- `pnpm build`: passed.
+- `cargo test --manifest-path native/scanner/Cargo.toml`: passed, 8 tests,
+  with the existing 6 Rust dead-code warnings.
+- `pnpm audit:helper-preflight`: reported blocked preflight with placeholder
+  `TEAMID_NOT_CONFIGURED` listener metadata.
+- `pnpm audit:helper-readiness`: reported `status: "blocked"` and
+  `canEnableHelperByDefault: false`.
+- LOC check:
+  - `native/macos-helper/privileged-helper/main.swift`: 338
+  - `native/macos-helper/privileged-helper/enumerateTraversal.swift`: 209
+
+External blockers still missing:
+
+- Main-process XPC bridge for invoking privileged helper `scan.enumerate`.
+- Installed privileged helper ServiceManagement evidence.
+- Production XPC peer identity validation with a real Team ID.
+- Full FDA validation matrix on the target macOS version.
+- Production signing, packaging, and notarization evidence.
+
+Cold assessment:
+
+- This mini phase moves read-only traversal behavior into the privileged helper
+  process.
+- It still returns traversal events as a single newline-delimited XPC reply
+  string; streaming XPC remains later work.
+- It does not make readiness pass without external production evidence.
+- It does not enable helper-backed scan execution by default.
+
 ## Findings
 
 ### P1: Privileged Helper Is Still Blocked by Real Identity and FDA Evidence
