@@ -1771,6 +1771,61 @@ Cold assessment:
 - It does not make helper readiness pass.
 - It does not enable helper-backed scan execution by default.
 
+## Phase B29 Helper XPC Availability Gate
+
+Facts:
+
+- Phase B29 is scoped in
+  `docs/superpowers/plans/2026-06-08-phase-b29-helper-xpc-availability-gate.md`.
+- `src/main/services/helper/helperLifecycle.ts` now marks caller identity and
+  full-disk-access checks as pass when registration preflight is ready.
+- `src/main/services/helper/macosXpcHelperTransport.ts` now allows
+  `healthCheck()` to report `available: true` only after the helper control
+  health check succeeds and every XPC availability check is pass.
+- `MacOsXpcHelperTransport.getStatus()` remains conservative before control
+  health evidence and still reports `available: false`.
+- The availability predicate requires ready registration preflight, ready
+  lifecycle state, ServiceManagement pass, helper install pass, caller identity
+  pass, full-disk-access pass, and XPC channel pass.
+- The current repo still reports helper readiness as blocked.
+- Helper-backed scans are not enabled by default.
+- No production Team ID, designated requirement, FDA, ServiceManagement,
+  signing, packaging, or notarization evidence is recorded by this phase.
+
+Verification commands run for this Phase B29 slice:
+
+- `pnpm test test/main/helperClient.test.ts` passed after implementation:
+  1 file, 36 tests.
+- `pnpm test test/main/helperClient.test.ts test/main/helperScanPlanner.test.ts`
+  passed: 2 files, 44 tests.
+- `pnpm test` passed: 52 files, 245 tests.
+- `pnpm typecheck` passed.
+- `pnpm lint` passed.
+- `pnpm build` passed.
+- `cargo test --manifest-path native/scanner/Cargo.toml` passed. Existing Rust
+  dead-code warnings remain.
+- `pnpm audit:helper-readiness-bundle` printed `status: "blocked"`,
+  `canEnableHelperByDefault: false`, all component statuses blocked, and exited
+  1 as intended.
+- `pnpm audit:helper-readiness` printed `status: "blocked"`,
+  `canEnableHelperByDefault: false`, and exited 1 as intended.
+
+External blockers still missing:
+
+- Production Team ID and designated requirement evidence.
+- Listener requirement metadata generated from the production Team ID.
+- Installed privileged helper ServiceManagement registration evidence.
+- Full FDA validation matrix on the target macOS version.
+- Production signing, packaging, and notarization evidence.
+
+Cold assessment:
+
+- This mini phase removes an internal availability blocker that would have kept
+  the helper unavailable even after readiness evidence and control health were
+  available.
+- It still keeps the helper disabled by default in the current repo.
+- It does not make helper readiness pass.
+
 ## Findings
 
 ### P1: Privileged Helper Is Still Blocked by Real Identity and FDA Evidence

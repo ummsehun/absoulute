@@ -853,18 +853,102 @@ describe("helperClient", () => {
 
     await expect(transport.getVersion()).resolves.toBe("test-control-helper");
     await expect(transport.healthCheck()).resolves.toMatchObject({
+      available: true,
+      lifecycle: {
+        state: "ready",
+        checks: {
+          "service-management": "pass",
+          "helper-install": "pass",
+          "caller-identity": "pass",
+          "full-disk-access": "pass",
+          "xpc-channel": "pass",
+        },
+      },
+      reason: "xpc-channel-ready",
+      transport: "xpc",
+    });
+  });
+
+  it("reports xpc transport available only after ready preflight and health check pass", async () => {
+    const transport = new MacOsXpcHelperTransport(
+      {
+        getStatus: async () => ({
+          state: "registered",
+          reason: "registered",
+        }),
+      },
+      {
+        identity: {
+          teamId: "ABCDE12345",
+          designatedRequirement:
+            'identifier "com.example.diskvisualizer" and anchor apple generic and certificate leaf[subject.OU] = "ABCDE12345"',
+        },
+        packagingEntitlementsReady: true,
+        privilegedHelperExecutableReady: true,
+        helperXpcEnumerateBridgeReady: true,
+        privilegedHelperListenerRequirementReady: true,
+        fdaValidationMatrixReady: true,
+      },
+      {
+        control: {
+          healthCheck: async () => ({
+            helperVersion: "test-control-helper",
+          }),
+          getVersion: async () => "test-control-helper",
+        },
+      },
+    );
+
+    await expect(transport.healthCheck()).resolves.toMatchObject({
+      available: true,
+      lifecycle: {
+        state: "ready",
+        checks: {
+          "service-management": "pass",
+          "helper-install": "pass",
+          "caller-identity": "pass",
+          "full-disk-access": "pass",
+          "xpc-channel": "pass",
+        },
+      },
+      transport: "xpc",
+    });
+  });
+
+  it("keeps xpc getStatus unavailable before control health evidence", async () => {
+    const transport = new MacOsXpcHelperTransport(
+      {
+        getStatus: async () => ({
+          state: "registered",
+          reason: "registered",
+        }),
+      },
+      {
+        identity: {
+          teamId: "ABCDE12345",
+          designatedRequirement:
+            'identifier "com.example.diskvisualizer" and anchor apple generic and certificate leaf[subject.OU] = "ABCDE12345"',
+        },
+        packagingEntitlementsReady: true,
+        privilegedHelperExecutableReady: true,
+        helperXpcEnumerateBridgeReady: true,
+        privilegedHelperListenerRequirementReady: true,
+        fdaValidationMatrixReady: true,
+      },
+    );
+
+    await expect(transport.getStatus()).resolves.toMatchObject({
       available: false,
       lifecycle: {
         state: "not-implemented",
         checks: {
           "service-management": "pass",
           "helper-install": "pass",
-          "caller-identity": "unknown",
-          "full-disk-access": "unknown",
-          "xpc-channel": "pass",
+          "caller-identity": "pass",
+          "full-disk-access": "pass",
+          "xpc-channel": "fail",
         },
       },
-      reason: MACOS_XPC_HELPER_NOT_IMPLEMENTED_REASON,
       transport: "xpc",
     });
   });

@@ -131,15 +131,24 @@ export class MacOsXpcHelperTransport implements HelperTransport {
     }
 
     if (status.lifecycle && canAcceptXpcChannelEvidence(status)) {
-      return {
-        ...status,
-        lifecycle: {
-          ...status.lifecycle,
-          checks: {
-            ...status.lifecycle.checks,
-            "xpc-channel": "pass",
-          },
+      const lifecycle = {
+        ...status.lifecycle,
+        state: "ready" as const,
+        reason: "xpc-channel-ready",
+        checks: {
+          ...status.lifecycle.checks,
+          "xpc-channel": "pass" as const,
         },
+      };
+      const readyStatus = {
+        ...status,
+        lifecycle,
+        reason: lifecycle.reason,
+      };
+
+      return {
+        ...readyStatus,
+        available: isXpcHelperAvailable(readyStatus),
       };
     }
 
@@ -246,4 +255,14 @@ function canAcceptXpcChannelEvidence(status: HelperClientStatus): boolean {
     && status.lifecycle.checks["helper-install"] === "pass"
     && status.lifecycle.checks["caller-identity"] !== "fail"
     && status.lifecycle.checks["full-disk-access"] !== "fail";
+}
+
+function isXpcHelperAvailable(status: HelperClientStatus): boolean {
+  return status.registrationPreflight?.status === "ready"
+    && status.lifecycle?.state === "ready"
+    && status.lifecycle.checks["service-management"] === "pass"
+    && status.lifecycle.checks["helper-install"] === "pass"
+    && status.lifecycle.checks["caller-identity"] === "pass"
+    && status.lifecycle.checks["full-disk-access"] === "pass"
+    && status.lifecycle.checks["xpc-channel"] === "pass";
 }

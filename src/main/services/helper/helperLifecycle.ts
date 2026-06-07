@@ -64,6 +64,7 @@ export function createMacOsXpcLifecycle(
   const preflightBlocked =
     input.serviceManagement.state === "registered"
     && input.registrationPreflight?.status === "blocked";
+  const preflightReady = input.registrationPreflight?.status === "ready";
   const reason = preflightBlocked
     ? `registration-preflight-blocked:${preflightBlockers.join(",")}`
     : input.reason;
@@ -82,10 +83,10 @@ export function createMacOsXpcLifecycle(
         : "unknown",
       "caller-identity": preflightBlocked
         ? resolveCallerIdentityCheck(preflightBlockers)
-        : "unknown",
+        : preflightReady ? "pass" : "unknown",
       "full-disk-access": preflightBlocked
         ? resolveFullDiskAccessCheck(preflightBlockers)
-        : "unknown",
+        : preflightReady ? "pass" : "unknown",
       "xpc-channel": preflightBlocked ? "unknown" : "fail",
     },
   };
