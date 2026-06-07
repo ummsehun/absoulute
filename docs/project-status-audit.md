@@ -2316,3 +2316,55 @@ Interpretation:
   project roots, matching the other helper audit scripts.
 - It does not provide production Team ID, designated requirement, FDA, or
   ServiceManagement evidence.
+
+## Phase B39 Privileged Helper Build Project Root
+
+Date: 2026-06-08
+
+Facts:
+
+- `build-macos-privileged-helper` now accepts `--project-root <path>`.
+- The selected project root is used for:
+  - `native/macos-helper/privileged-helper/main.swift`;
+  - `native/macos-helper/privileged-helper/enumerateTraversal.swift`;
+  - `resources/helper/LaunchServices/com.example.diskvisualizer.privileged-helper`;
+  - the generated `.requirement.json` listener metadata;
+  - `.tmp/swift-module-cache`;
+  - `.tmp/swift-generated/privileged-helper-main.swift`.
+- The actual `swiftc` compile input is the selected root's generated Swift
+  source, not a second generated copy under `/tmp`.
+- When `--project-root` is absent, the script keeps using `process.cwd()`.
+- `--project-root` without a value now fails explicitly with
+  `missing value for --project-root`.
+- Helper signing/readiness semantics are unchanged.
+- Helper default activation remains disabled.
+
+Verification so far:
+
+- RED was confirmed before implementation:
+  - the script ignored `--project-root` and did not write helper artifacts under
+    the explicit artifact root;
+  - `--project-root` without a value exited `0` instead of failing.
+- `pnpm test test/main/macosPrivilegedHelperCli.test.ts` passed, 1 file and 9
+  tests.
+- `pnpm test test/main/macosPrivilegedHelperCli.test.ts test/main/helperIdentityAuditScript.test.ts test/main/helperReadinessBundleScript.test.ts test/main/helperPreflightAuditScript.test.ts`
+  passed, 4 files and 19 tests.
+- `pnpm test` passed, 55 files and 268 tests.
+- `pnpm typecheck` passed.
+- `pnpm lint` passed.
+- `pnpm build` passed.
+- `cargo test --manifest-path native/scanner/Cargo.toml` passed. Existing Rust
+  dead-code warnings remain.
+- `pnpm audit:helper-readiness --platform darwin --resources-path resources`
+  and `pnpm audit:helper-readiness-bundle` remain intentionally blocked.
+- Sub-agent review found no Critical issues. One Important issue was fixed:
+  the script no longer compiles a second generated Swift source outside the
+  selected project root.
+- Follow-up sub-agent review found no Critical, Important, or Minor issues.
+
+Interpretation:
+
+- This phase lets privileged helper executable and listener requirement metadata
+  generation be rehearsed in isolated roots without writing into the live repo.
+- It does not provide a production Team ID or prove production helper
+  installation/readiness.

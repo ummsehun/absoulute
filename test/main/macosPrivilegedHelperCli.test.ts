@@ -1,6 +1,8 @@
 /* @vitest-environment node */
 
+import { spawnSync } from "node:child_process";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
@@ -42,6 +44,61 @@ const privilegedTraversalSourcePath = path.join(
   "enumerateTraversal.swift",
 );
 const packageJsonPath = path.join(process.cwd(), "package.json");
+
+function writeMinimalPrivilegedHelperSources(projectRoot: string): void {
+  const helperSourcePath = path.join(
+    projectRoot,
+    "native",
+    "macos-helper",
+    "privileged-helper",
+    "main.swift",
+  );
+  const traversalSourcePath = path.join(
+    projectRoot,
+    "native",
+    "macos-helper",
+    "privileged-helper",
+    "enumerateTraversal.swift",
+  );
+
+  fs.mkdirSync(path.dirname(helperSourcePath), { recursive: true });
+  fs.writeFileSync(
+    helperSourcePath,
+    'let expectedClientTeamId = "TEAMID_NOT_CONFIGURED"\n',
+  );
+  fs.writeFileSync(traversalSourcePath, "func enumeratePrivileged() {}\n");
+}
+
+function writeFakeSwiftCompiler(binDir: string): string {
+  const swiftcPath = path.join(binDir, "swiftc");
+
+  fs.mkdirSync(binDir, { recursive: true });
+  fs.writeFileSync(
+    swiftcPath,
+    [
+      "#!/bin/sh",
+      "if [ -n \"$FAKE_SWIFTC_ARGS_LOG\" ]; then",
+      "  printf '%s\\n' \"$@\" > \"$FAKE_SWIFTC_ARGS_LOG\"",
+      "fi",
+      "out=\"\"",
+      "while [ \"$#\" -gt 0 ]; do",
+      "  if [ \"$1\" = \"-o\" ]; then",
+      "    shift",
+      "    out=\"$1\"",
+      "  fi",
+      "  shift",
+      "done",
+      "mkdir -p \"$(dirname \"$out\")\"",
+      "printf 'MOCK_HELPER' > \"$out\"",
+      "chmod 755 \"$out\"",
+      "exit 0",
+      "",
+    ].join("\n"),
+  );
+  fs.chmodSync(swiftcPath, 0o755);
+
+  return swiftcPath;
+}
 
 describe("macOS privileged helper executable", () => {
   it("defines a launchd Mach service XPC listener guarded by caller signing requirement", () => {
@@ -108,6 +165,170 @@ describe("macOS privileged helper executable", () => {
       "build:native:privileged-helper":
         "bun run scripts/build-macos-privileged-helper.ts",
     });
+  });
+
+  it("builds privileged helper artifacts under an explicit project root", () => {
+    const cwdRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "diskviz-helper-build-cwd-"),
+    );
+    const artifactRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "diskviz-helper-build-artifacts-"),
+    );
+    const fakeBinDir = fs.mkdtempSync(
+      path.join(os.tmpdir(), "diskviz-helper-build-bin-"),
+    );
+    const artifactOutputPath = path.join(
+      artifactRoot,
+      "resources",
+      "helper",
+      "LaunchServices",
+      DISK_SCAN_HELPER_LABEL,
+    );
+    const artifactGeneratedSourcePath = path.join(
+      artifactRoot,
+      ".tmp",
+      "swift-generated",
+      "privileged-helper-main.swift",
+    );
+    const artifactModuleCachePath = path.join(
+      artifactRoot,
+      ".tmp",
+      "swift-module-cache",
+    );
+    const cwdGeneratedSourcePath = path.join(
+      cwdRoot,
+      ".tmp",
+      "swift-generated",
+      "privileged-helper-main.swift",
+    );
+    const argsLogPath = path.join(artifactRoot, "swiftc-args.log");
+    const cwdOutputPath = path.join(
+      cwdRoot,
+      "resources",
+      "helper",
+      "LaunchServices",
+      DISK_SCAN_HELPER_LABEL,
+    );
+
+    try {
+      writeMinimalPrivilegedHelperSources(cwdRoot);
+      writeMinimalPrivilegedHelperSources(artifactRoot);
+      writeFakeSwiftCompiler(fakeBinDir);
+
+      const result = spawnSync(
+        "bun",
+        [
+          "run",
+          buildScriptPath,
+          "--project-root",
+          artifactRoot,
+        ],
+        {
+          cwd: cwdRoot,
+          env: {
+            ...process.env,
+            FAKE_SWIFTC_ARGS_LOG: argsLogPath,
+            PATH: `${fakeBinDir}${path.delimiter}${process.env.PATH ?? ""}`,
+            SCAN_HELPER_TEAM_ID: "ABCDE12345",
+          },
+          encoding: "utf8",
+        },
+      );
+
+      expect(result.status).toBe(0);
+      expect(fs.existsSync(artifactOutputPath)).toBe(true);
+      expect(fs.existsSync(`${artifactOutputPath}.requirement.json`)).toBe(true);
+      expect(fs.existsSync(artifactGeneratedSourcePath)).toBe(true);
+      expect(fs.existsSync(artifactModuleCachePath)).toBe(true);
+      expect(fs.existsSync(cwdOutputPath)).toBe(false);
+      expect(fs.existsSync(cwdGeneratedSourcePath)).toBe(false);
+      expect(fs.readFileSync(argsLogPath, "utf8")).toContain(
+        artifactGeneratedSourcePath,
+      );
+      expect(
+        JSON.parse(fs.readFileSync(`${artifactOutputPath}.requirement.json`, "utf8")),
+      ).toEqual({
+        ready: true,
+        requirement:
+          'identifier "com.example.diskvisualizer" and anchor apple generic and certificate leaf[subject.OU] = "ABCDE12345"',
+        teamId: "ABCDE12345",
+      });
+    } finally {
+      fs.rmSync(cwdRoot, { force: true, recursive: true });
+      fs.rmSync(artifactRoot, { force: true, recursive: true });
+      fs.rmSync(fakeBinDir, { force: true, recursive: true });
+    }
+  });
+
+  it("fails explicitly when privileged helper build project root is missing", () => {
+    const cwdRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "diskviz-helper-build-missing-cwd-"),
+    );
+    const fakeBinDir = fs.mkdtempSync(
+      path.join(os.tmpdir(), "diskviz-helper-build-missing-bin-"),
+    );
+
+    try {
+      writeMinimalPrivilegedHelperSources(cwdRoot);
+      writeFakeSwiftCompiler(fakeBinDir);
+
+      const result = spawnSync(
+        "bun",
+        ["run", buildScriptPath, "--project-root"],
+        {
+          cwd: cwdRoot,
+          env: {
+            ...process.env,
+            PATH: `${fakeBinDir}${path.delimiter}${process.env.PATH ?? ""}`,
+          },
+          encoding: "utf8",
+        },
+      );
+
+      expect(result.status).toBe(1);
+      expect(result.stderr).toContain("missing value for --project-root");
+    } finally {
+      fs.rmSync(cwdRoot, { force: true, recursive: true });
+      fs.rmSync(fakeBinDir, { force: true, recursive: true });
+    }
+  });
+
+  it("fails explicitly when privileged helper build project root is followed by another option", () => {
+    const cwdRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "diskviz-helper-build-option-cwd-"),
+    );
+    const fakeBinDir = fs.mkdtempSync(
+      path.join(os.tmpdir(), "diskviz-helper-build-option-bin-"),
+    );
+
+    try {
+      writeMinimalPrivilegedHelperSources(cwdRoot);
+      writeFakeSwiftCompiler(fakeBinDir);
+
+      const result = spawnSync(
+        "bun",
+        [
+          "run",
+          buildScriptPath,
+          "--project-root",
+          "--team-id",
+        ],
+        {
+          cwd: cwdRoot,
+          env: {
+            ...process.env,
+            PATH: `${fakeBinDir}${path.delimiter}${process.env.PATH ?? ""}`,
+          },
+          encoding: "utf8",
+        },
+      );
+
+      expect(result.status).toBe(1);
+      expect(result.stderr).toContain("missing value for --project-root");
+    } finally {
+      fs.rmSync(cwdRoot, { force: true, recursive: true });
+      fs.rmSync(fakeBinDir, { force: true, recursive: true });
+    }
   });
 
   it("generates a real Team ID source that can reach the exported XPC surface", () => {

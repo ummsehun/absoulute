@@ -1,27 +1,28 @@
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { spawnSync } from "node:child_process";
-import { tmpdir } from "node:os";
 import {
   buildHelperCodeSigningRequirement,
 } from "../src/main/services/helper/helperRegistration";
 
+const rawArgs = process.argv.slice(2);
+const projectRoot = resolveOptionalArg(rawArgs, "--project-root") ?? process.cwd();
 const sourcePath = join(
-  process.cwd(),
+  projectRoot,
   "native",
   "macos-helper",
   "privileged-helper",
   "main.swift",
 );
 const traversalSourcePath = join(
-  process.cwd(),
+  projectRoot,
   "native",
   "macos-helper",
   "privileged-helper",
   "enumerateTraversal.swift",
 );
 const outputPath = join(
-  process.cwd(),
+  projectRoot,
   "resources",
   "helper",
   "LaunchServices",
@@ -29,19 +30,15 @@ const outputPath = join(
 );
 const requirementMetadataPath = `${outputPath}.requirement.json`;
 const moduleCachePath = join(
-  process.cwd(),
+  projectRoot,
   ".tmp",
   "swift-module-cache",
 );
 const generatedSourcePath = join(
-  process.cwd(),
+  projectRoot,
   ".tmp",
   "swift-generated",
   "privileged-helper-main.swift",
-);
-const compileGeneratedSourcePath = join(
-  mkdtempSync(join(tmpdir(), "diskviz-privileged-helper-")),
-  "main.swift",
 );
 const teamId = process.env.SCAN_HELPER_TEAM_ID?.trim();
 const effectiveTeamId = isValidAppleTeamIdText(teamId)
@@ -60,7 +57,6 @@ const generatedSource = readFileSync(sourcePath, "utf8").replace(
   effectiveTeamId,
 );
 writeFileSync(generatedSourcePath, generatedSource);
-writeFileSync(compileGeneratedSourcePath, generatedSource);
 
 const result = spawnSync(
   "swiftc",
@@ -70,7 +66,7 @@ const result = spawnSync(
     "-O",
     "-o",
     outputPath,
-    compileGeneratedSourcePath,
+    generatedSourcePath,
     traversalSourcePath,
   ],
   {
@@ -97,4 +93,21 @@ writeFileSync(
 
 function isValidAppleTeamIdText(value: string | undefined): value is string {
   return typeof value === "string" && /^[A-Z0-9]{10}$/.test(value);
+}
+
+function resolveOptionalArg(
+  rawArgs: string[],
+  name: string,
+): string | undefined {
+  const index = rawArgs.indexOf(name);
+  if (index < 0) {
+    return undefined;
+  }
+
+  const value = rawArgs[index + 1]?.trim();
+  if (!value || value.startsWith("--")) {
+    throw new Error(`missing value for ${name}`);
+  }
+
+  return value;
 }
