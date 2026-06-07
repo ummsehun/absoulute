@@ -21,12 +21,18 @@ import {
   MACOS_HELPER_ENUMERATE_BINARY_MISSING_REASON,
   type MacOsHelperEnumerator,
 } from "./macosHelperEnumerateCommand";
+import {
+  createMacOsHelperControlFromEnv,
+  type MacOsHelperControl,
+} from "./macosHelperControlCommand";
 
 export const MACOS_XPC_HELPER_NOT_IMPLEMENTED_REASON =
   "xpc-transport-not-implemented";
 
 export interface MacOsXpcHelperTransportOptions {
   allowPrototypeEnumerate?: boolean;
+  control?: MacOsHelperControl;
+  controlBinaryPath?: string;
   enumerateBinaryPath?: string;
   enumerator?: MacOsHelperEnumerator;
   serviceManagementControl?: MacOsServiceManagementControl;
@@ -34,6 +40,7 @@ export interface MacOsXpcHelperTransportOptions {
 
 export class MacOsXpcHelperTransport implements HelperTransport {
   private readonly allowPrototypeEnumerate: boolean;
+  private readonly control: MacOsHelperControl | null;
   private readonly enumerator: MacOsHelperEnumerator | null;
   private readonly serviceManagementControl: MacOsServiceManagementControl | null;
 
@@ -45,6 +52,16 @@ export class MacOsXpcHelperTransport implements HelperTransport {
   ) {
     this.allowPrototypeEnumerate = options.allowPrototypeEnumerate === true;
     this.serviceManagementControl = options.serviceManagementControl ?? null;
+    this.control = options.control
+      ?? (
+        options.controlBinaryPath
+          ? createMacOsHelperControlFromEnv(
+            { SCAN_HELPER_CONTROL_BIN: options.controlBinaryPath },
+            "darwin",
+            null,
+          )
+          : null
+      );
     this.enumerator = options.enumerator
       ?? (
         options.enumerateBinaryPath
@@ -76,11 +93,57 @@ export class MacOsXpcHelperTransport implements HelperTransport {
   }
 
   async getVersion(): Promise<string | null> {
-    return null;
+    if (!this.control) {
+      return null;
+    }
+
+    return await this.control.getVersion({
+      scanId: "helper-version",
+      stageId: "control",
+    });
   }
 
   async healthCheck(): Promise<HelperClientStatus> {
-    return await this.getStatus();
+    const status = await this.getStatus();
+    if (!this.control) {
+      return status;
+    }
+
+    try {
+      await this.control.healthCheck({
+        scanId: "helper-health",
+        stageId: "control",
+      });
+    } catch (error) {
+      return {
+        ...status,
+        lifecycle: status.lifecycle
+          ? {
+            ...status.lifecycle,
+            checks: {
+              ...status.lifecycle.checks,
+              "xpc-channel": "fail",
+            },
+          }
+          : status.lifecycle,
+        reason: error instanceof Error ? error.message : "helper-control-failed",
+      };
+    }
+
+    if (status.lifecycle && canAcceptXpcChannelEvidence(status)) {
+      return {
+        ...status,
+        lifecycle: {
+          ...status.lifecycle,
+          checks: {
+            ...status.lifecycle.checks,
+            "xpc-channel": "pass",
+          },
+        },
+      };
+    }
+
+    return status;
   }
 
   async register(): Promise<HelperClientStatus> {
@@ -174,4 +237,12 @@ export class MacOsXpcHelperTransport implements HelperTransport {
       transport: "xpc",
     };
   }
+}
+
+function canAcceptXpcChannelEvidence(status: HelperClientStatus): boolean {
+  return status.registrationPreflight?.status === "ready"
+    && status.lifecycle?.checks["service-management"] === "pass"
+    && status.lifecycle.checks["helper-install"] === "pass"
+    && status.lifecycle.checks["caller-identity"] !== "fail"
+    && status.lifecycle.checks["full-disk-access"] !== "fail";
 }

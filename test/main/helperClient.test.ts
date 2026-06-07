@@ -18,6 +18,7 @@ import {
   TransportHelperClient,
 } from "../../src/main/services/helper/helperClient";
 import { HelperTransportUnavailableError, type HelperTransport } from "../../src/main/services/helper/helperTransport";
+import { CommandMacOsHelperControl } from "../../src/main/services/helper/macosHelperControlCommand";
 import { CommandMacOsHelperEnumerator } from "../../src/main/services/helper/macosHelperEnumerateCommand";
 import {
   MACOS_XPC_HELPER_NOT_IMPLEMENTED_REASON,
@@ -614,6 +615,303 @@ describe("helperClient", () => {
         enumerator.enumerate(request, { onEvent: () => undefined }),
       ).rejects.toThrow(reason);
       expect(runCalled).toBe(false);
+    }
+  });
+
+  it("runs helper health and version control requests through a dedicated control command", async () => {
+    const runRequests: unknown[] = [];
+    const control = new CommandMacOsHelperControl({
+      commandPath: "/test/helper-control-macos",
+      run: async (request, handlers) => {
+        runRequests.push(request);
+        handlers.onEvent({
+          type: "ready",
+          requestId: request.request.requestId,
+          helperVersion: "test-control-helper",
+        });
+        handlers.onEvent({
+          type: "done",
+          requestId: request.request.requestId,
+          estimated: false,
+          elapsedMs: 2,
+        });
+        return { exitCode: 0, stderr: "" };
+      },
+    });
+
+    await expect(
+      control.healthCheck({
+        scanId: "scan-1",
+        stageId: "control",
+        issuedAtMs: 1_765_000_000_000,
+        nonce: "0123456789abcdef",
+        requestId: "health-request-1",
+      }),
+    ).resolves.toMatchObject({
+      helperVersion: "test-control-helper",
+    });
+    await expect(
+      control.getVersion({
+        scanId: "scan-1",
+        stageId: "control",
+        issuedAtMs: 1_765_000_000_001,
+        nonce: "abcdef0123456789",
+        requestId: "version-request-1",
+      }),
+    ).resolves.toBe("test-control-helper");
+    expect(runRequests).toHaveLength(2);
+    expect(runRequests).toMatchObject([
+      {
+        request: {
+          operation: "health.check",
+          requestId: "health-request-1",
+        },
+      },
+      {
+        request: {
+          operation: "version.get",
+          requestId: "version-request-1",
+        },
+      },
+    ]);
+  });
+
+  it("rejects helper control events with a mismatched request id", async () => {
+    const control = new CommandMacOsHelperControl({
+      commandPath: "/test/helper-control-macos",
+      run: async (_request, handlers) => {
+        handlers.onEvent({
+          type: "ready",
+          requestId: "other-request",
+          helperVersion: "test-control-helper",
+        });
+        return { exitCode: 0, stderr: "" };
+      },
+    });
+
+    await expect(
+      control.getVersion({
+        scanId: "scan-1",
+        stageId: "control",
+        issuedAtMs: 1_765_000_000_001,
+        nonce: "abcdef0123456789",
+        requestId: "version-request-1",
+      }),
+    ).rejects.toThrow("helper-control-request-id-mismatch");
+  });
+
+  it("rejects unsupported helper control events and events after terminal", async () => {
+    const unsupportedEventControl = new CommandMacOsHelperControl({
+      commandPath: "/test/helper-control-macos",
+      run: async (request, handlers) => {
+        handlers.onEvent({
+          type: "progress",
+          requestId: request.request.requestId,
+          scannedCount: 1,
+        });
+        return { exitCode: 0, stderr: "" };
+      },
+    });
+    const eventAfterTerminalControl = new CommandMacOsHelperControl({
+      commandPath: "/test/helper-control-macos",
+      run: async (request, handlers) => {
+        handlers.onEvent({
+          type: "done",
+          requestId: request.request.requestId,
+          estimated: false,
+          elapsedMs: 1,
+        });
+        handlers.onEvent({
+          type: "ready",
+          requestId: request.request.requestId,
+          helperVersion: "late-helper",
+        });
+        return { exitCode: 0, stderr: "" };
+      },
+    });
+
+    await expect(
+      unsupportedEventControl.getVersion({
+        scanId: "scan-1",
+        stageId: "control",
+        issuedAtMs: 1_765_000_000_001,
+        nonce: "abcdef0123456789",
+        requestId: "version-request-1",
+      }),
+    ).rejects.toThrow("helper-control-unsupported-event:progress");
+    await expect(
+      eventAfterTerminalControl.getVersion({
+        scanId: "scan-1",
+        stageId: "control",
+        issuedAtMs: 1_765_000_000_001,
+        nonce: "abcdef0123456789",
+        requestId: "version-request-1",
+      }),
+    ).rejects.toThrow("helper-control-event-after-terminal");
+  });
+
+  it("rejects enumerate requests before invoking the helper control command", async () => {
+    let runCalled = false;
+    const control = new CommandMacOsHelperControl({
+      commandPath: "/test/helper-control-macos",
+      run: async () => {
+        runCalled = true;
+        return { exitCode: 0, stderr: "" };
+      },
+    });
+
+    await expect(
+      control.runControlRequest(
+        buildHelperEnumerateRequest({
+          rootPath: "/Users/tester",
+          scanId: "scan-1",
+          stageId: "deep",
+          scanMode: "deep",
+          options: resolveScanOptions(
+            {
+              rootPath: "/Users/tester",
+              optInProtected: false,
+              accuracyMode: "full",
+            },
+            "/Users/tester",
+          ),
+          volumePlan: resolveNativeVolumePlan(
+            { rootPath: "/Users/tester" },
+            "darwin",
+          ),
+          maxDepth: 128,
+          issuedAtMs: 1_765_000_000_000,
+          nonce: "0123456789abcdef",
+          requestId: "request-1",
+        }),
+      ),
+    ).rejects.toThrow("helper-control-unsupported-operation:scan.enumerate");
+    expect(runCalled).toBe(false);
+  });
+
+  it("uses helper control command evidence for xpc health and version checks", async () => {
+    const transport = new MacOsXpcHelperTransport(
+      {
+        getStatus: async () => ({
+          state: "registered",
+          reason: "registered",
+        }),
+      },
+      {
+        identity: {
+          teamId: "ABCDE12345",
+          designatedRequirement:
+            'identifier "com.example.diskvisualizer" and anchor apple generic and certificate leaf[subject.OU] = "ABCDE12345"',
+        },
+        packagingEntitlementsReady: true,
+        privilegedHelperExecutableReady: true,
+        privilegedHelperListenerRequirementReady: true,
+        fdaValidationMatrixReady: true,
+      },
+      {
+        control: {
+          healthCheck: async () => ({
+            helperVersion: "test-control-helper",
+          }),
+          getVersion: async () => "test-control-helper",
+        },
+      },
+    );
+
+    await expect(transport.getVersion()).resolves.toBe("test-control-helper");
+    await expect(transport.healthCheck()).resolves.toMatchObject({
+      available: false,
+      lifecycle: {
+        state: "not-implemented",
+        checks: {
+          "service-management": "pass",
+          "helper-install": "pass",
+          "caller-identity": "unknown",
+          "full-disk-access": "unknown",
+          "xpc-channel": "pass",
+        },
+      },
+      reason: MACOS_XPC_HELPER_NOT_IMPLEMENTED_REASON,
+      transport: "xpc",
+    });
+  });
+
+  it("does not treat local helper control success as xpc channel evidence before registration is ready", async () => {
+    const transport = new MacOsXpcHelperTransport(
+      {
+        getStatus: async () => ({
+          state: "not-installed",
+          reason: "not-installed",
+        }),
+      },
+      {
+        identity: {
+          teamId: "ABCDE12345",
+          designatedRequirement:
+            'identifier "com.example.diskvisualizer" and anchor apple generic and certificate leaf[subject.OU] = "ABCDE12345"',
+        },
+        packagingEntitlementsReady: true,
+        privilegedHelperExecutableReady: true,
+        privilegedHelperListenerRequirementReady: true,
+        fdaValidationMatrixReady: true,
+      },
+      {
+        control: {
+          healthCheck: async () => ({
+            helperVersion: "test-control-helper",
+          }),
+          getVersion: async () => "test-control-helper",
+        },
+      },
+    );
+
+    await expect(transport.healthCheck()).resolves.toMatchObject({
+      lifecycle: {
+        state: "not-installed",
+        checks: {
+          "service-management": "fail",
+          "xpc-channel": "fail",
+        },
+      },
+      reason: MACOS_XPC_HELPER_NOT_IMPLEMENTED_REASON,
+      transport: "xpc",
+    });
+  });
+
+  it("uses the packaged helper control CLI when xpc transport is enabled", async () => {
+    const resourcesRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "diskviz-helper-control-resources-"),
+    );
+    const controlPath = path.join(
+      resourcesRoot,
+      "bin",
+      "helper-control-macos",
+    );
+    fs.mkdirSync(path.dirname(controlPath), { recursive: true });
+    fs.writeFileSync(
+      controlPath,
+      [
+        "#!/bin/sh",
+        "input=$(cat)",
+        "request_id=$(printf '%s' \"$input\" | sed -n 's/.*\"requestId\":\"\\([^\"]*\\)\".*/\\1/p')",
+        "printf '%s\\n' \"{\\\"type\\\":\\\"ready\\\",\\\"requestId\\\":\\\"$request_id\\\",\\\"helperVersion\\\":\\\"packaged-control-helper\\\"}\"",
+        "printf '%s\\n' \"{\\\"type\\\":\\\"done\\\",\\\"requestId\\\":\\\"$request_id\\\",\\\"estimated\\\":false,\\\"elapsedMs\\\":1}\"",
+      ].join("\n"),
+      { mode: 0o755 },
+    );
+
+    try {
+      const transport = createDefaultHelperTransport(
+        { [HELPER_TRANSPORT_ENV]: "xpc" },
+        "darwin",
+        resourcesRoot,
+      );
+
+      await expect(transport.getVersion()).resolves.toBe(
+        "packaged-control-helper",
+      );
+    } finally {
+      fs.rmSync(resourcesRoot, { force: true, recursive: true });
     }
   });
 

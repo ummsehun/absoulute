@@ -795,6 +795,68 @@ Cold assessment:
 - It does not implement real XPC health/version transport calls.
 - It does not enable helper-backed scan execution by default.
 
+## Phase B12 Helper Control Command Transport
+
+Facts:
+
+- Phase B12 is scoped in
+  `docs/superpowers/plans/2026-06-08-phase-b12-helper-control-command-transport.md`.
+- `macosHelperControlCommand.ts` now defines a separate helper control command
+  boundary for `health.check` and `version.get` requests.
+- The helper control command boundary rejects `scan.enumerate` requests before
+  invoking the command runner.
+- Control command events are validated with the shared helper event schema and
+  are bound to the request ID before health/version evidence is accepted.
+- `MacOsXpcHelperTransport.getVersion()` can now delegate to configured helper
+  control evidence and still returns `null` when no control command is
+  available.
+- `MacOsXpcHelperTransport.healthCheck()` can now mark the XPC channel check as
+  pass only when the control command succeeds; registration/FDA blockers still
+  keep the helper unavailable.
+- `createDefaultHelperTransport()` resolves packaged `helper-control-macos`
+  resources on macOS only when XPC transport is explicitly requested.
+- `native/macos-helper/control/main.swift` provides a prototype Swift control
+  CLI for health/version requests.
+- `package.json` now includes `build:native:helper-control`.
+- `electron-builder.json` now packages `helper-control-macos` from
+  `resources/bin`.
+- The helper remains disabled by default.
+
+Verification commands run for this Phase B12 slice:
+
+- `pnpm test test/main/helperClient.test.ts`: passed, 33 tests.
+- `pnpm test test/main/helperPackaging.test.ts`: passed, 7 tests.
+- `bun run build:native:helper-control`: passed and produced
+  `resources/bin/helper-control-macos`.
+- `resources/bin/helper-control-macos` accepted a `version.get` request and
+  emitted matching `ready` and `done` events.
+- `pnpm test`: passed, 45 files, 201 tests.
+- `pnpm typecheck`: passed.
+- `pnpm lint`: passed.
+- `pnpm build`: passed.
+- `cargo test --manifest-path native/scanner/Cargo.toml`: passed, 8 tests,
+  with the existing 6 Rust dead-code warnings.
+- `pnpm audit:helper-readiness`: reported `status: "blocked"`,
+  `canEnableHelperByDefault: false`, and local
+  `serviceManagementStatus: "not-implemented"`.
+
+External blockers still missing:
+
+- Production XPC peer identity validation.
+- Real ServiceManagement registration evidence from a packaged app/helper.
+- Real Team ID and designated requirement.
+- Real listener requirement metadata generated from that Team ID.
+- Full FDA validation matrix on the target macOS version.
+- Production signing, packaging, and notarization evidence.
+
+Cold assessment:
+
+- This mini phase makes health/version command evidence executable and
+  auditable through the main-process helper transport boundary.
+- This is still prototype command evidence, not proof of production XPC
+  identity or default helper readiness.
+- It does not enable helper-backed scan execution by default.
+
 ## Findings
 
 ### P1: Privileged Helper Is Still Blocked by Real Identity and FDA Evidence

@@ -22,6 +22,7 @@ import {
   createMacOsServiceManagementProbeFromEnv,
 } from "./macosServiceManagementProbe";
 import { MacOsXpcHelperTransport } from "./macosXpcHelperTransport";
+import { createMacOsHelperControlFromEnv } from "./macosHelperControlCommand";
 
 export const HELPER_DISABLED_REASON = "helper-phase-gate-unresolved";
 export const HELPER_TRANSPORT_ENV = "SCAN_HELPER_TRANSPORT";
@@ -169,6 +170,8 @@ export function createDefaultHelperTransport(
       allowPrototypeEnumerate: readBooleanEnv(
         env[HELPER_PROTOTYPE_ENUMERATE_ENV],
       ),
+      control: createMacOsHelperControlFromEnv(env, platform, resourcesPath)
+        ?? undefined,
       enumerator: createMacOsHelperEnumeratorFromEnv(
         env,
         platform,
