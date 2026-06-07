@@ -46,7 +46,9 @@ describe("renderer helper plan formatting", () => {
           },
         },
       }),
-    ).toBe("helper unavailable fallback helper-unavailable xpc not-implemented");
+    ).toBe(
+      "helper unavailable registration:team-id-missing,+1 fallback helper-unavailable xpc not-implemented",
+    );
   });
 
   it("formats prototype-only helper plans without implying production readiness", () => {
@@ -57,5 +59,52 @@ describe("renderer helper plan formatting", () => {
         transport: "xpc",
       }),
     ).toBe("helper prototype-only xpc unknown");
+  });
+
+  it("includes registration and readiness blockers in native fallback labels", () => {
+    expect(
+      getHelperPlanLabel({
+        engine: "native",
+        fallbackReason: "registration-preflight-blocked",
+        productionReadiness: "blocked",
+        registrationBlockers: ["team-id-missing"],
+        readinessBlockers: ["service-management-not-registered"],
+        transport: "xpc",
+        lifecycle: {
+          state: "not-installed",
+          reason: "not-found",
+          checks: {
+            "service-management": "fail",
+            "helper-install": "unknown",
+            "caller-identity": "unknown",
+            "full-disk-access": "unknown",
+            "xpc-channel": "fail",
+          },
+        },
+      }),
+    ).toBe(
+      "helper blocked registration:team-id-missing readiness:service-management-not-registered fallback registration-preflight-blocked xpc not-installed",
+    );
+  });
+
+  it("comma-joins multiple helper blocker codes by category", () => {
+    expect(
+      getHelperPlanLabel({
+        engine: "native",
+        fallbackReason: "registration-preflight-blocked",
+        productionReadiness: "blocked",
+        registrationBlockers: [
+          "team-id-missing",
+          "helper-xpc-enumerate-bridge-missing",
+        ],
+        readinessBlockers: [
+          "helper-peer-validation-missing",
+          "service-management-not-registered",
+        ],
+        transport: "xpc",
+      }),
+    ).toBe(
+      "helper blocked registration:team-id-missing,+1 readiness:helper-peer-validation-missing,+1 fallback registration-preflight-blocked xpc unknown",
+    );
   });
 });

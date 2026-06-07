@@ -74,6 +74,12 @@ Facts:
 - Helper prototype audit summaries now include `readinessBlocked` and
   `readinessBlockers`, so fallback scans can explain why production helper
   scanning was not active.
+- Renderer helper plan labels now append compact blocker summaries for native
+  fallback plans, including `registration:<first-code,+N>` and
+  `readiness:<first-code,+N>`. The summaries are placed before fallback
+  reason/transport details so truncation is less likely to hide the helper
+  blocker cause. This makes helper fallback reasons visible in the app
+  footer/landing diagnostics without enabling helper execution.
 - `bun run audit:helper-readiness` reports `status: "blocked"` with
   `canEnableHelperByDefault: false`.
 
@@ -110,6 +116,24 @@ Phase B58 verification so far:
   test, and follow-up review reported no Critical or Important findings.
 - Current-state verification after review follow-up:
   - `pnpm test` passed, 55 files and 322 tests.
+  - `pnpm typecheck` passed.
+  - `pnpm lint` passed.
+  - `pnpm build` passed.
+  - `pnpm audit:helper-readiness --platform darwin --resources-path resources`
+    reported blocked and exited 1 as expected.
+
+Phase B59 verification so far:
+
+- RED was confirmed before implementation: renderer helper plan labels omitted
+  registration/readiness blocker summaries.
+- `pnpm test test/renderer/helperPlan.test.ts` passed, 1 file and 5 tests.
+- `pnpm typecheck` passed.
+- Sub-agent review reported one Important finding: suffix placement could be
+  truncated before the blocker cause. The label was revised to front-load
+  compact blocker summaries, and focused tests/typecheck passed again.
+- Follow-up review reported no Critical or Important findings.
+- Current-state verification after review follow-up:
+  - `pnpm test` passed, 55 files and 324 tests.
   - `pnpm typecheck` passed.
   - `pnpm lint` passed.
   - `pnpm build` passed.

@@ -11,5 +11,28 @@ export function getHelperPlanLabel(helperPlan?: ScanHelperPlan | null): string |
         return `helper ${readiness} ${helperPlan.transport} ${lifecycleState}`;
     }
 
-    return `helper ${readiness} fallback ${helperPlan.fallbackReason ?? "native"} ${helperPlan.transport} ${lifecycleState}`;
+    return [
+        `helper ${readiness}`,
+        ...formatHelperBlockers(helperPlan),
+        `fallback ${helperPlan.fallbackReason ?? "native"} ${helperPlan.transport} ${lifecycleState}`,
+    ].join(" ");
+}
+
+function formatHelperBlockers(helperPlan: ScanHelperPlan): string[] {
+    const labels: string[] = [];
+    if (helperPlan.registrationBlockers?.length) {
+        labels.push(`registration:${formatBlockerCodes(helperPlan.registrationBlockers)}`);
+    }
+    if (helperPlan.readinessBlockers?.length) {
+        labels.push(`readiness:${formatBlockerCodes(helperPlan.readinessBlockers)}`);
+    }
+
+    return labels;
+}
+
+function formatBlockerCodes(blockers: string[]): string {
+    const [firstBlocker, ...remainingBlockers] = blockers;
+    return remainingBlockers.length > 0
+        ? `${firstBlocker},+${remainingBlockers.length}`
+        : firstBlocker;
 }
