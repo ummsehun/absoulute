@@ -14,6 +14,7 @@ describe("helperPrototypeAuditSummary", () => {
           {
             engine: "helper",
             prototypeEnumerate: true,
+            registrationBlockers: [],
             transport: "xpc",
           },
         ],
@@ -121,6 +122,80 @@ describe("helperPrototypeAuditSummary", () => {
       fallbackUsed: false,
       helperAvailable: false,
       helperPrototypeLogged: true,
+      registrationBlocked: false,
+      registrationBlockers: [],
+    });
+  });
+
+  it("summarizes helper registration blocker evidence from the latest helper plan", () => {
+    expect(
+      summarizeHelperPrototypeAudit({
+        root: "/Users/user",
+        maxDepth: 4,
+        result: { estimated: true },
+        helperPlans: [
+          {
+            engine: "native",
+            fallbackReason: "helper-unavailable",
+            registrationBlockers: ["team-id-missing"],
+            transport: "xpc",
+          },
+          {
+            engine: "native",
+            fallbackReason: "registration-preflight-blocked",
+            registrationBlockers: [
+              "team-id-missing",
+              "helper-xpc-enumerate-bridge-missing",
+            ],
+            transport: "xpc",
+          },
+        ],
+        aggBatches: [],
+        coverage: [],
+        done: [],
+        progress: [],
+        warnings: [],
+        logEvents: [],
+      }),
+    ).toMatchObject({
+      engine: "native",
+      fallbackUsed: false,
+      registrationBlocked: true,
+      registrationBlockers: [
+        "team-id-missing",
+        "helper-xpc-enumerate-bridge-missing",
+      ],
+      transport: "xpc",
+    });
+  });
+
+  it("filters helper registration blocker summary to stable blocker codes", () => {
+    expect(
+      summarizeHelperPrototypeAudit({
+        root: "/Users/user",
+        maxDepth: 4,
+        result: { estimated: true },
+        helperPlans: [
+          {
+            engine: "native",
+            fallbackReason: "registration-preflight-blocked",
+            registrationBlockers: [
+              "team-id-missing",
+              "human readable fallback reason",
+            ] as never,
+            transport: "xpc",
+          },
+        ],
+        aggBatches: [],
+        coverage: [],
+        done: [],
+        progress: [],
+        warnings: [],
+        logEvents: [],
+      }),
+    ).toMatchObject({
+      registrationBlocked: true,
+      registrationBlockers: ["team-id-missing"],
     });
   });
 });

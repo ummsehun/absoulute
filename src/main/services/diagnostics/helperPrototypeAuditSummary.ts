@@ -1,4 +1,5 @@
 import type { NativeHelperPlanMessage } from "../scan/nativeScanOrchestrator";
+import { ScanHelperRegistrationBlockerSchema } from "../../../shared/schemas/scan";
 import type {
   NativeAggBatchMessage,
   NativeCoverageMessage,
@@ -47,6 +48,10 @@ export interface HelperPrototypeAuditSummary {
   fallbackUsed: boolean;
   helperAvailable: boolean | null;
   helperPrototypeLogged: boolean;
+  registrationBlocked: boolean;
+  registrationBlockers: NonNullable<
+    NativeHelperPlanMessage["registrationBlockers"]
+  >;
 }
 
 export function summarizeHelperPrototypeAudit(
@@ -57,6 +62,9 @@ export function summarizeHelperPrototypeAudit(
   const latestDone = input.done.at(-1);
   const helperPlanLog = input.logEvents.find(
     (entry) => entry.event === "native_helper_scan_plan",
+  );
+  const registrationBlockers = filterRegistrationBlockers(
+    latestPlan?.registrationBlockers,
   );
 
   return {
@@ -87,7 +95,17 @@ export function summarizeHelperPrototypeAudit(
     helperAvailable: readBooleanDetail(helperPlanLog, "helperAvailable"),
     helperPrototypeLogged:
       readBooleanDetail(helperPlanLog, "helperPrototypeEnumerate") === true,
+    registrationBlocked: registrationBlockers.length > 0,
+    registrationBlockers,
   };
+}
+
+function filterRegistrationBlockers(
+  blockers: NativeHelperPlanMessage["registrationBlockers"] | undefined,
+): NonNullable<NativeHelperPlanMessage["registrationBlockers"]> {
+  return (blockers ?? []).filter((blocker) =>
+    ScanHelperRegistrationBlockerSchema.safeParse(blocker).success
+  );
 }
 
 function isPermissionWarning(message: NativeWarnMessage): boolean {

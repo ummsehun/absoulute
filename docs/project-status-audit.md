@@ -1375,6 +1375,53 @@ Cold assessment:
 - It does not make helper readiness pass.
 - It does not enable helper-backed scan execution by default.
 
+## Phase B23 Helper Prototype Audit Registration Blockers
+
+Facts:
+
+- Phase B23 is scoped in
+  `docs/superpowers/plans/2026-06-08-phase-b23-helper-prototype-audit-registration-blockers.md`.
+- `summarizeHelperPrototypeAudit` now returns `registrationBlocked` and
+  `registrationBlockers`.
+- The blocker summary is read from the latest helper plan, matching existing
+  `engine`, `transport`, and `prototypeEnumerate` summary behavior.
+- `registrationBlockers` uses the stable blocker codes already carried by the
+  helper plan.
+- Helper scan selection did not change.
+- Helper readiness gates did not change.
+- The helper remains disabled by default and readiness remains blocked without
+  real ServiceManagement registration, production identity, and FDA evidence.
+
+Verification commands run for this Phase B23 slice:
+
+- `pnpm test test/main/helperPrototypeAuditSummary.test.ts`: passed, 1 file,
+  2 tests before review, then 3 tests after addressing review feedback.
+- `pnpm test`: passed, 45 files, 213 tests before review, then 214 tests after
+  addressing review feedback.
+- `pnpm typecheck`: passed.
+- `pnpm lint`: passed.
+- `pnpm build`: passed.
+- `cargo test --manifest-path native/scanner/Cargo.toml`: passed, 8 tests,
+  with the existing 6 Rust dead-code warnings.
+- `pnpm audit:helper-preflight`: reported blocked preflight while production
+  identity/FDA confirmations remain missing.
+- `pnpm audit:helper-readiness`: reported `status: "blocked"` and
+  `canEnableHelperByDefault: false`.
+
+External blockers still missing:
+
+- Installed privileged helper ServiceManagement evidence.
+- Production XPC peer identity validation with a real Team ID.
+- Full FDA validation matrix on the target macOS version.
+- Production signing, packaging, and notarization evidence.
+
+Cold assessment:
+
+- This mini phase makes helper prototype audit output retain the concrete
+  registration blockers that explain native fallback.
+- It does not make helper readiness pass.
+- It does not enable helper-backed scan execution by default.
+
 ## Findings
 
 ### P1: Privileged Helper Is Still Blocked by Real Identity and FDA Evidence
