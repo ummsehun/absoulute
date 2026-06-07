@@ -2145,3 +2145,47 @@ Interpretation:
 - This phase improves helper readiness audit reproducibility.
 - It does not prove that the privileged helper is installed, approved, or ready
   for default production scanning.
+
+## Phase B35 Helper ServiceManagement Control Script
+
+Date: 2026-06-08
+
+Facts:
+
+- Added `scripts/control-helper-service-management.ts`.
+- Added package script `control:helper-service-management`.
+- The script supports `--operation register|unregister`, `--confirm`,
+  `--platform`, `--resources-path`, `--probe-bin`, `--project-root`, and
+  `--out`.
+- The script refuses to call register/unregister without `--confirm`.
+- Confirmed `register` is blocked before invoking the controller when install
+  preflight evidence is missing.
+- Confirmed `unregister` can invoke the ServiceManagement controller and report
+  the controller result.
+- This phase does not auto-register the helper from readiness audits and does
+  not change helper default activation.
+
+Verification:
+
+- RED was confirmed before implementation because the control script did not
+  exist.
+- `pnpm test test/main/helperServiceManagementControlScript.test.ts` passed,
+  1 file and 3 tests.
+- `pnpm test test/main/helperServiceManagementControlScript.test.ts test/main/macosServiceManagementProbe.test.ts`
+  passed, 2 files and 17 tests.
+- `pnpm test test/main/helperClient.test.ts test/main/helperReadinessAuditScript.test.ts test/main/helperServiceManagementAuditScript.test.ts test/main/helperReadinessBundleScript.test.ts`
+  passed, 4 files and 48 tests.
+- `pnpm test` passed, 53 files and 258 tests.
+- `pnpm typecheck` passed.
+- `pnpm lint` passed.
+- `pnpm build` passed.
+- `cargo test --manifest-path native/scanner/Cargo.toml` passed. Existing Rust
+  dead-code warnings remain.
+- `pnpm audit:helper-readiness --platform darwin --resources-path resources`
+  and `pnpm audit:helper-readiness-bundle` remain intentionally blocked.
+
+Interpretation:
+
+- This phase adds a safer manual path for producing ServiceManagement
+  register/unregister evidence.
+- It does not prove the helper is installed or approved on the current machine.

@@ -22,6 +22,7 @@
     "audit:helper-readiness-bundle": "bun run scripts/audit-helper-readiness-bundle.ts",
     "audit:helper-service-management": "bun run scripts/audit-helper-service-management.ts",
     "bench:native-scan": "bun run scripts/bench-native-scan.ts",
+    "control:helper-service-management": "bun run scripts/control-helper-service-management.ts",
     "record:helper-fda-scenario": "bun run scripts/record-helper-fda-scenario.ts",
     "smoke:native-scan": "bun run scripts/smoke-native-scan.ts",
     "preview": "electron-vite preview",
