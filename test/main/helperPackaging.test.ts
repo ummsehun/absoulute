@@ -165,4 +165,36 @@ describe("helper packaging", () => {
       filter: expect.arrayContaining(["helper-control-macos"]),
     });
   });
+
+  it("packages the macOS helper xpc enumerate bridge as a native resource", () => {
+    const packageJson = JSON.parse(
+      fs.readFileSync(path.join(projectRoot, "package.json"), "utf8"),
+    ) as {
+      scripts?: Record<string, string>;
+    };
+    const config = JSON.parse(
+      fs.readFileSync(electronBuilderConfigPath, "utf8"),
+    ) as {
+      extraResources?: Array<{
+        filter?: string[];
+        from?: string;
+        to?: string;
+      }>;
+    };
+
+    expect(packageJson.scripts).toMatchObject({
+      "build:native:helper-xpc-enumerate":
+        "bun run scripts/build-macos-helper-xpc-enumerate.ts",
+    });
+    expect(
+      fs.existsSync(
+        path.join(projectRoot, "native", "macos-helper", "xpc-enumerate", "main.swift"),
+      ),
+    ).toBe(true);
+    expect(config.extraResources).toContainEqual({
+      from: "resources/bin",
+      to: "bin",
+      filter: expect.arrayContaining(["helper-xpc-enumerate-macos"]),
+    });
+  });
 });

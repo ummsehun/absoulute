@@ -19,7 +19,10 @@ import {
 } from "../../src/main/services/helper/helperClient";
 import { HelperTransportUnavailableError, type HelperTransport } from "../../src/main/services/helper/helperTransport";
 import { CommandMacOsHelperControl } from "../../src/main/services/helper/macosHelperControlCommand";
-import { CommandMacOsHelperEnumerator } from "../../src/main/services/helper/macosHelperEnumerateCommand";
+import {
+  CommandMacOsHelperEnumerator,
+  resolveMacOsHelperEnumerateBinary,
+} from "../../src/main/services/helper/macosHelperEnumerateCommand";
 import {
   MACOS_XPC_HELPER_NOT_IMPLEMENTED_REASON,
   MacOsXpcHelperTransport,
@@ -385,6 +388,32 @@ describe("helperClient", () => {
         elapsedMs: 1,
       },
     ]);
+  });
+
+  it("prefers the packaged xpc enumerate bridge over the local prototype enumerate CLI", () => {
+    const resourcesRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "diskviz-helper-xpc-enumerate-resources-"),
+    );
+    const binRoot = path.join(resourcesRoot, "bin");
+    const xpcBridgePath = path.join(binRoot, "helper-xpc-enumerate-macos");
+    const localPrototypePath = path.join(binRoot, "helper-enumerate-macos");
+    fs.mkdirSync(binRoot, { recursive: true });
+    fs.writeFileSync(xpcBridgePath, "#!/bin/sh\n", { mode: 0o755 });
+    fs.writeFileSync(localPrototypePath, "#!/bin/sh\n", { mode: 0o755 });
+
+    try {
+      expect(resolveMacOsHelperEnumerateBinary({}, resourcesRoot)).toBe(
+        xpcBridgePath,
+      );
+      expect(
+        resolveMacOsHelperEnumerateBinary(
+          { SCAN_HELPER_ENUMERATE_BIN: localPrototypePath },
+          resourcesRoot,
+        ),
+      ).toBe(localPrototypePath);
+    } finally {
+      fs.rmSync(resourcesRoot, { force: true, recursive: true });
+    }
   });
 
   it("blocks helper enumeration when registration preflight is not ready", async () => {

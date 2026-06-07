@@ -17,6 +17,7 @@
         "scanner-win.exe",
         "scanner-linux",
         "helper-control-macos",
+        "helper-xpc-enumerate-macos",
         "helper-enumerate-macos",
         "service-management-probe-macos",
         "diskviz-scanner",

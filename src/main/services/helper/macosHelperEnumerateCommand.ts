@@ -9,6 +9,8 @@ import type { HelperTransportHandlers } from "./helperTransport";
 
 export const HELPER_ENUMERATE_BIN_ENV = "SCAN_HELPER_ENUMERATE_BIN";
 export const MACOS_HELPER_ENUMERATE_BINARY_NAME = "helper-enumerate-macos";
+export const MACOS_HELPER_XPC_ENUMERATE_BINARY_NAME =
+  "helper-xpc-enumerate-macos";
 export const MACOS_HELPER_ENUMERATE_BINARY_MISSING_REASON =
   "helper-enumerate-binary-missing";
 
@@ -140,12 +142,23 @@ export function resolveMacOsHelperEnumerateBinary(
     return null;
   }
 
-  const bundledCandidate = path.resolve(
+  const bundledXpcBridgeCandidate = path.resolve(
+    resourcesPath,
+    "bin",
+    MACOS_HELPER_XPC_ENUMERATE_BINARY_NAME,
+  );
+  if (fs.existsSync(bundledXpcBridgeCandidate)) {
+    return bundledXpcBridgeCandidate;
+  }
+
+  const bundledPrototypeCandidate = path.resolve(
     resourcesPath,
     "bin",
     MACOS_HELPER_ENUMERATE_BINARY_NAME,
   );
-  return fs.existsSync(bundledCandidate) ? bundledCandidate : null;
+  return fs.existsSync(bundledPrototypeCandidate)
+    ? bundledPrototypeCandidate
+    : null;
 }
 
 function runCommandEnumerator(

@@ -27,6 +27,13 @@ const controlSourcePath = path.join(
   "control",
   "main.swift",
 );
+const xpcEnumerateSourcePath = path.join(
+  process.cwd(),
+  "native",
+  "macos-helper",
+  "xpc-enumerate",
+  "main.swift",
+);
 const privilegedTraversalSourcePath = path.join(
   process.cwd(),
   "native",
@@ -166,5 +173,26 @@ describe("macOS privileged helper executable", () => {
     expect(source).toContain('"type": "error"');
     expect(source).not.toContain("scan.enumerate");
     expect(source).not.toContain("enumerate(");
+  });
+
+  it("builds a helper xpc enumerate command that bridges to the privileged helper service", () => {
+    const source = fs.readFileSync(xpcEnumerateSourcePath, "utf8");
+
+    expect(source).toContain("@objc(DiskVisualizerPrivilegedHelperProtocol)");
+    expect(source).toContain("func enumerate(_ requestJson:");
+    expect(source).toContain("withReply reply:");
+    expect(source).toContain("NSXPCConnection(");
+    expect(source).toContain("machServiceName: helperMachServiceName");
+    expect(source).toContain("remoteObjectInterface");
+    expect(source).toContain("remoteObjectProxyWithErrorHandler");
+    expect(source).toContain("helper.enumerate");
+    expect(source).toContain("FileHandle.standardOutput.write");
+    expect(source).toContain("boundedMessage");
+    expect(source).toContain("prefix(2048)");
+    expect(source).toContain('"E_INVALID_REQUEST"');
+    expect(source).toContain('"E_HELPER_INTERNAL"');
+    expect(source).not.toContain("FileManager.default.enumerator");
+    expect(source).not.toContain("removeItem");
+    expect(source).not.toContain("Process()");
   });
 });

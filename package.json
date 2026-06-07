@@ -10,6 +10,7 @@
     "build": "electron-vite build",
     "build:native:helper-control": "bun run scripts/build-macos-helper-control.ts",
     "build:native:helper-enumerate": "bun run scripts/build-macos-helper-enumerate.ts",
+    "build:native:helper-xpc-enumerate": "bun run scripts/build-macos-helper-xpc-enumerate.ts",
     "build:native:privileged-helper": "bun run scripts/build-macos-privileged-helper.ts",
     "build:native:scanner": "cargo build --manifest-path native/scanner/Cargo.toml --release",
     "build:native:sm-probe": "bun run scripts/build-macos-service-management-probe.ts",

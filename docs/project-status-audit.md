@@ -1161,6 +1161,60 @@ Cold assessment:
 - It does not make readiness pass without external production evidence.
 - It does not enable helper-backed scan execution by default.
 
+## Phase B19 Helper XPC Enumerate Bridge
+
+Facts:
+
+- Phase B19 is scoped in
+  `docs/superpowers/plans/2026-06-08-phase-b19-helper-xpc-enumerate-bridge.md`.
+- `native/macos-helper/xpc-enumerate/main.swift` adds a packaged
+  `helper-xpc-enumerate-macos` bridge.
+- The bridge reads the existing helper request envelope from stdin, connects to
+  `com.example.diskvisualizer.privileged-helper` with `NSXPCConnection`, calls
+  `enumerate(_:withReply:)`, and writes the helper's newline-delimited event
+  reply to stdout.
+- `src/main/services/helper/macosHelperEnumerateCommand.ts` now prefers the
+  packaged `helper-xpc-enumerate-macos` bridge when present.
+- `SCAN_HELPER_ENUMERATE_BIN` remains an explicit override.
+- `helper-enumerate-macos` remains packaged as a local prototype fallback.
+- `electron-builder.json` now packages `helper-xpc-enumerate-macos`.
+- `package.json` now includes `build:native:helper-xpc-enumerate`.
+- The helper remains disabled by default and readiness remains blocked without
+  production evidence.
+
+Verification commands run for this Phase B19 slice:
+
+- `pnpm test test/main/macosPrivilegedHelperCli.test.ts
+  test/main/helperPackaging.test.ts test/main/helperClient.test.ts`: passed, 3
+  files, 48 tests.
+- `pnpm build:native:helper-xpc-enumerate`: passed.
+- `pnpm test`: passed, 45 files, 207 tests.
+- `pnpm typecheck`: passed.
+- `pnpm lint`: passed.
+- `pnpm build`: passed.
+- `cargo test --manifest-path native/scanner/Cargo.toml`: passed, 8 tests,
+  with the existing 6 Rust dead-code warnings.
+- `pnpm audit:helper-preflight`: reported blocked preflight with placeholder
+  `TEAMID_NOT_CONFIGURED` listener metadata.
+- `pnpm audit:helper-readiness`: reported `status: "blocked"` and
+  `canEnableHelperByDefault: false`.
+- LOC check:
+  - `native/macos-helper/xpc-enumerate/main.swift`: 191
+
+External blockers still missing:
+
+- Installed privileged helper ServiceManagement evidence.
+- Production XPC peer identity validation with a real Team ID.
+- Full FDA validation matrix on the target macOS version.
+- Production signing, packaging, and notarization evidence.
+
+Cold assessment:
+
+- This mini phase gives the main-process helper transport a packaged command
+  path that can call the privileged helper `scan.enumerate` XPC method.
+- It does not make readiness pass without external production evidence.
+- It does not enable helper-backed scan execution by default.
+
 ## Findings
 
 ### P1: Privileged Helper Is Still Blocked by Real Identity and FDA Evidence
