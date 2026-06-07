@@ -206,8 +206,9 @@ export class MacOsXpcHelperTransport implements HelperTransport {
     const registrationPreflight = resolveHelperRegistrationPreflight(
       this.registrationPreflightInput,
     );
-    const installBlockers = registrationPreflight.blockers.filter(
-      (blocker) => blocker !== "fda-validation-matrix-missing",
+    const installBlockers = registrationPreflight.blockers.filter((blocker) =>
+      blocker !== "fda-validation-matrix-missing"
+      && blocker !== "helper-xpc-enumerate-bridge-missing"
     );
 
     if (installBlockers.length > 0) {

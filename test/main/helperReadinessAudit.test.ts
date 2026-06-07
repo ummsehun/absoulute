@@ -151,6 +151,52 @@ describe("helper readiness audit", () => {
     ]);
   });
 
+  it("reports XPC enumerate bridge blocker evidence explicitly", () => {
+    const report = buildHelperReadinessReport({
+      registrationPreflight: {
+        status: "blocked",
+        blockers: ["helper-xpc-enumerate-bridge-missing"],
+        contract: {
+          appBundleIdentifier: "com.example.diskvisualizer",
+          helperExecutableBundleRelativePath:
+            "Contents/Library/LaunchServices/com.example.diskvisualizer.privileged-helper",
+          helperLabel: "com.example.diskvisualizer.privileged-helper",
+          launchDaemonBundleRelativePath:
+            "Contents/Library/LaunchDaemons/com.example.diskvisualizer.privileged-helper.plist",
+          launchDaemonPlistName:
+            "com.example.diskvisualizer.privileged-helper.plist",
+          serviceManagementModel: "smappservice-daemon",
+        },
+      },
+      fdaMatrixStatus: "ready",
+      serviceManagementStatus: "registered",
+    });
+
+    expect(report.status).toBe("blocked");
+    expect(report.evidence).toEqual([
+      {
+        key: "service-management",
+        guidance: {
+          description: expect.any(String),
+          requiredArtifacts: ["resources/bin/service-management-probe-macos"],
+          requiredInputs: ["SCAN_HELPER_SM_PROBE_BIN"],
+        },
+        reason: "registered",
+        status: "pass",
+      },
+      {
+        key: "xpc-enumerate-bridge",
+        guidance: {
+          description: expect.any(String),
+          requiredArtifacts: ["resources/bin/helper-xpc-enumerate-macos"],
+          requiredInputs: ["SCAN_HELPER_XPC_ENUMERATE_BRIDGE_READY"],
+        },
+        reason: "helper-xpc-enumerate-bridge-missing",
+        status: "fail",
+      },
+    ]);
+  });
+
   it("keeps default helper enablement false even when readiness evidence is present", () => {
     const report = buildHelperReadinessReport({
       registrationPreflight: {

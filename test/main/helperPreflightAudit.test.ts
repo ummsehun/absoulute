@@ -6,6 +6,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   DISK_SCAN_HELPER_EXECUTABLE_SOURCE_RELATIVE_PATH,
+  DISK_SCAN_HELPER_XPC_ENUMERATE_BRIDGE_SOURCE_RELATIVE_PATH,
   buildHelperPreflightAudit,
   resolveHelperPreflightAuditStrictMode,
   resolveHelperPreflightAuditStrictExitCode,
@@ -45,6 +46,10 @@ describe("helperPreflightAudit", () => {
         projectRoot,
         DISK_SCAN_HELPER_EXECUTABLE_SOURCE_RELATIVE_PATH,
       );
+      const bridgePath = path.join(
+        projectRoot,
+        DISK_SCAN_HELPER_XPC_ENUMERATE_BRIDGE_SOURCE_RELATIVE_PATH,
+      );
       const matrixPath = path.join(
         projectRoot,
         "docs",
@@ -59,9 +64,18 @@ describe("helperPreflightAudit", () => {
       );
       fs.mkdirSync(path.dirname(executablePath), { recursive: true });
       writeMachOExecutable(executablePath);
+      fs.mkdirSync(path.dirname(bridgePath), { recursive: true });
+      writeMachOExecutable(bridgePath);
       fs.writeFileSync(
         path.join(projectRoot, "electron-builder.json"),
         JSON.stringify({
+          extraResources: [
+            {
+              from: "resources/bin",
+              to: "bin",
+              filter: ["helper-xpc-enumerate-macos"],
+            },
+          ],
           mac: {
             entitlements: "resources/entitlements/mac.plist",
             entitlementsInherit: "resources/entitlements/mac.inherit.plist",
@@ -112,6 +126,7 @@ describe("helperPreflightAudit", () => {
         env: {
           SCAN_HELPER_PACKAGING_ENTITLEMENTS_READY: "1",
           SCAN_HELPER_PRIVILEGED_EXECUTABLE_READY: "1",
+          SCAN_HELPER_XPC_ENUMERATE_BRIDGE_READY: "1",
           SCAN_HELPER_FDA_VALIDATION_MATRIX_READY: "1",
         },
         projectRoot,
@@ -129,6 +144,7 @@ describe("helperPreflightAudit", () => {
         designatedRequirement: false,
         packagingEntitlements: true,
         privilegedHelperExecutable: true,
+        helperXpcEnumerateBridge: true,
         privilegedHelperListenerRequirement: false,
         fdaValidationMatrix: false,
       });
@@ -254,15 +270,47 @@ describe("helperPreflightAudit", () => {
 
       expect(audit.artifactEvidence.packagingEntitlements).toBe(true);
       expect(audit.artifactEvidence.privilegedHelperExecutable).toBe(true);
+      expect(audit.artifactEvidence.helperXpcEnumerateBridge).toBe(false);
       expect(audit.confirmations.packagingEntitlements).toBe(false);
       expect(audit.confirmations.privilegedHelperExecutable).toBe(false);
+      expect(audit.confirmations.helperXpcEnumerateBridge).toBe(false);
       expect(audit.effectiveEvidence.packagingEntitlements).toBe(false);
       expect(audit.effectiveEvidence.privilegedHelperExecutable).toBe(false);
+      expect(audit.effectiveEvidence.helperXpcEnumerateBridge).toBe(false);
       expect(audit.blockers).toContain("packaging-entitlements-missing");
       expect(audit.blockers).toContain("privileged-helper-executable-missing");
+      expect(audit.blockers).toContain("helper-xpc-enumerate-bridge-missing");
     } finally {
       fs.rmSync(projectRoot, { force: true, recursive: true });
     }
+  });
+
+  it("reports missing XPC enumerate bridge evidence without blocking install readiness", () => {
+    const requirement = buildHelperCodeSigningRequirement("ABCDE12345");
+    const audit = buildHelperPreflightAudit({
+      env: {
+        SCAN_HELPER_TEAM_ID: "ABCDE12345",
+        SCAN_HELPER_DESIGNATED_REQUIREMENT: requirement,
+        SCAN_HELPER_PACKAGING_ENTITLEMENTS_READY: "1",
+        SCAN_HELPER_PRIVILEGED_EXECUTABLE_READY: "1",
+        SCAN_HELPER_XPC_ENUMERATE_BRIDGE_READY: "1",
+        SCAN_HELPER_FDA_VALIDATION_MATRIX_READY: "1",
+      },
+      projectRoot: os.tmpdir(),
+    });
+
+    expect(audit.blockers).toContain("helper-xpc-enumerate-bridge-missing");
+    expect(audit.effectiveEvidence.helperXpcEnumerateBridge).toBe(false);
+    expect(audit.readiness.installBlockers).not.toContain(
+      "helper-xpc-enumerate-bridge-missing",
+    );
+    expect(audit.remediation).toContainEqual({
+      blocker: "helper-xpc-enumerate-bridge-missing",
+      commands: ["pnpm build:native:helper-xpc-enumerate"],
+      description: expect.any(String),
+      requiredArtifacts: ["resources/bin/helper-xpc-enumerate-macos"],
+      requiredInputs: ["SCAN_HELPER_XPC_ENUMERATE_BRIDGE_READY"],
+    });
   });
 
   it("does not report malformed signing identity values as usable audit evidence", () => {
@@ -353,13 +401,23 @@ describe("helperPreflightAudit", () => {
         projectRoot,
       });
 
-      expect(audit.blockers).toEqual(["fda-validation-matrix-missing"]);
+      expect(audit.blockers).toEqual([
+        "helper-xpc-enumerate-bridge-missing",
+        "fda-validation-matrix-missing",
+      ]);
       expect(audit.readiness).toEqual({
         enumerateReady: false,
         installBlockers: [],
         installReady: true,
       });
       expect(audit.remediation).toEqual([
+        {
+          blocker: "helper-xpc-enumerate-bridge-missing",
+          commands: ["pnpm build:native:helper-xpc-enumerate"],
+          description: expect.any(String),
+          requiredArtifacts: ["resources/bin/helper-xpc-enumerate-macos"],
+          requiredInputs: ["SCAN_HELPER_XPC_ENUMERATE_BRIDGE_READY"],
+        },
         {
           blocker: "fda-validation-matrix-missing",
           commands: [

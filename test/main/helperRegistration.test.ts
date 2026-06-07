@@ -11,11 +11,13 @@ import {
   DISK_SCAN_HELPER_LAUNCH_DAEMON_BUNDLE_RELATIVE_PATH,
   DISK_SCAN_HELPER_LAUNCH_DAEMON_PLIST_NAME,
   DISK_SCAN_HELPER_LABEL,
+  DISK_SCAN_HELPER_XPC_ENUMERATE_BRIDGE_SOURCE_RELATIVE_PATH,
   DISK_VISUALIZER_APP_BUNDLE_IDENTIFIER,
   buildHelperCodeSigningRequirement,
   getHelperRegistrationContract,
   resolvePackagingEntitlementsEvidence,
   resolvePrivilegedHelperExecutableEvidence,
+  resolveHelperXpcEnumerateBridgeEvidence,
   resolvePrivilegedHelperListenerRequirementEvidence,
   resolveFdaValidationMatrixEvidence,
   resolveHelperRegistrationPreflightInputFromEnv,
@@ -58,6 +60,7 @@ describe("helperRegistration", () => {
         "designated-requirement-missing",
         "packaging-entitlements-missing",
         "privileged-helper-executable-missing",
+        "helper-xpc-enumerate-bridge-missing",
         "privileged-helper-listener-requirement-missing",
         "fda-validation-matrix-missing",
       ],
@@ -74,6 +77,7 @@ describe("helperRegistration", () => {
         },
         packagingEntitlementsReady: true,
         privilegedHelperExecutableReady: true,
+        helperXpcEnumerateBridgeReady: true,
         privilegedHelperListenerRequirementReady: true,
         fdaValidationMatrixReady: true,
       }),
@@ -94,6 +98,7 @@ describe("helperRegistration", () => {
         },
         packagingEntitlementsReady: true,
         privilegedHelperExecutableReady: true,
+        helperXpcEnumerateBridgeReady: true,
         privilegedHelperListenerRequirementReady: true,
         fdaValidationMatrixReady: true,
       }),
@@ -132,6 +137,10 @@ describe("helperRegistration", () => {
         projectRoot,
         DISK_SCAN_HELPER_EXECUTABLE_SOURCE_RELATIVE_PATH,
       );
+      const bridgePath = path.join(
+        projectRoot,
+        DISK_SCAN_HELPER_XPC_ENUMERATE_BRIDGE_SOURCE_RELATIVE_PATH,
+      );
       fs.mkdirSync(entitlementsPath, { recursive: true });
       fs.writeFileSync(path.join(entitlementsPath, "mac.plist"), "<plist/>");
       fs.writeFileSync(
@@ -150,9 +159,28 @@ describe("helperRegistration", () => {
         0x01,
       ]));
       fs.chmodSync(executablePath, 0o755);
+      fs.mkdirSync(path.dirname(bridgePath), { recursive: true });
+      fs.writeFileSync(bridgePath, Buffer.from([
+        0xcf,
+        0xfa,
+        0xed,
+        0xfe,
+        0x0c,
+        0x00,
+        0x00,
+        0x01,
+      ]));
+      fs.chmodSync(bridgePath, 0o755);
       fs.writeFileSync(
         path.join(projectRoot, "electron-builder.json"),
         JSON.stringify({
+          extraResources: [
+            {
+              from: "resources/bin",
+              to: "bin",
+              filter: ["helper-xpc-enumerate-macos"],
+            },
+          ],
           mac: {
             entitlements: "resources/entitlements/mac.plist",
             entitlementsInherit: "resources/entitlements/mac.inherit.plist",
@@ -189,6 +217,7 @@ describe("helperRegistration", () => {
             'identifier "com.example.diskvisualizer" and anchor apple generic and certificate leaf[subject.OU] = "ABCDE12345"',
           SCAN_HELPER_PACKAGING_ENTITLEMENTS_READY: "true",
           SCAN_HELPER_PRIVILEGED_EXECUTABLE_READY: "true",
+          SCAN_HELPER_XPC_ENUMERATE_BRIDGE_READY: "true",
         }, projectRoot),
       ).toEqual({
         identity: {
@@ -198,6 +227,7 @@ describe("helperRegistration", () => {
         },
         packagingEntitlementsReady: true,
         privilegedHelperExecutableReady: true,
+        helperXpcEnumerateBridgeReady: true,
         privilegedHelperListenerRequirementReady: true,
         fdaValidationMatrixReady: false,
       });
@@ -319,6 +349,60 @@ describe("helperRegistration", () => {
       );
 
       expect(resolvePrivilegedHelperExecutableEvidence(projectRoot)).toBe(true);
+    } finally {
+      fs.rmSync(projectRoot, { force: true, recursive: true });
+    }
+  });
+
+  it("accepts XPC enumerate bridge evidence only when the packaged bridge executable exists", () => {
+    const projectRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "diskviz-helper-xpc-bridge-evidence-"),
+    );
+
+    try {
+      const bridgePath = path.join(
+        projectRoot,
+        DISK_SCAN_HELPER_XPC_ENUMERATE_BRIDGE_SOURCE_RELATIVE_PATH,
+      );
+
+      expect(resolveHelperXpcEnumerateBridgeEvidence(projectRoot)).toBe(false);
+
+      fs.mkdirSync(path.dirname(bridgePath), { recursive: true });
+      fs.writeFileSync(bridgePath, "#!/bin/sh\nexit 0\n");
+
+      expect(resolveHelperXpcEnumerateBridgeEvidence(projectRoot)).toBe(false);
+
+      fs.chmodSync(bridgePath, 0o755);
+
+      expect(resolveHelperXpcEnumerateBridgeEvidence(projectRoot)).toBe(false);
+
+      fs.writeFileSync(bridgePath, Buffer.from([
+        0xcf,
+        0xfa,
+        0xed,
+        0xfe,
+        0x0c,
+        0x00,
+        0x00,
+        0x01,
+      ]));
+
+      expect(resolveHelperXpcEnumerateBridgeEvidence(projectRoot)).toBe(false);
+
+      fs.writeFileSync(
+        path.join(projectRoot, "electron-builder.json"),
+        JSON.stringify({
+          extraResources: [
+            {
+              from: "resources/bin",
+              to: "bin",
+              filter: ["helper-xpc-enumerate-macos"],
+            },
+          ],
+        }),
+      );
+
+      expect(resolveHelperXpcEnumerateBridgeEvidence(projectRoot)).toBe(true);
     } finally {
       fs.rmSync(projectRoot, { force: true, recursive: true });
     }
@@ -591,12 +675,14 @@ describe("helperRegistration", () => {
         SCAN_HELPER_DESIGNATED_REQUIREMENT: "   ",
         SCAN_HELPER_PACKAGING_ENTITLEMENTS_READY: "false",
         SCAN_HELPER_PRIVILEGED_EXECUTABLE_READY: "false",
+        SCAN_HELPER_XPC_ENUMERATE_BRIDGE_READY: "false",
         SCAN_HELPER_FDA_VALIDATION_MATRIX_READY: "0",
       }),
     ).toEqual({
       identity: {},
       packagingEntitlementsReady: false,
       privilegedHelperExecutableReady: false,
+      helperXpcEnumerateBridgeReady: false,
       privilegedHelperListenerRequirementReady: false,
       fdaValidationMatrixReady: false,
     });

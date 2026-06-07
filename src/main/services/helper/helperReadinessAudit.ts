@@ -6,11 +6,13 @@ import {
   DISK_SCAN_HELPER_EXECUTABLE_SOURCE_RELATIVE_PATH,
   DISK_SCAN_HELPER_FDA_MATRIX_SOURCE_RELATIVE_PATH,
   DISK_SCAN_HELPER_REQUIREMENT_METADATA_SOURCE_RELATIVE_PATH,
+  DISK_SCAN_HELPER_XPC_ENUMERATE_BRIDGE_SOURCE_RELATIVE_PATH,
   HELPER_DESIGNATED_REQUIREMENT_ENV,
   HELPER_FDA_VALIDATION_MATRIX_READY_ENV,
   HELPER_PACKAGING_ENTITLEMENTS_READY_ENV,
   HELPER_PRIVILEGED_EXECUTABLE_READY_ENV,
   HELPER_TEAM_ID_ENV,
+  HELPER_XPC_ENUMERATE_BRIDGE_READY_ENV,
 } from "./helperRegistration";
 import {
   HELPER_SERVICE_MANAGEMENT_PROBE_BIN_ENV,
@@ -145,6 +147,14 @@ function guidanceForEvidenceKey(
       ],
       requiredInputs: [HELPER_PRIVILEGED_EXECUTABLE_READY_ENV],
     },
+    "xpc-enumerate-bridge": {
+      description:
+        "Build and package the app-side XPC enumerate bridge command.",
+      requiredArtifacts: [
+        DISK_SCAN_HELPER_XPC_ENUMERATE_BRIDGE_SOURCE_RELATIVE_PATH,
+      ],
+      requiredInputs: [HELPER_XPC_ENUMERATE_BRIDGE_READY_ENV],
+    },
     "service-management": {
       description:
         "Provide ServiceManagement probe evidence showing the packaged helper is registered.",
@@ -166,6 +176,7 @@ function blockerEvidenceKey(
   const evidenceKeys: Record<HelperRegistrationBlocker, string> = {
     "designated-requirement-missing": "designated-requirement",
     "fda-validation-matrix-missing": "fda-validation-matrix",
+    "helper-xpc-enumerate-bridge-missing": "xpc-enumerate-bridge",
     "packaging-entitlements-missing": "packaging-entitlements",
     "privileged-helper-executable-missing": "privileged-helper-executable",
     "privileged-helper-listener-requirement-missing": "listener-requirement",

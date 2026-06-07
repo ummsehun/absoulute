@@ -8,6 +8,7 @@ export type HelperRegistrationBlocker =
   | "designated-requirement-missing"
   | "packaging-entitlements-missing"
   | "privileged-helper-executable-missing"
+  | "helper-xpc-enumerate-bridge-missing"
   | "privileged-helper-listener-requirement-missing"
   | "fda-validation-matrix-missing";
 
@@ -20,6 +21,7 @@ export interface HelperRegistrationPreflightInput {
   identity?: HelperRegistrationIdentityInput;
   packagingEntitlementsReady?: boolean;
   privilegedHelperExecutableReady?: boolean;
+  helperXpcEnumerateBridgeReady?: boolean;
   privilegedHelperListenerRequirementReady?: boolean;
   fdaValidationMatrixReady?: boolean;
 }
@@ -46,6 +48,8 @@ export const HELPER_PACKAGING_ENTITLEMENTS_READY_ENV =
   "SCAN_HELPER_PACKAGING_ENTITLEMENTS_READY";
 export const HELPER_PRIVILEGED_EXECUTABLE_READY_ENV =
   "SCAN_HELPER_PRIVILEGED_EXECUTABLE_READY";
+export const HELPER_XPC_ENUMERATE_BRIDGE_READY_ENV =
+  "SCAN_HELPER_XPC_ENUMERATE_BRIDGE_READY";
 export const HELPER_FDA_VALIDATION_MATRIX_READY_ENV =
   "SCAN_HELPER_FDA_VALIDATION_MATRIX_READY";
 
@@ -66,6 +70,8 @@ export const DISK_SCAN_HELPER_EXECUTABLE_BUNDLE_RELATIVE_PATH =
 
 export const DISK_SCAN_HELPER_EXECUTABLE_SOURCE_RELATIVE_PATH =
   `resources/helper/LaunchServices/${DISK_SCAN_HELPER_LABEL}`;
+export const DISK_SCAN_HELPER_XPC_ENUMERATE_BRIDGE_SOURCE_RELATIVE_PATH =
+  "resources/bin/helper-xpc-enumerate-macos";
 
 export const DISK_SCAN_HELPER_REQUIREMENT_METADATA_SOURCE_RELATIVE_PATH =
   `${DISK_SCAN_HELPER_EXECUTABLE_SOURCE_RELATIVE_PATH}.requirement.json`;
@@ -119,6 +125,10 @@ export function resolveHelperRegistrationPreflight(
     blockers.push("privileged-helper-executable-missing");
   }
 
+  if (!input.helperXpcEnumerateBridgeReady) {
+    blockers.push("helper-xpc-enumerate-bridge-missing");
+  }
+
   if (!input.privilegedHelperListenerRequirementReady) {
     blockers.push("privileged-helper-listener-requirement-missing");
   }
@@ -159,6 +169,9 @@ export function resolveHelperRegistrationPreflightInputFromEnv(
     privilegedHelperExecutableReady: readBooleanEvidenceEnv(
       env[HELPER_PRIVILEGED_EXECUTABLE_READY_ENV],
     ) && resolvePrivilegedHelperExecutableEvidence(projectRoot),
+    helperXpcEnumerateBridgeReady: readBooleanEvidenceEnv(
+      env[HELPER_XPC_ENUMERATE_BRIDGE_READY_ENV],
+    ) && resolveHelperXpcEnumerateBridgeEvidence(projectRoot),
     privilegedHelperListenerRequirementReady:
       resolvePrivilegedHelperListenerRequirementEvidence(projectRoot, teamId),
     fdaValidationMatrixReady: readBooleanEvidenceEnv(
@@ -209,6 +222,25 @@ export function resolvePrivilegedHelperExecutableEvidence(
       && (stat.mode & 0o111) !== 0
       && hasMachOHeader(executablePath)
       && resolvePrivilegedHelperBundlePackagingEvidence(projectRoot);
+  } catch {
+    return false;
+  }
+}
+
+export function resolveHelperXpcEnumerateBridgeEvidence(
+  projectRoot = process.cwd(),
+): boolean {
+  const bridgePath = path.join(
+    projectRoot,
+    DISK_SCAN_HELPER_XPC_ENUMERATE_BRIDGE_SOURCE_RELATIVE_PATH,
+  );
+
+  try {
+    const stat = fs.statSync(bridgePath);
+    return stat.isFile()
+      && (stat.mode & 0o111) !== 0
+      && hasMachOHeader(bridgePath)
+      && resolveHelperXpcEnumerateBridgePackagingEvidence(projectRoot);
   } catch {
     return false;
   }
@@ -310,6 +342,34 @@ function resolvePrivilegedHelperBundlePackagingEvidence(
     );
 
     return packagesExecutable && packagesLaunchDaemonPlist;
+  } catch {
+    return false;
+  }
+}
+
+function resolveHelperXpcEnumerateBridgePackagingEvidence(
+  projectRoot: string,
+): boolean {
+  const configPath = path.join(projectRoot, "electron-builder.json");
+  try {
+    const config = JSON.parse(fs.readFileSync(configPath, "utf8")) as {
+      extraResources?: Array<{
+        filter?: string[];
+        from?: string;
+        to?: string;
+      }>;
+    };
+
+    const bridgeName = path.basename(
+      DISK_SCAN_HELPER_XPC_ENUMERATE_BRIDGE_SOURCE_RELATIVE_PATH,
+    );
+    return (config.extraResources ?? []).some((entry) =>
+      entry.from === path.dirname(
+        DISK_SCAN_HELPER_XPC_ENUMERATE_BRIDGE_SOURCE_RELATIVE_PATH,
+      )
+      && entry.to === "bin"
+      && entry.filter?.includes(bridgeName)
+    );
   } catch {
     return false;
   }

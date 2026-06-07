@@ -5,11 +5,13 @@ import {
   DISK_SCAN_HELPER_FDA_MATRIX_SOURCE_RELATIVE_PATH,
   DISK_SCAN_HELPER_REQUIRED_FDA_SCENARIOS,
   DISK_SCAN_HELPER_REQUIREMENT_METADATA_SOURCE_RELATIVE_PATH,
+  DISK_SCAN_HELPER_XPC_ENUMERATE_BRIDGE_SOURCE_RELATIVE_PATH,
   HELPER_DESIGNATED_REQUIREMENT_ENV,
   HELPER_FDA_VALIDATION_MATRIX_READY_ENV,
   HELPER_PACKAGING_ENTITLEMENTS_READY_ENV,
   HELPER_PRIVILEGED_EXECUTABLE_READY_ENV,
   HELPER_TEAM_ID_ENV,
+  HELPER_XPC_ENUMERATE_BRIDGE_READY_ENV,
   getHelperRegistrationContract,
   isConcreteMacOsVersion,
   isValidAppleTeamId,
@@ -17,6 +19,7 @@ import {
   resolveFdaValidationMatrixEvidence,
   resolveHelperRegistrationPreflight,
   resolveHelperRegistrationPreflightInputFromEnv,
+  resolveHelperXpcEnumerateBridgeEvidence,
   resolvePackagingEntitlementsEvidence,
   resolvePrivilegedHelperExecutableEvidence,
   resolvePrivilegedHelperListenerRequirementEvidence,
@@ -25,13 +28,17 @@ import {
   type HelperRegistrationPreflightInput,
 } from "./helperRegistration";
 
-export { DISK_SCAN_HELPER_EXECUTABLE_SOURCE_RELATIVE_PATH };
+export {
+  DISK_SCAN_HELPER_EXECUTABLE_SOURCE_RELATIVE_PATH,
+  DISK_SCAN_HELPER_XPC_ENUMERATE_BRIDGE_SOURCE_RELATIVE_PATH,
+};
 
 export interface HelperPreflightAuditEvidence {
   teamId: boolean;
   designatedRequirement: boolean;
   packagingEntitlements: boolean;
   privilegedHelperExecutable: boolean;
+  helperXpcEnumerateBridge: boolean;
   privilegedHelperListenerRequirement: boolean;
   fdaValidationMatrix: boolean;
 }
@@ -100,8 +107,9 @@ export function buildHelperPreflightAudit(
     projectRoot,
   );
   const preflight = resolveHelperRegistrationPreflight(input);
-  const installBlockers = preflight.blockers.filter(
-    (blocker) => blocker !== "fda-validation-matrix-missing",
+  const installBlockers = preflight.blockers.filter((blocker) =>
+    blocker !== "fda-validation-matrix-missing"
+    && blocker !== "helper-xpc-enumerate-bridge-missing"
   );
 
   return {
@@ -161,6 +169,16 @@ function remediationForBlocker(
         "Build and explicitly approve the packaged privileged helper executable.",
       requiredArtifacts: [DISK_SCAN_HELPER_EXECUTABLE_SOURCE_RELATIVE_PATH],
       requiredInputs: [HELPER_PRIVILEGED_EXECUTABLE_READY_ENV],
+    },
+    "helper-xpc-enumerate-bridge-missing": {
+      blocker,
+      commands: ["pnpm build:native:helper-xpc-enumerate"],
+      description:
+        "Build and explicitly approve the packaged XPC enumerate bridge command.",
+      requiredArtifacts: [
+        DISK_SCAN_HELPER_XPC_ENUMERATE_BRIDGE_SOURCE_RELATIVE_PATH,
+      ],
+      requiredInputs: [HELPER_XPC_ENUMERATE_BRIDGE_READY_ENV],
     },
     "privileged-helper-listener-requirement-missing": {
       blocker,
@@ -222,6 +240,8 @@ function buildArtifactEvidence(
     packagingEntitlements: resolvePackagingEntitlementsEvidence(projectRoot),
     privilegedHelperExecutable:
       resolvePrivilegedHelperExecutableEvidence(projectRoot),
+    helperXpcEnumerateBridge:
+      resolveHelperXpcEnumerateBridgeEvidence(projectRoot),
     privilegedHelperListenerRequirement:
       resolvePrivilegedHelperListenerRequirementEvidence(
         projectRoot,
@@ -248,6 +268,8 @@ function buildConfirmations(
       readBooleanEvidenceEnv(env[HELPER_PACKAGING_ENTITLEMENTS_READY_ENV]),
     privilegedHelperExecutable:
       readBooleanEvidenceEnv(env[HELPER_PRIVILEGED_EXECUTABLE_READY_ENV]),
+    helperXpcEnumerateBridge:
+      readBooleanEvidenceEnv(env[HELPER_XPC_ENUMERATE_BRIDGE_READY_ENV]),
     privilegedHelperListenerRequirement:
       input.privilegedHelperListenerRequirementReady === true,
     fdaValidationMatrix:
@@ -264,6 +286,8 @@ function buildEffectiveEvidence(
     designatedRequirement: !blockers.includes("designated-requirement-missing"),
     packagingEntitlements: input.packagingEntitlementsReady === true,
     privilegedHelperExecutable: input.privilegedHelperExecutableReady === true,
+    helperXpcEnumerateBridge:
+      input.helperXpcEnumerateBridgeReady === true,
     privilegedHelperListenerRequirement:
       input.privilegedHelperListenerRequirementReady === true,
     fdaValidationMatrix: input.fdaValidationMatrixReady === true,

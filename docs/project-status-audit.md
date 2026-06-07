@@ -1215,6 +1215,69 @@ Cold assessment:
 - It does not make readiness pass without external production evidence.
 - It does not enable helper-backed scan execution by default.
 
+## Phase B20 Helper XPC Enumerate Bridge Evidence
+
+Facts:
+
+- Phase B20 is scoped in
+  `docs/superpowers/plans/2026-06-08-phase-b20-helper-xpc-enumerate-bridge-evidence.md`.
+- `helper-xpc-enumerate-macos` is now an explicit helper registration,
+  preflight, and readiness evidence item.
+- `resolveHelperXpcEnumerateBridgeEvidence` requires the bridge artifact to be
+  a file, executable, Mach-O, and packaged by `electron-builder.json`
+  `extraResources` into `bin`.
+- `SCAN_HELPER_XPC_ENUMERATE_BRIDGE_READY` is required before bridge artifact
+  evidence becomes effective preflight evidence.
+- `audit:helper-preflight` now reports separate `artifactEvidence`,
+  `confirmations`, and `effectiveEvidence` for
+  `helperXpcEnumerateBridge`.
+- Missing bridge evidence blocks enumerate readiness.
+- Install readiness remains separate from enumerate readiness; the app-side XPC
+  enumerate bridge does not block ServiceManagement install preflight by
+  itself.
+- The helper remains disabled by default and readiness remains blocked without
+  production identity, FDA, and ServiceManagement evidence.
+
+Verification commands run for this Phase B20 slice:
+
+- `pnpm test test/main/helperRegistration.test.ts
+  test/main/helperPreflightAudit.test.ts test/main/helperReadinessAudit.test.ts`:
+  passed, 3 files, 28 tests.
+- `pnpm test test/main/helperClient.test.ts test/main/helperRegistration.test.ts
+  test/main/helperPreflightAudit.test.ts test/main/helperReadinessAudit.test.ts`:
+  passed, 4 files, 62 tests.
+- `pnpm test`: passed, 45 files, 210 tests.
+- `pnpm typecheck`: passed.
+- `pnpm lint`: passed.
+- `pnpm build`: passed.
+- `cargo test --manifest-path native/scanner/Cargo.toml`: passed, 8 tests,
+  with the existing 6 Rust dead-code warnings.
+- `pnpm audit:helper-preflight`: reported blocked preflight. Artifact evidence
+  detected `helperXpcEnumerateBridge: true`, but effective evidence remained
+  false because `SCAN_HELPER_XPC_ENUMERATE_BRIDGE_READY` was not set.
+- `pnpm audit:helper-readiness`: reported `status: "blocked"`,
+  `canEnableHelperByDefault: false`, and failed `xpc-enumerate-bridge`
+  evidence guidance.
+- LOC check:
+  - `src/main/services/helper/helperRegistration.ts`: 459
+  - `src/main/services/helper/helperPreflightAudit.ts`: 416
+  - `src/main/services/helper/helperReadinessAudit.ts`: 187
+  - `src/main/services/helper/macosXpcHelperTransport.ts`: 249
+
+External blockers still missing:
+
+- Explicit production confirmation for helper packaging/bridge evidence.
+- Installed privileged helper ServiceManagement evidence.
+- Production XPC peer identity validation with a real Team ID.
+- Full FDA validation matrix on the target macOS version.
+- Production signing, packaging, and notarization evidence.
+
+Cold assessment:
+
+- This mini phase makes the B19 bridge visible to the helper readiness gate.
+- It does not make readiness pass from artifact presence alone.
+- It does not enable helper-backed scan execution by default.
+
 ## Findings
 
 ### P1: Privileged Helper Is Still Blocked by Real Identity and FDA Evidence
