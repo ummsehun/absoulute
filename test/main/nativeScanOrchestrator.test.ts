@@ -344,6 +344,53 @@ describe("nativeScanOrchestrator", () => {
       unregister: async () => ({ available: false, transport: "xpc" }),
       enumerate: async (_input, handlers) => {
         handlers.onEvent({
+          type: "entry_batch",
+          requestId: "request-1",
+          items: [
+            {
+              path: "/Users/tester/broken.dat",
+              parentPath: "/Users/tester",
+              kind: "file",
+              size: 1,
+              estimated: false,
+            },
+          ],
+        });
+        handlers.onEvent({
+          type: "warn",
+          requestId: "request-1",
+          code: "E_HELPER_PERMISSION",
+          path: "/Users/tester/Private",
+          message: "permission denied",
+        });
+        handlers.onEvent({
+          type: "warn",
+          requestId: "request-1",
+          code: "E_TCC_PERMISSION",
+          path: "/Users/tester/Library/Messages",
+          message: "TCC denied",
+        });
+        handlers.onEvent({
+          type: "warn",
+          requestId: "request-1",
+          code: "E_IO",
+          path: "/Users/tester/Broken",
+          message: "IO failed",
+        });
+        handlers.onEvent({
+          type: "warn",
+          requestId: "request-1",
+          code: "E_SCOPE",
+          path: "/Users/other",
+          message: "scope rejected",
+        });
+        handlers.onEvent({
+          type: "warn",
+          requestId: "request-1",
+          code: "E_CANCELLED",
+          message: "cancelled",
+        });
+        handlers.onEvent({
           type: "error",
           requestId: "request-1",
           code: "E_INVALID_CLIENT",
@@ -399,6 +446,40 @@ describe("nativeScanOrchestrator", () => {
       expect(handlers.warns).toEqual([
         {
           type: "warn",
+          code: "E_PERMISSION",
+          message: "permission denied",
+          path: "/Users/tester/Private",
+          recoverable: true,
+        },
+        {
+          type: "warn",
+          code: "E_PERMISSION",
+          message: "TCC denied",
+          path: "/Users/tester/Library/Messages",
+          recoverable: true,
+        },
+        {
+          type: "warn",
+          code: "E_IO",
+          message: "IO failed",
+          path: "/Users/tester/Broken",
+          recoverable: true,
+        },
+        {
+          type: "warn",
+          code: "E_SCOPE",
+          message: "scope rejected",
+          path: "/Users/other",
+          recoverable: true,
+        },
+        {
+          type: "warn",
+          code: "E_CANCELLED",
+          message: "cancelled",
+          recoverable: false,
+        },
+        {
+          type: "warn",
           code: "E_INVALID_CLIENT",
           message: "Rejected caller identity",
           recoverable: false,
@@ -429,6 +510,12 @@ describe("nativeScanOrchestrator", () => {
         rootPath: "/Users/tester",
         terminalStatus: "error",
         volumePolicy: "same-device",
+        entryCount: 1,
+        permissionFailureCount: 1,
+        tccFailureCount: 1,
+        ioFailureCount: 1,
+        scopeRejectionCount: 1,
+        cancellationCount: 1,
       });
     } finally {
       await fs.rm(logDir, { recursive: true, force: true });
@@ -669,6 +756,47 @@ describe("nativeScanOrchestrator", () => {
           helperVersion: "test-helper",
         });
         handlers.onEvent({
+          type: "entry_batch",
+          requestId: "request-1",
+          items: [
+            {
+              path: "/Users/tester/file-a.txt",
+              parentPath: "/Users/tester",
+              kind: "file",
+              size: 10,
+              estimated: false,
+            },
+            {
+              path: "/Users/tester/file-b.txt",
+              parentPath: "/Users/tester",
+              kind: "file",
+              size: 20,
+              estimated: false,
+            },
+          ],
+        });
+        handlers.onEvent({
+          type: "coverage",
+          requestId: "request-1",
+          scannedCount: 2,
+          permissionFailures: 3,
+          ioFailures: 4,
+          scopeFailures: 5,
+        });
+        handlers.onEvent({
+          type: "warn",
+          requestId: "request-1",
+          code: "E_TCC_PERMISSION",
+          path: "/Users/tester/Library/Messages",
+          message: "TCC denied",
+        });
+        handlers.onEvent({
+          type: "warn",
+          requestId: "request-1",
+          code: "E_CANCELLED",
+          message: "cancelled",
+        });
+        handlers.onEvent({
           type: "done",
           requestId: "request-1",
           elapsedMs: 1,
@@ -758,6 +886,12 @@ describe("nativeScanOrchestrator", () => {
         rootPath: "/Users/tester",
         terminalStatus: "done",
         volumePolicy: "same-device",
+        entryCount: 2,
+        permissionFailureCount: 3,
+        tccFailureCount: 1,
+        ioFailureCount: 4,
+        scopeRejectionCount: 5,
+        cancellationCount: 1,
       });
     } finally {
       await fs.rm(logDir, { recursive: true, force: true });

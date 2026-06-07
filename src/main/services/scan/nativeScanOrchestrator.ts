@@ -6,6 +6,7 @@ import {
   type HelperClientStatus,
 } from "../helper/helperClient";
 import type { HelperLifecycleStatus } from "../helper/helperLifecycle";
+import type { HelperEvent } from "../../../shared/schemas/helperProtocol";
 import {
   resolveHelperScanPlan,
   type HelperScanPlan,
@@ -224,6 +225,14 @@ export class NativeScanOrchestrator {
     let doneEstimated = false;
     let doneReceived = false;
     let terminalHelperErrorReason: string | null = null;
+    const auditCounts: HelperStageAuditCounts = {
+      cancellationCount: 0,
+      entryCount: 0,
+      ioFailureCount: 0,
+      permissionFailureCount: 0,
+      scopeRejectionCount: 0,
+      tccFailureCount: 0,
+    };
 
     appendNativeScannerLog({
       event: "native_helper_scan_start",
@@ -249,6 +258,7 @@ export class NativeScanOrchestrator {
         },
         {
           onEvent: (event) => {
+            updateHelperStageAuditCounts(auditCounts, event);
             if (event.type === "ready") {
               appendNativeScannerLog({
                 event: "native_helper_scan_ready",
@@ -275,6 +285,7 @@ export class NativeScanOrchestrator {
                 details: {
                   code: event.code,
                   message: event.message,
+                  ...auditCounts,
                   operation: "scan.enumerate",
                   plannedRoots: volumePlan.plannedRoots,
                   requestId: event.requestId,
@@ -292,6 +303,7 @@ export class NativeScanOrchestrator {
                 details: {
                   elapsedMs: event.elapsedMs,
                   estimated: event.estimated,
+                  ...auditCounts,
                   operation: "scan.enumerate",
                   plannedRoots: volumePlan.plannedRoots,
                   requestId: event.requestId,
@@ -467,6 +479,59 @@ function dispatchNativeStageMessage(
       return;
     case "done":
       handlers.onDone(message);
+      return;
+  }
+}
+
+interface HelperStageAuditCounts {
+  cancellationCount: number;
+  entryCount: number;
+  ioFailureCount: number;
+  permissionFailureCount: number;
+  scopeRejectionCount: number;
+  tccFailureCount: number;
+}
+
+function updateHelperStageAuditCounts(
+  counts: HelperStageAuditCounts,
+  event: HelperEvent,
+): void {
+  switch (event.type) {
+    case "entry_batch":
+      counts.entryCount += event.items.length;
+      return;
+    case "coverage":
+      counts.ioFailureCount = Math.max(counts.ioFailureCount, event.ioFailures);
+      counts.permissionFailureCount = Math.max(
+        counts.permissionFailureCount,
+        event.permissionFailures,
+      );
+      counts.scopeRejectionCount = Math.max(
+        counts.scopeRejectionCount,
+        event.scopeFailures ?? 0,
+      );
+      return;
+    case "warn":
+      if (event.code === "E_HELPER_PERMISSION") {
+        counts.permissionFailureCount += 1;
+      }
+      if (event.code === "E_TCC_PERMISSION") {
+        counts.tccFailureCount += 1;
+      }
+      if (event.code === "E_IO") {
+        counts.ioFailureCount += 1;
+      }
+      if (event.code === "E_SCOPE") {
+        counts.scopeRejectionCount += 1;
+      }
+      if (event.code === "E_CANCELLED") {
+        counts.cancellationCount += 1;
+      }
+      return;
+    case "done":
+    case "error":
+    case "progress":
+    case "ready":
       return;
   }
 }

@@ -702,6 +702,54 @@ Cold assessment:
 - It does not implement real XPC health/version transport calls.
 - It does not enable helper-backed scan execution by default.
 
+## Phase B10 Helper Terminal Audit Counts
+
+Facts:
+
+- Phase B10 is scoped in
+  `docs/superpowers/plans/2026-06-08-phase-b10-helper-terminal-audit-counts.md`.
+- `NativeScanOrchestrator.runHelperStage()` now keeps helper-stage audit
+  counters derived from helper stream events.
+- `native_helper_scan_terminal` now includes:
+  - `entryCount`
+  - `permissionFailureCount`
+  - `tccFailureCount`
+  - `ioFailureCount`
+  - `scopeRejectionCount`
+  - `cancellationCount`
+- Counts are local to the helper-backed stage and do not change scan
+  aggregation semantics.
+- The helper remains disabled by default.
+
+Verification commands run for this Phase B10 slice:
+
+- `pnpm test test/main/nativeScanOrchestrator.test.ts`: passed, 15 tests.
+- `pnpm test`: passed, 45 files, 193 tests.
+- `pnpm typecheck`: passed.
+- `pnpm lint`: passed.
+- `pnpm build`: passed.
+- `cargo test --manifest-path native/scanner/Cargo.toml`: passed, 8 tests,
+  with the existing 6 Rust dead-code warnings.
+- `pnpm audit:helper-readiness`: reported `status: "blocked"`,
+  `canEnableHelperByDefault: false`, and local
+  `serviceManagementStatus: "not-implemented"`.
+
+External blockers still missing:
+
+- Production XPC peer identity validation.
+- Real ServiceManagement registration evidence from a packaged app/helper.
+- Real Team ID and designated requirement.
+- Real listener requirement metadata generated from that Team ID.
+- Full FDA validation matrix on the target macOS version.
+- Production signing, packaging, and notarization evidence.
+
+Cold assessment:
+
+- This mini phase improves helper terminal audit evidence for event-derived
+  counts required by the Phase B logging spec.
+- It does not implement real XPC health/version transport calls.
+- It does not enable helper-backed scan execution by default.
+
 ## Findings
 
 ### P1: Privileged Helper Is Still Blocked by Real Identity and FDA Evidence
