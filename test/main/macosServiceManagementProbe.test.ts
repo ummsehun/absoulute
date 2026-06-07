@@ -5,6 +5,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import {
+  buildHelperServiceManagementAudit,
   CommandMacOsServiceManagementProbe,
   CommandMacOsServiceManagementController,
   createMacOsServiceManagementControllerFromEnv,
@@ -35,6 +36,75 @@ describe("macosServiceManagementProbe", () => {
       state: "registered",
       reason: "enabled",
     });
+  });
+
+  it("builds a blocked ServiceManagement audit from probe evidence", async () => {
+    const tempDir = fs.mkdtempSync(
+      path.join(os.tmpdir(), "diskviz-sm-audit-builder-"),
+    );
+    const probePath = path.join(tempDir, "sm-probe");
+
+    try {
+      fs.writeFileSync(probePath, "#!/bin/sh\nexit 0\n");
+      fs.chmodSync(probePath, 0o755);
+
+      const audit = await buildHelperServiceManagementAudit({
+        env: {},
+        platform: "darwin",
+        probe: new CommandMacOsServiceManagementProbe({
+          commandPath: probePath,
+          run: async () => ({
+            exitCode: 0,
+            stderr: "",
+            stdout: JSON.stringify({
+              state: "not-installed",
+              reason: "not-registered",
+            }),
+          }),
+        }),
+        probeBinaryPath: probePath,
+      });
+
+      expect(audit).toEqual({
+        platform: "darwin",
+        probeBinaryPath: probePath,
+        probeBinaryReady: true,
+        serviceManagementReason: "not-registered",
+        serviceManagementStatus: "not-installed",
+        status: "blocked",
+      });
+    } finally {
+      fs.rmSync(tempDir, { force: true, recursive: true });
+    }
+  });
+
+  it("does not treat a non-executable probe path override as binary evidence", async () => {
+    const tempDir = fs.mkdtempSync(
+      path.join(os.tmpdir(), "diskviz-sm-audit-builder-nonexec-"),
+    );
+    const probePath = path.join(tempDir, "sm-probe");
+
+    try {
+      fs.writeFileSync(probePath, "#!/bin/sh\nexit 0\n");
+
+      const audit = await buildHelperServiceManagementAudit({
+        env: {},
+        platform: "darwin",
+        probe: new NotImplementedTestProbe(),
+        probeBinaryPath: probePath,
+      });
+
+      expect(audit).toEqual({
+        platform: "darwin",
+        probeBinaryPath: probePath,
+        probeBinaryReady: false,
+        serviceManagementReason: "service-management-probe-not-implemented",
+        serviceManagementStatus: "not-implemented",
+        status: "blocked",
+      });
+    } finally {
+      fs.rmSync(tempDir, { force: true, recursive: true });
+    }
   });
 
   it("runs explicit register and unregister commands through the ServiceManagement controller", async () => {
@@ -347,3 +417,15 @@ describe("macosServiceManagementProbe", () => {
     }
   });
 });
+
+class NotImplementedTestProbe {
+  async getStatus(): Promise<{
+    reason: "service-management-probe-not-implemented";
+    state: "not-implemented";
+  }> {
+    return {
+      reason: "service-management-probe-not-implemented",
+      state: "not-implemented",
+    };
+  }
+}

@@ -1548,6 +1548,81 @@ Cold assessment:
 - It does not make helper readiness pass.
 - It does not enable helper-backed scan execution by default.
 
+## Phase B26 Helper ServiceManagement Audit
+
+Facts:
+
+- Phase B26 is scoped in
+  `docs/superpowers/plans/2026-06-08-phase-b26-helper-service-management-audit.md`.
+- `src/main/services/helper/macosServiceManagementProbe.ts` now exposes
+  `buildHelperServiceManagementAudit`.
+- `scripts/audit-helper-service-management.ts` prints ServiceManagement audit
+  JSON to stdout.
+- `package.json` now exposes `audit:helper-service-management`.
+- The ServiceManagement audit supports `--probe-bin <path>` for explicit probe
+  binary evidence.
+- The ServiceManagement audit supports `--resources-path <path>` for packaged
+  resources-path checks.
+- The ServiceManagement audit supports `--platform <platform>` for deterministic
+  test coverage.
+- The ServiceManagement audit supports `--out <path>` and writes the same JSON
+  payload to the requested UTF-8 output file.
+- The audit reports `status: "ready"` only when the probe reports
+  `serviceManagementStatus: "registered"`.
+- The audit does not register or unregister the helper.
+- No generated audit JSON files are committed.
+- Helper readiness gates did not change.
+- Current unqualified `pnpm audit:helper-service-management` remains blocked
+  because this dev runtime has no Electron `process.resourcesPath` probe
+  evidence.
+- With `--resources-path resources`, the packaged probe binary is executable and
+  resolves, but the current ServiceManagement status is `not-installed` with
+  reason `not-found`, so readiness remains blocked.
+- The helper remains disabled by default and readiness remains blocked without
+  real ServiceManagement registration, production identity, and FDA evidence.
+
+Verification commands run for this Phase B26 slice:
+
+- `pnpm test test/main/macosServiceManagementProbe.test.ts
+  test/main/helperServiceManagementAuditScript.test.ts` passed after
+  implementation: 2 files, 18 tests.
+- `pnpm audit:helper-service-management` printed `status: "blocked"`,
+  `probeBinaryReady: false`, `serviceManagementStatus: "not-implemented"`, and
+  exited 1 as intended.
+- Direct `--resources-path resources --out` check wrote
+  `/tmp/luie-helper-audit-b26/service-management.json`; the file parsed as JSON
+  and retained `status: "blocked"`, `probeBinaryReady: true`,
+  `serviceManagementStatus: "not-installed"`, and reason `not-found`.
+- `pnpm test` passed: 48 files, 232 tests.
+- `pnpm typecheck` passed.
+- `pnpm lint` passed.
+- `pnpm build` passed.
+- `cargo test --manifest-path native/scanner/Cargo.toml` passed. Existing Rust
+  dead-code warnings remain.
+- `pnpm audit:helper-fda-matrix` printed `status: "blocked"` and exited 1 as
+  intended.
+- `pnpm audit:helper-preflight` printed `status: "blocked"` and exited 0.
+- `pnpm audit:helper-readiness` printed `status: "blocked"`,
+  `canEnableHelperByDefault: false`, and exited 1 as intended.
+- Sub-agent review found no Critical or Important issues. Minor feedback about
+  injected probe path evidence was addressed by requiring executable file
+  evidence before reporting `probeBinaryReady: true`.
+
+External blockers still missing:
+
+- Installed privileged helper ServiceManagement registration evidence.
+- Full FDA validation matrix on the target macOS version.
+- Production XPC peer identity validation with a real Team ID.
+- Production signing, packaging, and notarization evidence.
+
+Cold assessment:
+
+- This mini phase makes ServiceManagement registration blockers independently
+  auditable and file-retainable.
+- It does not install, register, or unregister the helper.
+- It does not make helper readiness pass.
+- It does not enable helper-backed scan execution by default.
+
 ## Findings
 
 ### P1: Privileged Helper Is Still Blocked by Real Identity and FDA Evidence

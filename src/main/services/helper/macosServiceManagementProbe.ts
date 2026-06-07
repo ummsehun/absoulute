@@ -23,6 +23,23 @@ export interface MacOsServiceManagementControl
   unregister: () => Promise<MacOsServiceManagementProbeResult>;
 }
 
+export interface HelperServiceManagementAudit {
+  platform: NodeJS.Platform;
+  probeBinaryPath: string | null;
+  probeBinaryReady: boolean;
+  serviceManagementReason: string;
+  serviceManagementStatus: MacOsServiceManagementProbeState;
+  status: "blocked" | "ready";
+}
+
+export interface BuildHelperServiceManagementAuditOptions {
+  env?: NodeJS.ProcessEnv;
+  platform?: NodeJS.Platform;
+  probe?: MacOsServiceManagementProbe;
+  probeBinaryPath?: string | null;
+  resourcesPath?: string | null;
+}
+
 export const MACOS_SERVICE_MANAGEMENT_PROBE_NOT_IMPLEMENTED_REASON =
   "service-management-probe-not-implemented";
 export const HELPER_SERVICE_MANAGEMENT_PROBE_BIN_ENV =
@@ -190,6 +207,31 @@ export function resolveMacOsServiceManagementProbeBinary(
     MACOS_SERVICE_MANAGEMENT_PROBE_BINARY_NAME,
   );
   return hasExecutableFileEvidence(bundledCandidate) ? bundledCandidate : null;
+}
+
+export async function buildHelperServiceManagementAudit(
+  options: BuildHelperServiceManagementAuditOptions = {},
+): Promise<HelperServiceManagementAudit> {
+  const env = options.env ?? process.env;
+  const platform = options.platform ?? process.platform;
+  const resourcesPath = options.resourcesPath
+    ?? (typeof process.resourcesPath === "string" ? process.resourcesPath : null);
+  const probeBinaryPath = options.probeBinaryPath
+    ?? resolveMacOsServiceManagementProbeBinary(env, resourcesPath);
+  const probeBinaryReady = probeBinaryPath !== null
+    && hasExecutableFileEvidence(probeBinaryPath);
+  const probe = options.probe
+    ?? createMacOsServiceManagementProbeFromEnv(env, platform, resourcesPath);
+  const result = await probe.getStatus();
+
+  return {
+    platform,
+    probeBinaryPath,
+    probeBinaryReady,
+    serviceManagementReason: result.reason,
+    serviceManagementStatus: result.state,
+    status: result.state === "registered" ? "ready" : "blocked",
+  };
 }
 
 function hasExecutableFileEvidence(candidatePath: string): boolean {
