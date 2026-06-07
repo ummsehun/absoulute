@@ -47,6 +47,81 @@ describe("helperEventAdapter", () => {
     ]);
   });
 
+  it("omits helper symlink and other entries from native aggregation", () => {
+    expect(
+      mapHelperEventToNativeMessages({
+        type: "entry_batch",
+        requestId: "request-1",
+        items: [
+          {
+            path: "/Users/tester/link",
+            parentPath: "/Users/tester",
+            kind: "symlink",
+            size: 128,
+            estimated: false,
+          },
+          {
+            path: "/Users/tester/socket",
+            parentPath: "/Users/tester",
+            kind: "other",
+            size: 64,
+            estimated: false,
+          },
+        ],
+      }),
+    ).toEqual([]);
+  });
+
+  it("keeps file observations and directory markers in mixed helper batches", () => {
+    expect(
+      mapHelperEventToNativeMessages({
+        type: "entry_batch",
+        requestId: "request-1",
+        items: [
+          {
+            path: "/Users/tester/file.txt",
+            parentPath: "/Users/tester",
+            kind: "file",
+            size: 42,
+            estimated: false,
+          },
+          {
+            path: "/Users/tester/link",
+            parentPath: "/Users/tester",
+            kind: "symlink",
+            size: 128,
+            estimated: false,
+          },
+          {
+            path: "/Users/tester/Documents",
+            parentPath: "/Users/tester",
+            kind: "dir",
+            size: 0,
+            estimated: false,
+          },
+        ],
+      }),
+    ).toEqual([
+      {
+        type: "agg_batch",
+        items: [
+          {
+            path: "/Users/tester/file.txt",
+            sizeDelta: 42,
+            countDelta: 1,
+            estimated: false,
+          },
+          {
+            path: "/Users/tester/Documents",
+            sizeDelta: 0,
+            countDelta: 0,
+            estimated: false,
+          },
+        ],
+      },
+    ]);
+  });
+
   it("maps helper progress into native progress without inventing queue depth", () => {
     expect(
       mapHelperEventToNativeMessages({

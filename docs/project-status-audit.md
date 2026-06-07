@@ -2027,3 +2027,40 @@ Opinion:
   existing hotspots.
 - It is clean enough to proceed if Phase B remains contract-first, helper-gated,
   and integration-tested before default enablement.
+
+## Phase B32 Helper Entry Adapter Exactness
+
+Date: 2026-06-08
+
+Facts:
+
+- Helper `entry_batch` events now omit `symlink` and `other` entries at the
+  main-process adapter boundary before native aggregation.
+- Helper `file` entries still map to counted size observations.
+- Helper `dir` entries still map to zero-size, zero-count directory visibility
+  markers.
+- This matches the Rust native scanner policy that skips symlinks and
+  non-file/non-directory entries before metadata aggregation.
+- This phase does not change helper readiness gates, helper transport defaults,
+  helper registration, signing, notarization, or FDA evidence.
+- Production helper-backed scans remain blocked in the current repository.
+
+Verification:
+
+- `pnpm test test/main/helperEventAdapter.test.ts` passed, 1 file and 8 tests.
+- `pnpm test test/main/helperEventAdapter.test.ts test/main/nativeScanOrchestrator.test.ts`
+  passed, 2 files and 27 tests.
+- `pnpm test` passed, 52 files and 251 tests.
+- `pnpm typecheck` passed.
+- `pnpm lint` passed.
+- `pnpm build` passed.
+- `cargo test --manifest-path native/scanner/Cargo.toml` passed. Existing Rust
+  dead-code warnings remain.
+- `pnpm audit:helper-readiness-bundle` and `pnpm audit:helper-readiness`
+  remain intentionally blocked with `canEnableHelperByDefault: false`.
+
+Interpretation:
+
+- This improves helper result exactness.
+- It is not evidence that the privileged helper is ready for default production
+  scanning.

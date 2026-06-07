@@ -15,7 +15,7 @@ export function mapHelperEventToNativeMessages(
     case "ready":
       return [];
     case "entry_batch":
-      return [mapEntryBatch(event)];
+      return mapEntryBatch(event);
     case "progress":
       return [mapProgress(event)];
     case "coverage":
@@ -31,16 +31,20 @@ export function mapHelperEventToNativeMessages(
 
 function mapEntryBatch(
   event: Extract<HelperEvent, { type: "entry_batch" }>,
-): NativeAggBatchMessage {
-  return {
-    type: "agg_batch",
-    items: event.items.map((item) => ({
+): NativeAggBatchMessage[] {
+  const items = event.items
+    .filter((item) => item.kind === "file" || item.kind === "dir")
+    .map((item) => ({
       path: item.path,
       sizeDelta: item.kind === "file" ? item.size : 0,
       countDelta: item.kind === "file" ? 1 : 0,
       estimated: false,
-    })),
-  };
+    }));
+
+  return items.length > 0 ? [{
+    type: "agg_batch",
+    items,
+  }] : [];
 }
 
 function mapProgress(
