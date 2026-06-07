@@ -2271,3 +2271,48 @@ Interpretation:
 - This phase reduces false `not-implemented` ServiceManagement evidence caused
   by short command timeouts under parallel test or system load.
 - It does not prove helper registration, approval, or production scan readiness.
+
+## Phase B38 Helper Preflight Project Root
+
+Date: 2026-06-08
+
+Facts:
+
+- `audit-helper-preflight` now accepts `--project-root <path>`.
+- The script passes the selected project root into the existing
+  `buildHelperPreflightAudit` path.
+- `--project-root` without a value now fails explicitly with
+  `missing value for --project-root`.
+- `--project-root` followed by another option, such as `--out`, also fails as a
+  missing value.
+- Existing `--out` behavior is preserved.
+- Preflight readiness semantics are unchanged.
+- Helper default activation remains disabled.
+
+Verification so far:
+
+- RED was confirmed before implementation:
+  - the script read real repo listener metadata instead of temporary
+    `--project-root` metadata;
+  - `--project-root` without a value exited `0` instead of failing.
+- `pnpm test test/main/helperPreflightAuditScript.test.ts test/main/helperPreflightAudit.test.ts`
+  passed, 2 files and 11 tests.
+- `pnpm test test/main/helperPreflightAuditScript.test.ts test/main/helperReadinessAuditScript.test.ts test/main/helperReadinessBundleScript.test.ts test/main/helperIdentityAuditScript.test.ts test/main/helperFdaMatrixAuditScript.test.ts`
+  passed, 5 files and 18 tests.
+- `pnpm test` passed, 55 files and 265 tests.
+- `pnpm typecheck` passed.
+- `pnpm lint` passed.
+- `pnpm build` passed.
+- `cargo test --manifest-path native/scanner/Cargo.toml` passed. Existing Rust
+  dead-code warnings remain.
+- `pnpm audit:helper-readiness --platform darwin --resources-path resources`
+  and `pnpm audit:helper-readiness-bundle` remain intentionally blocked.
+- Sub-agent review found no Critical issues. One Important CLI edge case was
+  fixed before commit: option-looking `--project-root` values are now rejected.
+
+Interpretation:
+
+- This phase makes preflight evidence reproducible against isolated or packaged
+  project roots, matching the other helper audit scripts.
+- It does not provide production Team ID, designated requirement, FDA, or
+  ServiceManagement evidence.
