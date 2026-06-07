@@ -43,6 +43,97 @@ describe("audit-helper-readiness script", () => {
     }
   });
 
+  it("uses an explicit ServiceManagement probe binary option", () => {
+    const tempDir = fs.mkdtempSync(
+      path.join(os.tmpdir(), "diskviz-helper-readiness-probe-bin-"),
+    );
+    const probePath = path.join(tempDir, "sm-probe");
+
+    try {
+      fs.writeFileSync(
+        probePath,
+        "#!/bin/sh\nprintf '%s\\n' '{\"state\":\"pending-approval\",\"reason\":\"requires-approval\"}'\n",
+      );
+      fs.chmodSync(probePath, 0o755);
+
+      const result = spawnSync(
+        "bun",
+        [
+          "run",
+          "scripts/audit-helper-readiness.ts",
+          "--platform",
+          "darwin",
+          "--probe-bin",
+          probePath,
+        ],
+        {
+          cwd: process.cwd(),
+          env: process.env,
+          encoding: "utf8",
+        },
+      );
+
+      expect(result.status).toBe(1);
+      const report = JSON.parse(result.stdout);
+      expect(report.serviceManagementStatus).toBe("pending-approval");
+      expect(report.evidence).toContainEqual(expect.objectContaining({
+        key: "service-management",
+        reason: "service-management-not-registered:pending-approval",
+        status: "fail",
+      }));
+    } finally {
+      fs.rmSync(tempDir, { force: true, recursive: true });
+    }
+  });
+
+  it("uses an explicit resources path for the packaged probe", () => {
+    const resourcesRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "diskviz-helper-readiness-resources-"),
+    );
+    const probePath = path.join(
+      resourcesRoot,
+      "bin",
+      "service-management-probe-macos",
+    );
+
+    try {
+      fs.mkdirSync(path.dirname(probePath), { recursive: true });
+      fs.writeFileSync(
+        probePath,
+        "#!/bin/sh\nprintf '%s\\n' '{\"state\":\"not-installed\",\"reason\":\"not-found\"}'\n",
+      );
+      fs.chmodSync(probePath, 0o755);
+
+      const result = spawnSync(
+        "bun",
+        [
+          "run",
+          "scripts/audit-helper-readiness.ts",
+          "--platform",
+          "darwin",
+          "--resources-path",
+          resourcesRoot,
+        ],
+        {
+          cwd: process.cwd(),
+          env: process.env,
+          encoding: "utf8",
+        },
+      );
+
+      expect(result.status).toBe(1);
+      const report = JSON.parse(result.stdout);
+      expect(report.serviceManagementStatus).toBe("not-installed");
+      expect(report.evidence).toContainEqual(expect.objectContaining({
+        key: "service-management",
+        reason: "service-management-not-registered:not-installed",
+        status: "fail",
+      }));
+    } finally {
+      fs.rmSync(resourcesRoot, { force: true, recursive: true });
+    }
+  });
+
   itOnDarwin("uses the ServiceManagement probe state in the readiness report", () => {
     const tempDir = fs.mkdtempSync(
       path.join(os.tmpdir(), "diskviz-helper-readiness-script-"),

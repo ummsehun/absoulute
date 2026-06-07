@@ -2105,3 +2105,43 @@ Interpretation:
 - It does not satisfy production Team ID, designated requirement,
   ServiceManagement registration, FDA validation, signing, packaging approval,
   or notarization evidence.
+
+## Phase B34 Helper Readiness CLI Probe Options
+
+Date: 2026-06-08
+
+Facts:
+
+- `audit-helper-readiness` now accepts `--platform`, `--resources-path`, and
+  `--probe-bin`.
+- The standalone readiness audit can now reproduce ServiceManagement probe
+  evidence the same way the ServiceManagement and readiness-bundle audit scripts
+  can.
+- Tests cover explicit probe binary and explicit packaged resources path
+  behavior.
+- Readiness semantics are unchanged: ServiceManagement remains blocked unless
+  the probe reports `registered`.
+- `canEnableHelperByDefault` remains `false`.
+
+Verification:
+
+- RED was confirmed before implementation: explicit probe CLI options still
+  produced `serviceManagementStatus: "not-implemented"`.
+- `pnpm test test/main/helperReadinessAuditScript.test.ts` passed, 1 file and
+  4 tests.
+- `pnpm test test/main/helperReadinessAudit.test.ts test/main/helperReadinessAuditScript.test.ts test/main/helperReadinessBundle.test.ts test/main/helperReadinessBundleScript.test.ts`
+  passed, 4 files and 18 tests.
+- `pnpm audit:helper-readiness` and `pnpm audit:helper-readiness-bundle`
+  remain intentionally blocked.
+- `pnpm test` passed, 52 files and 255 tests.
+- `pnpm typecheck` passed.
+- `pnpm lint` passed.
+- `pnpm build` passed.
+- `cargo test --manifest-path native/scanner/Cargo.toml` passed. Existing Rust
+  dead-code warnings remain.
+
+Interpretation:
+
+- This phase improves helper readiness audit reproducibility.
+- It does not prove that the privileged helper is installed, approved, or ready
+  for default production scanning.

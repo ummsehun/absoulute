@@ -4,16 +4,24 @@ import {
   resolveHelperRegistrationPreflight,
   resolveHelperRegistrationPreflightInputFromEnv,
 } from "../src/main/services/helper/helperRegistration";
-import { createMacOsServiceManagementProbeFromEnv } from "../src/main/services/helper/macosServiceManagementProbe";
+import {
+  createMacOsServiceManagementProbeFromEnv,
+  HELPER_SERVICE_MANAGEMENT_PROBE_BIN_ENV,
+} from "../src/main/services/helper/macosServiceManagementProbe";
 import {
   resolveAuditOutputPath,
   writeAuditOutputFile,
 } from "./helper-audit-output";
 
-const auditOutputPath = resolveAuditOutputPath(process.argv.slice(2));
-const preflight = buildHelperPreflightAudit({ env: process.env });
+const rawArgs = process.argv.slice(2);
+const auditOutputPath = resolveAuditOutputPath(rawArgs);
+const env = buildAuditEnv(rawArgs);
+const platform = resolvePlatform(rawArgs);
+const resourcesPath = resolveOptionalArg(rawArgs, "--resources-path")
+  ?? (typeof process.resourcesPath === "string" ? process.resourcesPath : null);
+const preflight = buildHelperPreflightAudit({ env });
 const registrationPreflight = resolveHelperRegistrationPreflight(
-  resolveHelperRegistrationPreflightInputFromEnv(process.env),
+  resolveHelperRegistrationPreflightInputFromEnv(env),
 );
 const serviceManagementStatus = await resolveServiceManagementStatus();
 const report = buildHelperReadinessReport({
@@ -44,13 +52,41 @@ async function resolveServiceManagementStatus(): Promise<
 > {
   try {
     const probe = createMacOsServiceManagementProbeFromEnv(
-      process.env,
-      process.platform,
-      typeof process.resourcesPath === "string" ? process.resourcesPath : null,
+      env,
+      platform,
+      resourcesPath,
     );
     const status = await probe.getStatus();
     return status.state;
   } catch {
     return "unknown";
   }
+}
+
+function buildAuditEnv(rawArgs: string[]): NodeJS.ProcessEnv {
+  const probeBin = resolveOptionalArg(rawArgs, "--probe-bin");
+  return probeBin
+    ? { ...process.env, [HELPER_SERVICE_MANAGEMENT_PROBE_BIN_ENV]: probeBin }
+    : process.env;
+}
+
+function resolvePlatform(rawArgs: string[]): NodeJS.Platform {
+  return (resolveOptionalArg(rawArgs, "--platform") ?? process.platform) as NodeJS.Platform;
+}
+
+function resolveOptionalArg(
+  rawArgs: string[],
+  name: string,
+): string | undefined {
+  const index = rawArgs.indexOf(name);
+  if (index < 0) {
+    return undefined;
+  }
+
+  const value = rawArgs[index + 1]?.trim();
+  if (!value) {
+    throw new Error(`missing value for ${name}`);
+  }
+
+  return value;
 }
