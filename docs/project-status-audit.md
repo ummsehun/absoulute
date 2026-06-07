@@ -1623,6 +1623,76 @@ Cold assessment:
 - It does not make helper readiness pass.
 - It does not enable helper-backed scan execution by default.
 
+## Phase B27 Helper Identity Audit
+
+Facts:
+
+- Phase B27 is scoped in
+  `docs/superpowers/plans/2026-06-08-phase-b27-helper-identity-audit.md`.
+- `src/main/services/helper/helperIdentityAudit.ts` now exposes
+  `buildHelperIdentityAudit`.
+- `scripts/audit-helper-identity.ts` prints identity audit JSON to stdout.
+- `package.json` now exposes `audit:helper-identity`.
+- The identity audit supports `--project-root <path>` for isolated metadata
+  checks.
+- The identity audit supports `--team-id <team-id>` and
+  `--designated-requirement <requirement>` for explicit production evidence
+  checks.
+- The identity audit supports `--out <path>` and writes the same JSON payload
+  to the requested UTF-8 output file.
+- The audit reports `status: "ready"` only when Team ID, designated
+  requirement, and listener requirement metadata all match.
+- The audit does not invent or record a production Team ID.
+- No generated audit JSON files are committed.
+- Helper readiness gates did not change.
+- Current repo identity remains blocked because Team ID and designated
+  requirement are absent, while listener metadata still contains
+  `TEAMID_NOT_CONFIGURED`.
+- The helper remains disabled by default and readiness remains blocked without
+  real ServiceManagement registration, production identity, and FDA evidence.
+
+Verification commands run for this Phase B27 slice:
+
+- `pnpm test test/main/helperIdentityAudit.test.ts
+  test/main/helperIdentityAuditScript.test.ts` passed after implementation:
+  2 files, 6 tests.
+- `pnpm audit:helper-identity` printed `status: "blocked"`,
+  `teamIdReady: false`, `designatedRequirementReady: false`,
+  `listenerRequirementReady: false`, and exited 1 as intended.
+- Direct `--out` check wrote `/tmp/luie-helper-audit-b27/identity.json`; the
+  file parsed as JSON and retained `status: "blocked"` with
+  `team-id-missing`, `designated-requirement-missing`, and
+  `privileged-helper-listener-requirement-missing`.
+- `pnpm test` passed: 50 files, 238 tests.
+- `pnpm typecheck` passed.
+- `pnpm lint` passed.
+- `pnpm build` passed.
+- `cargo test --manifest-path native/scanner/Cargo.toml` passed. Existing Rust
+  dead-code warnings remain.
+- `pnpm audit:helper-service-management` printed `status: "blocked"` and
+  exited 1 as intended.
+- `pnpm audit:helper-fda-matrix` printed `status: "blocked"` and exited 1 as
+  intended.
+- `pnpm audit:helper-preflight` printed `status: "blocked"` and exited 0.
+- `pnpm audit:helper-readiness` printed `status: "blocked"`,
+  `canEnableHelperByDefault: false`, and exited 1 as intended.
+
+External blockers still missing:
+
+- Production Team ID and designated requirement evidence.
+- Listener requirement metadata generated from the production Team ID.
+- Installed privileged helper ServiceManagement registration evidence.
+- Full FDA validation matrix on the target macOS version.
+- Production signing, packaging, and notarization evidence.
+
+Cold assessment:
+
+- This mini phase makes identity blockers independently auditable and
+  file-retainable.
+- It does not record real production identity.
+- It does not make helper readiness pass.
+- It does not enable helper-backed scan execution by default.
+
 ## Findings
 
 ### P1: Privileged Helper Is Still Blocked by Real Identity and FDA Evidence
