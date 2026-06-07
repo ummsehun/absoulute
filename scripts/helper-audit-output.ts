@@ -8,7 +8,7 @@ export function resolveAuditOutputPath(argv: string[]): string | null {
   }
 
   const outputPath = argv[outputIndex + 1]?.trim();
-  if (!outputPath) {
+  if (!outputPath || outputPath.startsWith("--")) {
     throw new Error("--out requires an output file path");
   }
 

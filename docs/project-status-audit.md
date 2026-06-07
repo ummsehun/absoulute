@@ -2544,3 +2544,56 @@ Interpretation:
   isolated roots without writing into the live repo.
 - It does not provide real helper registration, approval, FDA evidence, or
   default helper scanning.
+
+## Phase B44 ServiceManagement Control Option Values
+
+Date: 2026-06-08
+
+Facts:
+
+- `control-helper-service-management` now rejects option-looking values for
+  valued CLI options.
+- `--project-root --resources-path <path>` fails explicitly with
+  `missing value for --project-root`.
+- `--probe-bin --resources-path <path>` fails explicitly with
+  `missing value for --probe-bin`.
+- Shared audit `--out` parsing now rejects option-looking values with
+  `--out requires an output file path`.
+- Existing confirmation, register/unregister, preflight, and readiness
+  semantics are unchanged.
+- Helper default activation remains disabled.
+
+Verification so far:
+
+- RED was confirmed before implementation:
+  - option-looking values were consumed as ordinary values;
+  - the script returned structured blocked output with empty stderr instead of
+    a missing-value error.
+- A sub-agent review found that shared `--out` parsing had the same
+  option-looking value gap; RED coverage was added before fixing it.
+- `pnpm test test/main/helperServiceManagementControlScript.test.ts` passed, 1
+  file and 5 tests.
+- `pnpm test test/main/helperAuditOutput.test.ts test/main/helperServiceManagementControlScript.test.ts`
+  passed, 2 files and 11 tests after the `--out` parser fix.
+- `pnpm test test/main/helperServiceManagementControlScript.test.ts test/main/helperServiceManagementAuditScript.test.ts test/main/macosServiceManagementProbe.test.ts test/main/helperReadinessAuditScript.test.ts test/main/helperReadinessBundleScript.test.ts`
+  passed, 5 files and 31 tests.
+- `pnpm test test/main/helperAuditOutput.test.ts test/main/helperServiceManagementControlScript.test.ts test/main/helperServiceManagementAuditScript.test.ts test/main/helperReadinessAuditScript.test.ts test/main/helperReadinessBundleScript.test.ts test/main/helperPreflightAuditScript.test.ts test/main/helperIdentityAuditScript.test.ts test/main/helperFdaMatrixAuditScript.test.ts`
+  passed, 8 files and 33 tests after the shared `--out` parser fix.
+- `pnpm test` passed, 55 files and 284 tests.
+- `pnpm typecheck` passed.
+- `pnpm lint` passed.
+- `pnpm build` passed.
+- `cargo test --manifest-path native/scanner/Cargo.toml` passed. Existing Rust
+  dead-code warnings remain.
+- `pnpm audit:helper-readiness --platform darwin --resources-path resources`
+  and `pnpm audit:helper-readiness-bundle` remain intentionally blocked.
+- Follow-up sub-agent review reported no Critical, Important, or Minor
+  findings after the shared `--out` parser fix. The review was static and did
+  not rerun tests.
+
+Interpretation:
+
+- This phase closes another ambiguous helper control CLI input path before real
+  ServiceManagement registration is attempted.
+- It does not provide ServiceManagement registration, production identity, FDA
+  evidence, or default helper scanning.

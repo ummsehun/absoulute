@@ -6,6 +6,12 @@ import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 
+const controlScriptPath = path.join(
+  process.cwd(),
+  "scripts",
+  "control-helper-service-management.ts",
+);
+
 describe("control-helper-service-management script", () => {
   it("requires explicit confirmation before invoking register", () => {
     const tempDir = fs.mkdtempSync(
@@ -107,14 +113,91 @@ describe("control-helper-service-management script", () => {
       fs.rmSync(tempDir, { force: true, recursive: true });
     }
   });
+
+  it("fails explicitly when project root is followed by another option", () => {
+    const tempDir = fs.mkdtempSync(
+      path.join(os.tmpdir(), "diskviz-helper-sm-control-project-root-option-"),
+    );
+    const markerPath = path.join(tempDir, "called");
+    const probePath = writeProbe(tempDir, markerPath, "pending-approval");
+
+    try {
+      const result = runControl([
+        "--operation",
+        "register",
+        "--confirm",
+        "--platform",
+        "darwin",
+        "--probe-bin",
+        probePath,
+        "--project-root",
+        "--resources-path",
+        tempDir,
+      ]);
+
+      expect(result.status).toBe(1);
+      expect(result.stderr).toContain("missing value for --project-root");
+    } finally {
+      fs.rmSync(tempDir, { force: true, recursive: true });
+    }
+  });
+
+  it("fails explicitly when probe binary is followed by another option", () => {
+    const tempDir = fs.mkdtempSync(
+      path.join(os.tmpdir(), "diskviz-helper-sm-control-probe-bin-option-"),
+    );
+
+    try {
+      const result = runControl([
+        "--operation",
+        "unregister",
+        "--confirm",
+        "--platform",
+        "darwin",
+        "--probe-bin",
+        "--resources-path",
+        tempDir,
+      ]);
+
+      expect(result.status).toBe(1);
+      expect(result.stderr).toContain("missing value for --probe-bin");
+    } finally {
+      fs.rmSync(tempDir, { force: true, recursive: true });
+    }
+  });
+
+  it("fails explicitly when output path is followed by another option", () => {
+    const tempDir = fs.mkdtempSync(
+      path.join(os.tmpdir(), "diskviz-helper-sm-control-out-option-"),
+    );
+
+    try {
+      const result = runControl([
+        "--operation",
+        "unregister",
+        "--confirm",
+        "--platform",
+        "darwin",
+        "--out",
+        "--resources-path",
+        tempDir,
+      ], tempDir);
+
+      expect(result.status).toBe(1);
+      expect(result.stderr).toContain("--out requires an output file path");
+      expect(fs.existsSync(path.join(tempDir, "--resources-path"))).toBe(false);
+    } finally {
+      fs.rmSync(tempDir, { force: true, recursive: true });
+    }
+  });
 });
 
-function runControl(args: string[]) {
+function runControl(args: string[], cwd = process.cwd()) {
   return spawnSync(
     "bun",
-    ["run", "scripts/control-helper-service-management.ts", ...args],
+    ["run", controlScriptPath, ...args],
     {
-      cwd: process.cwd(),
+      cwd,
       env: process.env,
       encoding: "utf8",
     },

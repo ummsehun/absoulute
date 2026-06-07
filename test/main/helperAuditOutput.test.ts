@@ -26,6 +26,12 @@ describe("helper audit output", () => {
     );
   });
 
+  it("rejects --out followed by another option", () => {
+    expect(() => resolveAuditOutputPath(["--out", "--project-root"])).toThrow(
+      "--out requires an output file path",
+    );
+  });
+
   it("writes JSON and creates parent directories", () => {
     const tempDir = fs.mkdtempSync(
       path.join(os.tmpdir(), "diskviz-helper-audit-output-"),
