@@ -512,6 +512,50 @@ describe("helperClient", () => {
     expect(runCount).toBe(1);
   });
 
+  it("rejects helper enumerate events with a mismatched request id", async () => {
+    const events: unknown[] = [];
+    const enumerator = new CommandMacOsHelperEnumerator({
+      commandPath: "/test/helper-enumerate-macos",
+      run: async (_request, handlers) => {
+        handlers.onEvent({
+          type: "ready",
+          requestId: "other-request",
+          helperVersion: "test-helper",
+        });
+        return { exitCode: 0, stderr: "" };
+      },
+    });
+
+    await expect(
+      enumerator.enumerate(
+        buildHelperEnumerateRequest({
+          rootPath: "/Users/tester",
+          scanId: "scan-1",
+          stageId: "deep",
+          scanMode: "deep",
+          options: resolveScanOptions(
+            {
+              rootPath: "/Users/tester",
+              optInProtected: false,
+              accuracyMode: "full",
+            },
+            "/Users/tester",
+          ),
+          volumePlan: resolveNativeVolumePlan(
+            { rootPath: "/Users/tester" },
+            "darwin",
+          ),
+          maxDepth: 128,
+          issuedAtMs: 1_765_000_000_000,
+          nonce: "0123456789abcdef",
+          requestId: "request-1",
+        }),
+        { onEvent: (event) => events.push(event) },
+      ),
+    ).rejects.toThrow("helper-enumerate-request-id-mismatch");
+    expect(events).toEqual([]);
+  });
+
   it("reflects ServiceManagement probe results in macOS xpc lifecycle status", async () => {
     const transport = new MacOsXpcHelperTransport({
       getStatus: async () => ({

@@ -437,6 +437,50 @@ Cold assessment:
 - It does not make the helper production-ready.
 - It does not enable helper-backed scan execution by default.
 
+## Phase B4 Helper Stream Request Binding
+
+Facts:
+
+- Phase B4 is scoped in
+  `docs/superpowers/plans/2026-06-08-phase-b4-helper-stream-request-binding.md`.
+- `CommandMacOsHelperEnumerator` now wraps helper stream handlers with active
+  request binding.
+- Every helper event is parsed with `HelperEventSchema` and then checked so
+  `event.requestId === request.requestId` before it is dispatched.
+- Mismatched helper stream events now fail with
+  `helper-enumerate-request-id-mismatch` and are not delivered to scan handlers.
+- The change applies both to the default child-process stdout adapter and to
+  injected runner implementations used in tests.
+
+Verification commands run for this Phase B4 slice:
+
+- `pnpm test test/main/helperClient.test.ts`: passed, 21 tests.
+- `pnpm typecheck`: passed.
+- `pnpm test`: passed, 45 files, 186 tests.
+- `pnpm lint`: passed.
+- `pnpm build`: passed.
+- `cargo test --manifest-path native/scanner/Cargo.toml`: passed, 8 tests,
+  with the existing 6 Rust dead-code warnings.
+- `pnpm audit:helper-readiness`: reported `status: "blocked"`,
+  `canEnableHelperByDefault: false`, and local
+  `serviceManagementStatus: "not-implemented"`.
+
+External blockers still missing:
+
+- Production XPC peer identity validation.
+- Real ServiceManagement registration evidence from a packaged app/helper.
+- Real Team ID and designated requirement.
+- Real listener requirement metadata generated from that Team ID.
+- Full FDA validation matrix on the target macOS version.
+- Production signing, packaging, and notarization evidence.
+
+Cold assessment:
+
+- This mini phase hardens helper stream correlation before helper-backed scan
+  execution is expanded.
+- It does not implement production XPC peer identity validation.
+- It does not enable helper-backed scan execution by default.
+
 ## Findings
 
 ### P1: Privileged Helper Is Still Blocked by Real Identity and FDA Evidence

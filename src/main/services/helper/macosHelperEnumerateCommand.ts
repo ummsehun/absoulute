@@ -63,19 +63,35 @@ export class CommandMacOsHelperEnumerator implements MacOsHelperEnumerator {
     }
     this.replayedRequestKeys.add(replayKey);
 
+    const boundHandlers = bindHandlersToRequest(request.requestId, handlers);
     const result = await this.run(
       {
         commandPath: this.commandPath,
         request,
         timeoutMs: this.timeoutMs,
       },
-      handlers,
+      boundHandlers,
     );
 
     if (result.exitCode !== 0) {
       throw new Error(buildFailedEnumeratorReason(result.exitCode, result.stderr));
     }
   }
+}
+
+function bindHandlersToRequest(
+  requestId: string,
+  handlers: HelperTransportHandlers,
+): HelperTransportHandlers {
+  return {
+    onEvent: (event) => {
+      const parsedEvent = HelperEventSchema.parse(event);
+      if (parsedEvent.requestId !== requestId) {
+        throw new Error("helper-enumerate-request-id-mismatch");
+      }
+      handlers.onEvent(parsedEvent);
+    },
+  };
 }
 
 function buildReplayKey(request: HelperRequestEnvelope): string {
