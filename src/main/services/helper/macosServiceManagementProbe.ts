@@ -46,6 +46,7 @@ export const HELPER_SERVICE_MANAGEMENT_PROBE_BIN_ENV =
   "SCAN_HELPER_SM_PROBE_BIN";
 export const MACOS_SERVICE_MANAGEMENT_PROBE_BINARY_NAME =
   "service-management-probe-macos";
+export const MACOS_SERVICE_MANAGEMENT_PROBE_TIMEOUT_MS = 10_000;
 
 export interface CommandMacOsServiceManagementProbeRunRequest {
   commandPath: string;
@@ -93,7 +94,8 @@ export class CommandMacOsServiceManagementProbe
     this.args = options.args ?? [];
     this.commandPath = options.commandPath;
     this.run = options.run ?? runCommandProbe;
-    this.timeoutMs = options.timeoutMs ?? 2_000;
+    this.timeoutMs = options.timeoutMs
+      ?? MACOS_SERVICE_MANAGEMENT_PROBE_TIMEOUT_MS;
   }
 
   async getStatus(): Promise<MacOsServiceManagementProbeResult> {

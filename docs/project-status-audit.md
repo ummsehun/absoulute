@@ -2234,3 +2234,40 @@ Interpretation:
   easier to audit.
 - It does not complete the FDA validation matrix or enable helper production
   scanning.
+
+## Phase B37 ServiceManagement Probe Timeout
+
+Date: 2026-06-08
+
+Facts:
+
+- The default ServiceManagement command probe timeout was raised from 2 seconds
+  to 10 seconds.
+- The timeout now has a named constant:
+  `MACOS_SERVICE_MANAGEMENT_PROBE_TIMEOUT_MS`.
+- Explicit `timeoutMs` options still override the default.
+- ServiceManagement readiness semantics are unchanged.
+- Helper default activation remains disabled.
+
+Verification:
+
+- RED was confirmed before implementation: focused tests expected 10 seconds
+  while production still used 2 seconds.
+- `pnpm test test/main/macosServiceManagementProbe.test.ts` passed, 1 file and
+  15 tests.
+- `pnpm test test/main/macosServiceManagementProbe.test.ts test/main/helperServiceManagementAuditScript.test.ts test/main/helperReadinessAuditScript.test.ts test/main/helperClient.test.ts`
+  passed, 4 files and 60 tests.
+- `pnpm test` passed, 54 files and 262 tests.
+- `pnpm typecheck` passed.
+- `pnpm lint` passed.
+- `pnpm build` passed.
+- `cargo test --manifest-path native/scanner/Cargo.toml` passed. Existing Rust
+  dead-code warnings remain.
+- `pnpm audit:helper-readiness --platform darwin --resources-path resources`
+  and `pnpm audit:helper-readiness-bundle` remain intentionally blocked.
+
+Interpretation:
+
+- This phase reduces false `not-implemented` ServiceManagement evidence caused
+  by short command timeouts under parallel test or system load.
+- It does not prove helper registration, approval, or production scan readiness.

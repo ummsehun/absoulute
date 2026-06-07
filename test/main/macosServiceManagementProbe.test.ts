@@ -21,7 +21,7 @@ describe("macosServiceManagementProbe", () => {
         expect(request).toEqual({
           commandPath: "/tmp/probe-sm-status",
           args: [],
-          timeoutMs: 2_000,
+          timeoutMs: 10_000,
         });
 
         return {
@@ -76,6 +76,31 @@ describe("macosServiceManagementProbe", () => {
     } finally {
       fs.rmSync(tempDir, { force: true, recursive: true });
     }
+  });
+
+  it("passes an explicit probe timeout through unchanged", async () => {
+    const probe = new CommandMacOsServiceManagementProbe({
+      commandPath: "/tmp/probe-sm-status",
+      timeoutMs: 750,
+      run: async (request) => {
+        expect(request).toEqual({
+          commandPath: "/tmp/probe-sm-status",
+          args: [],
+          timeoutMs: 750,
+        });
+
+        return {
+          exitCode: 0,
+          stderr: "",
+          stdout: '{"state":"not-installed","reason":"not-found"}\n',
+        };
+      },
+    });
+
+    await expect(probe.getStatus()).resolves.toEqual({
+      state: "not-installed",
+      reason: "not-found",
+    });
   });
 
   it("does not treat a non-executable probe path override as binary evidence", async () => {
@@ -137,12 +162,12 @@ describe("macosServiceManagementProbe", () => {
       {
         commandPath: "/tmp/control-sm-service",
         args: ["register"],
-        timeoutMs: 2_000,
+        timeoutMs: 10_000,
       },
       {
         commandPath: "/tmp/control-sm-service",
         args: ["unregister"],
-        timeoutMs: 2_000,
+        timeoutMs: 10_000,
       },
     ]);
   });
