@@ -1,4 +1,7 @@
 import type {
+  HelperPreflightAuditEvidence,
+} from "./helperPreflightAudit";
+import type {
   HelperRegistrationBlocker,
   HelperRegistrationPreflight,
 } from "./helperRegistration";
@@ -21,6 +24,7 @@ import {
 
 export interface HelperReadinessReportInput {
   registrationPreflight: HelperRegistrationPreflight;
+  preflightEvidence?: HelperReadinessPreflightEvidenceState;
   fdaMatrixStatus: "ready" | "blocked";
   serviceManagementStatus:
     | "registered"
@@ -39,10 +43,19 @@ export interface HelperReadinessReport {
 }
 
 export interface HelperReadinessEvidence {
+  artifactReady?: boolean;
+  confirmationReady?: boolean;
+  effectiveReady?: boolean;
   guidance?: HelperReadinessEvidenceGuidance;
   key: string;
   status: "pass" | "fail" | "unknown";
   reason: string;
+}
+
+export interface HelperReadinessPreflightEvidenceState {
+  artifactEvidence: HelperPreflightAuditEvidence;
+  confirmations: HelperPreflightAuditEvidence;
+  effectiveEvidence: HelperPreflightAuditEvidence;
 }
 
 export interface HelperReadinessEvidenceGuidance {
@@ -76,7 +89,7 @@ function buildReadinessEvidence(
   blockers: Set<string>,
 ): HelperReadinessEvidence[] {
   const evidence = [...blockers]
-    .map((blocker) => evidenceForBlocker(blocker))
+    .map((blocker) => evidenceForBlocker(input, blocker))
     .filter((item): item is HelperReadinessEvidence => item !== null);
 
   evidence.push({
@@ -92,6 +105,7 @@ function buildReadinessEvidence(
 }
 
 function evidenceForBlocker(
+  input: HelperReadinessReportInput,
   blocker: string,
 ): HelperReadinessEvidence | null {
   const key = blockerEvidenceKey(blocker);
@@ -100,6 +114,7 @@ function evidenceForBlocker(
   }
 
   return {
+    ...preflightEvidenceStateForKey(input, key),
     guidance: guidanceForEvidenceKey(key),
     key,
     status: "fail",
@@ -184,4 +199,39 @@ function blockerEvidenceKey(
   };
 
   return evidenceKeys[blocker as HelperRegistrationBlocker] ?? null;
+}
+
+function preflightEvidenceStateForKey(
+  input: HelperReadinessReportInput,
+  key: string,
+): Pick<
+  HelperReadinessEvidence,
+  "artifactReady" | "confirmationReady" | "effectiveReady"
+> {
+  const field = preflightEvidenceFieldForKey(key);
+  if (!field || !input.preflightEvidence) {
+    return {};
+  }
+
+  return {
+    artifactReady: input.preflightEvidence.artifactEvidence[field],
+    confirmationReady: input.preflightEvidence.confirmations[field],
+    effectiveReady: input.preflightEvidence.effectiveEvidence[field],
+  };
+}
+
+function preflightEvidenceFieldForKey(
+  key: string,
+): keyof HelperPreflightAuditEvidence | null {
+  const fields: Record<string, keyof HelperPreflightAuditEvidence> = {
+    "designated-requirement": "designatedRequirement",
+    "fda-validation-matrix": "fdaValidationMatrix",
+    "listener-requirement": "privilegedHelperListenerRequirement",
+    "packaging-entitlements": "packagingEntitlements",
+    "privileged-helper-executable": "privilegedHelperExecutable",
+    "team-id": "teamId",
+    "xpc-enumerate-bridge": "helperXpcEnumerateBridge",
+  };
+
+  return fields[key] ?? null;
 }

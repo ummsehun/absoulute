@@ -50,6 +50,24 @@ describe("helperReadinessBundle", () => {
     expect(bundle.readiness.status).toBe("blocked");
     expect(bundle.blockers).toContain("team-id-missing");
   });
+
+  it("propagates preflight artifact and confirmation state into readiness evidence", async () => {
+    const bundle = await buildHelperReadinessBundle({
+      env: {},
+      platform: "darwin",
+      serviceManagementProbe: new RegisteredTestProbe(),
+    });
+
+    expect(bundle.readiness.status).toBe("blocked");
+    expect(bundle.readiness.evidence).toContainEqual(expect.objectContaining({
+      artifactReady: true,
+      confirmationReady: false,
+      effectiveReady: false,
+      key: "xpc-enumerate-bridge",
+      reason: "helper-xpc-enumerate-bridge-missing",
+      status: "fail",
+    }));
+  });
 });
 
 class RegisteredTestProbe implements MacOsServiceManagementProbe {

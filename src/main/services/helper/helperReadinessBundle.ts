@@ -81,6 +81,11 @@ export async function buildHelperReadinessBundle(
   );
   const readiness = buildHelperReadinessReport({
     fdaMatrixStatus: fdaMatrix.status,
+    preflightEvidence: {
+      artifactEvidence: preflight.artifactEvidence,
+      confirmations: preflight.confirmations,
+      effectiveEvidence: preflight.effectiveEvidence,
+    },
     registrationPreflight,
     serviceManagementStatus: serviceManagement.serviceManagementStatus,
   });

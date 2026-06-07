@@ -1,4 +1,5 @@
 import { buildHelperReadinessReport } from "../src/main/services/helper/helperReadinessAudit";
+import { buildHelperPreflightAudit } from "../src/main/services/helper/helperPreflightAudit";
 import {
   resolveHelperRegistrationPreflight,
   resolveHelperRegistrationPreflightInputFromEnv,
@@ -10,12 +11,18 @@ import {
 } from "./helper-audit-output";
 
 const auditOutputPath = resolveAuditOutputPath(process.argv.slice(2));
+const preflight = buildHelperPreflightAudit({ env: process.env });
 const registrationPreflight = resolveHelperRegistrationPreflight(
   resolveHelperRegistrationPreflightInputFromEnv(process.env),
 );
 const serviceManagementStatus = await resolveServiceManagementStatus();
 const report = buildHelperReadinessReport({
   registrationPreflight,
+  preflightEvidence: {
+    artifactEvidence: preflight.artifactEvidence,
+    confirmations: preflight.confirmations,
+    effectiveEvidence: preflight.effectiveEvidence,
+  },
   fdaMatrixStatus: registrationPreflight.blockers.includes(
     "fda-validation-matrix-missing",
   )

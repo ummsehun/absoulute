@@ -197,6 +197,68 @@ describe("helper readiness audit", () => {
     ]);
   });
 
+  it("distinguishes artifact, confirmation, and effective evidence state", () => {
+    const report = buildHelperReadinessReport({
+      preflightEvidence: {
+        artifactEvidence: {
+          designatedRequirement: false,
+          fdaValidationMatrix: false,
+          helperXpcEnumerateBridge: true,
+          packagingEntitlements: true,
+          privilegedHelperExecutable: true,
+          privilegedHelperListenerRequirement: false,
+          teamId: false,
+        },
+        confirmations: {
+          designatedRequirement: false,
+          fdaValidationMatrix: false,
+          helperXpcEnumerateBridge: false,
+          packagingEntitlements: false,
+          privilegedHelperExecutable: false,
+          privilegedHelperListenerRequirement: false,
+          teamId: false,
+        },
+        effectiveEvidence: {
+          designatedRequirement: false,
+          fdaValidationMatrix: false,
+          helperXpcEnumerateBridge: false,
+          packagingEntitlements: false,
+          privilegedHelperExecutable: false,
+          privilegedHelperListenerRequirement: false,
+          teamId: false,
+        },
+      },
+      registrationPreflight: {
+        status: "blocked",
+        blockers: ["helper-xpc-enumerate-bridge-missing"],
+        contract: {
+          appBundleIdentifier: "com.example.diskvisualizer",
+          helperExecutableBundleRelativePath:
+            "Contents/Library/LaunchServices/com.example.diskvisualizer.privileged-helper",
+          helperLabel: "com.example.diskvisualizer.privileged-helper",
+          launchDaemonBundleRelativePath:
+            "Contents/Library/LaunchDaemons/com.example.diskvisualizer.privileged-helper.plist",
+          launchDaemonPlistName:
+            "com.example.diskvisualizer.privileged-helper.plist",
+          serviceManagementModel: "smappservice-daemon",
+        },
+      },
+      fdaMatrixStatus: "ready",
+      serviceManagementStatus: "registered",
+    });
+
+    expect(report.status).toBe("blocked");
+    expect(report.canEnableHelperByDefault).toBe(false);
+    expect(report.evidence).toContainEqual(expect.objectContaining({
+      artifactReady: true,
+      confirmationReady: false,
+      effectiveReady: false,
+      key: "xpc-enumerate-bridge",
+      reason: "helper-xpc-enumerate-bridge-missing",
+      status: "fail",
+    }));
+  });
+
   it("keeps default helper enablement false even when readiness evidence is present", () => {
     const report = buildHelperReadinessReport({
       registrationPreflight: {

@@ -32,6 +32,12 @@ describe("audit-helper-readiness script", () => {
       expect(fileReport).toEqual(stdoutReport);
       expect(fileReport.status).toBe("blocked");
       expect(fileReport.canEnableHelperByDefault).toBe(false);
+      expect(fileReport.evidence).toContainEqual(expect.objectContaining({
+        artifactReady: true,
+        confirmationReady: false,
+        effectiveReady: false,
+        key: "xpc-enumerate-bridge",
+      }));
     } finally {
       fs.rmSync(tempDir, { force: true, recursive: true });
     }

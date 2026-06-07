@@ -2064,3 +2064,44 @@ Interpretation:
 - This improves helper result exactness.
 - It is not evidence that the privileged helper is ready for default production
   scanning.
+
+## Phase B33 Helper Readiness Evidence State
+
+Date: 2026-06-08
+
+Facts:
+
+- Helper readiness evidence now distinguishes `artifactReady`,
+  `confirmationReady`, and `effectiveReady` for registration/preflight-backed
+  evidence items.
+- The standalone readiness audit and readiness bundle now pass preflight
+  artifact/confirmation/effective evidence into the readiness report.
+- The current repo shows local artifacts for packaging entitlements,
+  privileged helper executable, and XPC enumerate bridge, but the required
+  explicit approval inputs are still missing.
+- `canEnableHelperByDefault` remains `false`.
+- Helper readiness remains blocked.
+
+Verification:
+
+- RED was confirmed with focused tests before implementation.
+- `pnpm test test/main/helperReadinessAudit.test.ts test/main/helperReadinessAuditScript.test.ts test/main/helperReadinessBundle.test.ts`
+  passed, 3 files and 13 tests.
+- `pnpm test test/main/helperReadinessAudit.test.ts test/main/helperReadinessAuditScript.test.ts test/main/helperReadinessBundle.test.ts test/main/helperReadinessBundleScript.test.ts`
+  passed, 4 files and 16 tests.
+- `pnpm audit:helper-readiness` and `pnpm audit:helper-readiness-bundle`
+  remain intentionally blocked and now show artifact/confirmation/effective
+  state on readiness evidence.
+- `pnpm test` passed, 52 files and 253 tests.
+- `pnpm typecheck` passed.
+- `pnpm lint` passed.
+- `pnpm build` passed.
+- `cargo test --manifest-path native/scanner/Cargo.toml` passed. Existing Rust
+  dead-code warnings remain.
+
+Interpretation:
+
+- This phase reduces ambiguity in the helper readiness blockers.
+- It does not satisfy production Team ID, designated requirement,
+  ServiceManagement registration, FDA validation, signing, packaging approval,
+  or notarization evidence.
