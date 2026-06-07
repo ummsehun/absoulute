@@ -2452,6 +2452,8 @@ Verification so far:
   dead-code warnings remain.
 - `pnpm audit:helper-readiness --platform darwin --resources-path resources`
   and `pnpm audit:helper-readiness-bundle` remain intentionally blocked.
+- Sub-agent review reported no Critical, Important, or Minor findings. The
+  review was static and did not rerun tests.
 
 Interpretation:
 
@@ -2495,6 +2497,8 @@ Verification so far:
   dead-code warnings remain.
 - `pnpm audit:helper-readiness --platform darwin --resources-path resources`
   and `pnpm audit:helper-readiness-bundle` remain intentionally blocked.
+- Sub-agent review reported no Critical, Important, or Minor findings. The
+  review was static and did not rerun tests.
 
 Interpretation:
 
@@ -2694,3 +2698,48 @@ Interpretation:
   and metadata evidence in isolated roots, matching the readiness bundle path.
 - It does not remove current FDA, artifact approval, or ServiceManagement
   blockers, and it does not enable default helper scanning.
+
+## Phase B47 Readiness Bundle Option Values
+
+Date: 2026-06-08
+
+Facts:
+
+- `audit-helper-readiness-bundle` now rejects option-looking values for valued
+  CLI options.
+- Covered options are:
+  - `--project-root`;
+  - `--team-id`;
+  - `--designated-requirement`;
+  - `--probe-bin`.
+- Existing valid-value behavior and default paths are unchanged.
+- Readiness bundle semantics, ServiceManagement probing semantics, and
+  `canEnableHelperByDefault: false` are unchanged.
+- Helper default activation remains disabled.
+
+Verification so far:
+
+- RED was confirmed before implementation:
+  - bundle valued options accepted option-looking values or reported a later
+    option as missing because values starting with `--` were not rejected.
+- `pnpm test test/main/helperReadinessBundleScript.test.ts` passed, 1 file and
+  7 tests.
+- `pnpm test test/main/helperReadinessBundleScript.test.ts test/main/helperReadinessAuditScript.test.ts test/main/helperIdentityAuditScript.test.ts test/main/helperPreflightAuditScript.test.ts test/main/helperReadinessAudit.test.ts test/main/helperReadinessBundle.test.ts test/main/helperRegistration.test.ts`
+  passed, 7 files and 48 tests.
+- `pnpm test` passed, 55 files and 293 tests.
+- `pnpm typecheck` passed.
+- `pnpm lint` passed.
+- `pnpm build` passed.
+- `cargo test --manifest-path native/scanner/Cargo.toml` passed. Existing Rust
+  dead-code warnings remain.
+- `pnpm audit:helper-readiness --platform darwin --resources-path resources`
+  and `pnpm audit:helper-readiness-bundle` remain intentionally blocked.
+- Sub-agent review reported no Critical, Important, or Minor findings. The
+  review was static and did not rerun tests.
+
+Interpretation:
+
+- This phase aligns the readiness bundle CLI with the stricter readiness and
+  helper build script option parsing.
+- It does not remove current external evidence blockers or enable default
+  helper scanning.

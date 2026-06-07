@@ -128,4 +128,93 @@ describe("audit-helper-readiness-bundle script", () => {
     expect(result.status).toBe(1);
     expect(result.stderr).toContain("--out requires an output file path");
   });
+
+  it("fails explicitly when project root is followed by another option", () => {
+    const result = spawnSync(
+      "bun",
+      [
+        "run",
+        "scripts/audit-helper-readiness-bundle.ts",
+        "--project-root",
+        "--team-id",
+      ],
+      {
+        cwd: process.cwd(),
+        env: process.env,
+        encoding: "utf8",
+      },
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("missing value for --project-root");
+  });
+
+  it("fails explicitly when team id is followed by another option", () => {
+    const projectRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "diskviz-helper-readiness-bundle-team-option-"),
+    );
+
+    try {
+    const result = spawnSync(
+      "bun",
+      [
+        "run",
+        "scripts/audit-helper-readiness-bundle.ts",
+        "--team-id",
+        "--project-root",
+        projectRoot,
+      ],
+      {
+        cwd: process.cwd(),
+        env: process.env,
+        encoding: "utf8",
+      },
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("missing value for --team-id");
+    } finally {
+      fs.rmSync(projectRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("fails explicitly when designated requirement is followed by another option", () => {
+    const result = spawnSync(
+      "bun",
+      [
+        "run",
+        "scripts/audit-helper-readiness-bundle.ts",
+        "--designated-requirement",
+        "--platform",
+      ],
+      {
+        cwd: process.cwd(),
+        env: process.env,
+        encoding: "utf8",
+      },
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("missing value for --designated-requirement");
+  });
+
+  it("fails explicitly when probe binary is followed by another option", () => {
+    const result = spawnSync(
+      "bun",
+      [
+        "run",
+        "scripts/audit-helper-readiness-bundle.ts",
+        "--probe-bin",
+        "--resources-path",
+      ],
+      {
+        cwd: process.cwd(),
+        env: process.env,
+        encoding: "utf8",
+      },
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("missing value for --probe-bin");
+  });
 });
