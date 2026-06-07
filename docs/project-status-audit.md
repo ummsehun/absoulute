@@ -999,6 +999,59 @@ Cold assessment:
 - It does not expose privileged scan enumeration.
 - It does not enable helper-backed scan execution by default.
 
+## Phase B16 Helper XPC Control Probe
+
+Facts:
+
+- Phase B16 is scoped in
+  `docs/superpowers/plans/2026-06-08-phase-b16-helper-xpc-control-probe.md`.
+- `native/macos-helper/control/main.swift` now connects to
+  `com.example.diskvisualizer.privileged-helper` with `NSXPCConnection`.
+- The packaged `helper-control-macos` command now probes the Phase B15
+  privileged helper XPC control surface instead of emitting a local simulated
+  control response.
+- The control command still validates the existing helper request envelope and
+  accepts only `health.check` and `version.get`.
+- The control command emits existing helper protocol `ready`, `done`, and
+  `error` events for TypeScript transport consumption.
+- The control command does not expose `scan.enumerate` or helper scan
+  traversal APIs.
+- The main app helper transport remains opt-in and evidence-gated.
+- The helper remains disabled by default.
+
+Verification commands run for this Phase B16 slice:
+
+- `pnpm test test/main/macosPrivilegedHelperCli.test.ts`: passed, 4 tests.
+- `pnpm test test/main/helperClient.test.ts`: passed, 33 tests.
+- `pnpm test test/main/helperClient.test.ts
+  test/main/macosPrivilegedHelperCli.test.ts`: passed, 2 files, 37 tests.
+- `pnpm build:native:helper-control`: passed.
+- `pnpm test`: passed, 45 files, 203 tests.
+- `pnpm typecheck`: passed.
+- `pnpm lint`: passed.
+- `pnpm build`: passed.
+- `cargo test --manifest-path native/scanner/Cargo.toml`: passed, 8 tests,
+  with the existing 6 Rust dead-code warnings.
+- `pnpm audit:helper-preflight`: reported blocked preflight with placeholder
+  `TEAMID_NOT_CONFIGURED` listener metadata.
+- `pnpm audit:helper-readiness`: reported `status: "blocked"` and
+  `canEnableHelperByDefault: false`.
+
+External blockers still missing:
+
+- Installed privileged helper ServiceManagement evidence.
+- Production XPC peer identity validation with a real Team ID.
+- Full FDA validation matrix on the target macOS version.
+- Production signing, packaging, and notarization evidence.
+
+Cold assessment:
+
+- This mini phase replaces local helper-control simulation with a real Mach
+  service XPC probe for health/version.
+- It still does not implement privileged scan enumeration over XPC.
+- It does not make readiness pass without external production evidence.
+- It does not enable helper-backed scan execution by default.
+
 ## Findings
 
 ### P1: Privileged Helper Is Still Blocked by Real Identity and FDA Evidence

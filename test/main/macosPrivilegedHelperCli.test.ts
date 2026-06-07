@@ -20,6 +20,13 @@ const buildScriptPath = path.join(
   "scripts",
   "build-macos-privileged-helper.ts",
 );
+const controlSourcePath = path.join(
+  process.cwd(),
+  "native",
+  "macos-helper",
+  "control",
+  "main.swift",
+);
 const packageJsonPath = path.join(process.cwd(), "package.json");
 
 describe("macOS privileged helper executable", () => {
@@ -79,5 +86,28 @@ describe("macOS privileged helper executable", () => {
     expect(generatedSource).toContain("newConnection.exportedObject");
     expect(generatedSource).toContain("newConnection.resume()");
     expect(generatedSource).toContain("return true");
+  });
+
+  it("builds a helper control command that probes only the privileged helper XPC control surface", () => {
+    const source = fs.readFileSync(controlSourcePath, "utf8");
+
+    expect(source).toContain("@objc(DiskVisualizerPrivilegedHelperProtocol)");
+    expect(source).toContain("func healthCheck(_ reply:");
+    expect(source).toContain("func getVersion(_ reply:");
+    expect(source).toContain("NSXPCConnection(");
+    expect(source).toContain("machServiceName: helperMachServiceName");
+    expect(source).toContain("remoteObjectInterface");
+    expect(source).toContain("remoteObjectProxyWithErrorHandler");
+    expect(source).toContain("helper.healthCheck");
+    expect(source).toContain("helper.getVersion");
+    expect(source).toContain("helperProtocolErrorCode");
+    expect(source).toContain('"E_INVALID_REQUEST"');
+    expect(source).toContain('"E_HELPER_INTERNAL"');
+    expect(source).not.toContain("E_XPC_CONTROL_FAILED");
+    expect(source).toContain('"type": "ready"');
+    expect(source).toContain('"type": "done"');
+    expect(source).toContain('"type": "error"');
+    expect(source).not.toContain("scan.enumerate");
+    expect(source).not.toContain("enumerate(");
   });
 });

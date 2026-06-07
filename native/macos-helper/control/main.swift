@@ -1,6 +1,14 @@
 import Foundation
 
-let helperVersion = "dev-control-0.1.0"
+let helperMachServiceName = "com.example.diskvisualizer.privileged-helper"
+let startedAt = Date()
+let xpcTimeoutSeconds = 15
+
+@objc(DiskVisualizerPrivilegedHelperProtocol)
+protocol DiskVisualizerPrivilegedHelperProtocol {
+    func healthCheck(_ reply: @escaping (String) -> Void)
+    func getVersion(_ reply: @escaping (String) -> Void)
+}
 
 struct HelperControlRequest: Decodable {
     let schemaVersion: Int
@@ -51,12 +59,12 @@ struct EmptyPayload: Decodable {
     }
 }
 
-let startedAt = Date()
 let input = FileHandle.standardInput.readDataToEndOfFile()
 
 do {
     let request = try JSONDecoder().decode(HelperControlRequest.self, from: input)
     try validateRequest(request)
+    let helperVersion = try runXpcControlRequest(request)
     emit([
         "type": "ready",
         "requestId": request.requestId,
@@ -73,10 +81,74 @@ do {
     emit([
         "type": "error",
         "requestId": requestId,
-        "code": "E_INVALID_REQUEST",
-        "message": "invalid helper control request: \(error)",
+        "code": helperProtocolErrorCode(for: error),
+        "message": "helper xpc control request failed: \(error)",
     ])
     exit(1)
+}
+
+func runXpcControlRequest(_ request: HelperControlRequest) throws -> String {
+    let connection = NSXPCConnection(
+        machServiceName: helperMachServiceName,
+        options: .privileged
+    )
+    connection.remoteObjectInterface = NSXPCInterface(
+        with: DiskVisualizerPrivilegedHelperProtocol.self
+    )
+
+    let semaphore = DispatchSemaphore(value: 0)
+    let state = XpcReplyState()
+    connection.interruptionHandler = {
+        state.resolve(.failure(XpcProbeError.connectionInterrupted))
+        semaphore.signal()
+    }
+    connection.invalidationHandler = {
+        state.resolve(.failure(XpcProbeError.connectionInvalidated))
+        semaphore.signal()
+    }
+    connection.resume()
+
+    guard let helper = connection.remoteObjectProxyWithErrorHandler({ error in
+        state.resolve(.failure(error))
+        semaphore.signal()
+    }) as? DiskVisualizerPrivilegedHelperProtocol else {
+        connection.invalidate()
+        throw XpcProbeError.remoteProxyUnavailable
+    }
+
+    switch request.operation {
+    case "health.check":
+        helper.healthCheck { response in
+            state.resolve(.success(response))
+            semaphore.signal()
+        }
+    case "version.get":
+        helper.getVersion { response in
+            state.resolve(.success(response))
+            semaphore.signal()
+        }
+    default:
+        connection.invalidate()
+        throw ValidationError.unsupportedOperation
+    }
+
+    if semaphore.wait(timeout: .now() + .seconds(xpcTimeoutSeconds)) == .timedOut {
+        connection.invalidate()
+        throw XpcProbeError.timeout
+    }
+
+    connection.invalidate()
+    switch state.result {
+    case .success(let response):
+        guard !response.isEmpty else {
+            throw XpcProbeError.emptyResponse
+        }
+        return response
+    case .failure(let error):
+        throw error
+    case .none:
+        throw XpcProbeError.missingResponse
+    }
 }
 
 func validateRequest(_ request: HelperControlRequest) throws {
@@ -134,6 +206,28 @@ func decodeRequestId(from data: Data) -> String? {
     return object["requestId"] as? String
 }
 
+func helperProtocolErrorCode(for error: Error) -> String {
+    switch error {
+    case is ValidationError, is DecodingError:
+        return "E_INVALID_REQUEST"
+    default:
+        return "E_HELPER_INTERNAL"
+    }
+}
+
+final class XpcReplyState {
+    private let lock = NSLock()
+    private(set) var result: Result<String, Error>?
+
+    func resolve(_ value: Result<String, Error>) {
+        lock.lock()
+        defer { lock.unlock() }
+        if result == nil {
+            result = value
+        }
+    }
+}
+
 enum ValidationError: Error, CustomStringConvertible {
     case invalidSchemaVersion
     case invalidRequestId
@@ -162,6 +256,32 @@ enum ValidationError: Error, CustomStringConvertible {
             return "invalid nonce"
         case .unknownField(let field):
             return "unknown field \(field)"
+        }
+    }
+}
+
+enum XpcProbeError: Error, CustomStringConvertible {
+    case connectionInterrupted
+    case connectionInvalidated
+    case emptyResponse
+    case missingResponse
+    case remoteProxyUnavailable
+    case timeout
+
+    var description: String {
+        switch self {
+        case .connectionInterrupted:
+            return "xpc connection interrupted"
+        case .connectionInvalidated:
+            return "xpc connection invalidated"
+        case .emptyResponse:
+            return "xpc control response was empty"
+        case .missingResponse:
+            return "xpc control response was missing"
+        case .remoteProxyUnavailable:
+            return "xpc remote proxy unavailable"
+        case .timeout:
+            return "xpc control request timed out"
         }
     }
 }
