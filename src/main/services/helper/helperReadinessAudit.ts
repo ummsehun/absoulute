@@ -88,9 +88,16 @@ function buildReadinessEvidence(
   input: HelperReadinessReportInput,
   blockers: Set<string>,
 ): HelperReadinessEvidence[] {
-  const evidence = [...blockers]
+  const failedEvidence = [...blockers]
     .map((blocker) => evidenceForBlocker(input, blocker))
     .filter((item): item is HelperReadinessEvidence => item !== null);
+  const failedKeys = new Set(failedEvidence.map((item) => item.key));
+  const evidence = [
+    ...failedEvidence,
+    ...(blockers.size === 0
+      ? passEvidenceForReadyPreflightKeys(input, failedKeys)
+      : []),
+  ];
 
   evidence.push({
     guidance: guidanceForEvidenceKey("service-management"),
@@ -102,6 +109,31 @@ function buildReadinessEvidence(
   });
 
   return evidence.sort((left, right) => left.key.localeCompare(right.key));
+}
+
+function passEvidenceForReadyPreflightKeys(
+  input: HelperReadinessReportInput,
+  failedKeys: Set<string>,
+): HelperReadinessEvidence[] {
+  const keys = [
+    "designated-requirement",
+    "fda-validation-matrix",
+    "listener-requirement",
+    "packaging-entitlements",
+    "privileged-helper-executable",
+    "team-id",
+    "xpc-enumerate-bridge",
+  ];
+
+  return keys
+    .filter((key) => !failedKeys.has(key))
+    .map((key) => ({
+      ...preflightEvidenceStateForKey(input, key),
+      guidance: guidanceForEvidenceKey(key),
+      key,
+      status: "pass" as const,
+      reason: "ready",
+    }));
 }
 
 function evidenceForBlocker(

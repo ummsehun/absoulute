@@ -261,6 +261,35 @@ describe("helper readiness audit", () => {
 
   it("keeps default helper enablement false even when readiness evidence is present", () => {
     const report = buildHelperReadinessReport({
+      preflightEvidence: {
+        artifactEvidence: {
+          designatedRequirement: true,
+          fdaValidationMatrix: true,
+          helperXpcEnumerateBridge: true,
+          packagingEntitlements: true,
+          privilegedHelperExecutable: true,
+          privilegedHelperListenerRequirement: true,
+          teamId: true,
+        },
+        confirmations: {
+          designatedRequirement: true,
+          fdaValidationMatrix: true,
+          helperXpcEnumerateBridge: true,
+          packagingEntitlements: true,
+          privilegedHelperExecutable: true,
+          privilegedHelperListenerRequirement: true,
+          teamId: true,
+        },
+        effectiveEvidence: {
+          designatedRequirement: true,
+          fdaValidationMatrix: true,
+          helperXpcEnumerateBridge: true,
+          packagingEntitlements: true,
+          privilegedHelperExecutable: true,
+          privilegedHelperListenerRequirement: true,
+          teamId: true,
+        },
+      },
       registrationPreflight: {
         status: "ready",
         blockers: [],
@@ -285,6 +314,77 @@ describe("helper readiness audit", () => {
     expect(report.blockers).toEqual([]);
     expect(report.evidence).toEqual([
       {
+        artifactReady: true,
+        confirmationReady: true,
+        effectiveReady: true,
+        key: "designated-requirement",
+        guidance: {
+          description: expect.any(String),
+          requiredInputs: ["SCAN_HELPER_DESIGNATED_REQUIREMENT"],
+        },
+        reason: "ready",
+        status: "pass",
+      },
+      {
+        artifactReady: true,
+        confirmationReady: true,
+        effectiveReady: true,
+        key: "fda-validation-matrix",
+        guidance: {
+          description: expect.any(String),
+          requiredArtifacts: ["docs/helper-fda-validation-matrix.json"],
+          requiredInputs: ["SCAN_HELPER_FDA_VALIDATION_MATRIX_READY"],
+        },
+        reason: "ready",
+        status: "pass",
+      },
+      {
+        artifactReady: true,
+        confirmationReady: true,
+        effectiveReady: true,
+        key: "listener-requirement",
+        guidance: {
+          description: expect.any(String),
+          requiredArtifacts: [
+            "resources/helper/LaunchServices/com.example.diskvisualizer.privileged-helper.requirement.json",
+          ],
+        },
+        reason: "ready",
+        status: "pass",
+      },
+      {
+        artifactReady: true,
+        confirmationReady: true,
+        effectiveReady: true,
+        key: "packaging-entitlements",
+        guidance: {
+          description: expect.any(String),
+          requiredArtifacts: [
+            "electron-builder.json",
+            "resources/entitlements/mac.plist",
+            "resources/entitlements/mac.inherit.plist",
+          ],
+          requiredInputs: ["SCAN_HELPER_PACKAGING_ENTITLEMENTS_READY"],
+        },
+        reason: "ready",
+        status: "pass",
+      },
+      {
+        artifactReady: true,
+        confirmationReady: true,
+        effectiveReady: true,
+        key: "privileged-helper-executable",
+        guidance: {
+          description: expect.any(String),
+          requiredArtifacts: [
+            "resources/helper/LaunchServices/com.example.diskvisualizer.privileged-helper",
+          ],
+          requiredInputs: ["SCAN_HELPER_PRIVILEGED_EXECUTABLE_READY"],
+        },
+        reason: "ready",
+        status: "pass",
+      },
+      {
         key: "service-management",
         guidance: {
           description: expect.any(String),
@@ -292,6 +392,31 @@ describe("helper readiness audit", () => {
           requiredInputs: ["SCAN_HELPER_SM_PROBE_BIN"],
         },
         reason: "registered",
+        status: "pass",
+      },
+      {
+        artifactReady: true,
+        confirmationReady: true,
+        effectiveReady: true,
+        key: "team-id",
+        guidance: {
+          description: expect.any(String),
+          requiredInputs: ["SCAN_HELPER_TEAM_ID"],
+        },
+        reason: "ready",
+        status: "pass",
+      },
+      {
+        artifactReady: true,
+        confirmationReady: true,
+        effectiveReady: true,
+        key: "xpc-enumerate-bridge",
+        guidance: {
+          description: expect.any(String),
+          requiredArtifacts: ["resources/bin/helper-xpc-enumerate-macos"],
+          requiredInputs: ["SCAN_HELPER_XPC_ENUMERATE_BRIDGE_READY"],
+        },
+        reason: "ready",
         status: "pass",
       },
     ]);

@@ -2535,8 +2535,6 @@ Verification so far:
   dead-code warnings remain.
 - `pnpm audit:helper-readiness --platform darwin --resources-path resources`
   and `pnpm audit:helper-readiness-bundle` remain intentionally blocked.
-- Sub-agent review reported no Critical, Important, or Minor findings. The
-  review was static and did not rerun tests.
 
 Interpretation:
 
@@ -2597,3 +2595,54 @@ Interpretation:
   ServiceManagement registration is attempted.
 - It does not provide ServiceManagement registration, production identity, FDA
   evidence, or default helper scanning.
+
+## Phase B45 Readiness Pass Evidence Completeness
+
+Date: 2026-06-08
+
+Facts:
+
+- `buildHelperReadinessReport` now emits pass evidence for every preflight/FDA
+  gate when the readiness report has no blockers.
+- Ready pass evidence includes:
+  - team ID;
+  - designated requirement;
+  - packaging entitlements;
+  - privileged helper executable;
+  - listener requirement metadata;
+  - FDA validation matrix;
+  - XPC enumerate bridge;
+  - ServiceManagement registration.
+- Blocked readiness reports keep their existing blocker-focused evidence shape.
+- `canEnableHelperByDefault` remains `false`.
+- Helper default activation remains disabled.
+
+Verification so far:
+
+- RED was confirmed before implementation:
+  - a fully ready report emitted only `service-management` pass evidence.
+- The first implementation was narrowed after focused tests showed it added
+  pass evidence to blocked reports too.
+- `pnpm test test/main/helperReadinessAudit.test.ts` passed, 1 file and 8
+  tests.
+- `pnpm test test/main/helperReadinessAudit.test.ts test/main/helperReadinessBundle.test.ts test/main/helperReadinessAuditScript.test.ts test/main/helperReadinessBundleScript.test.ts test/main/helperPreflightAudit.test.ts test/main/helperRegistration.test.ts`
+  passed, 6 files and 40 tests.
+- Initial `pnpm test` failed with timeout/resource symptoms across unrelated
+  files; those failed files passed in focused groups, and a second `pnpm test`
+  passed, 55 files and 284 tests.
+- `pnpm typecheck` passed.
+- `pnpm lint` passed.
+- `pnpm build` passed.
+- `cargo test --manifest-path native/scanner/Cargo.toml` passed. Existing Rust
+  dead-code warnings remain.
+- `pnpm audit:helper-readiness --platform darwin --resources-path resources`
+  and `pnpm audit:helper-readiness-bundle` remain intentionally blocked.
+- Sub-agent review reported no Critical, Important, or Minor findings. The
+  review was static and did not rerun tests.
+
+Interpretation:
+
+- This phase makes future ready helper audits prove every readiness gate that
+  passed, instead of only reporting ServiceManagement success.
+- It does not remove the current external blockers or enable default helper
+  scanning.
