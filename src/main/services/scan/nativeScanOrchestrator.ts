@@ -223,6 +223,7 @@ export class NativeScanOrchestrator {
   ): Promise<{ estimated: boolean }> {
     let doneEstimated = false;
     let doneReceived = false;
+    let terminalHelperErrorReason: string | null = null;
 
     appendNativeScannerLog({
       event: "native_helper_scan_start",
@@ -235,30 +236,44 @@ export class NativeScanOrchestrator {
       },
     });
 
-    await this.helperClient.enumerate(
-      {
-        rootPath: context.rootPath,
-        scanId: context.scanId,
-        stageId: input.mode,
-        scanMode: input.mode,
-        options: context.options,
-        volumePlan,
-        maxDepth: input.maxDepth,
-      },
-      {
-        onEvent: (event) => {
-          for (const message of mapHelperEventToNativeMessages(event)) {
-            if (message.type === "done") {
-              doneReceived = true;
-              doneEstimated = message.estimated;
-            }
-            dispatchNativeStageMessage(message, handlers);
-          }
+    try {
+      await this.helperClient.enumerate(
+        {
+          rootPath: context.rootPath,
+          scanId: context.scanId,
+          stageId: input.mode,
+          scanMode: input.mode,
+          options: context.options,
+          volumePlan,
+          maxDepth: input.maxDepth,
         },
-      },
-    );
+        {
+          onEvent: (event) => {
+            if (event.type === "error") {
+              terminalHelperErrorReason =
+                `helper-error:${event.code}:${event.message}`;
+            }
+            for (const message of mapHelperEventToNativeMessages(event)) {
+              if (message.type === "done") {
+                doneReceived = true;
+                doneEstimated = message.estimated;
+              }
+              dispatchNativeStageMessage(message, handlers);
+            }
+          },
+        },
+      );
+    } catch (error) {
+      if (terminalHelperErrorReason) {
+        throw new Error(terminalHelperErrorReason, { cause: error });
+      }
+      throw error;
+    }
 
     if (!doneReceived && !context.cancelled) {
+      if (terminalHelperErrorReason) {
+        throw new Error(terminalHelperErrorReason);
+      }
       throw new Error(`Helper stage ${input.mode} finished without done event`);
     }
 

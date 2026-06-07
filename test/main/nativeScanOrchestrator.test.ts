@@ -329,6 +329,181 @@ describe("nativeScanOrchestrator", () => {
     ]);
   });
 
+  it("preserves helper terminal error details in fallback logs", async () => {
+    vi.spyOn(os, "platform").mockReturnValue("darwin");
+    const logDir = await fs.mkdtemp(
+      path.join(process.cwd(), ".tmp-tests", "helper-error-fallback-log-"),
+    );
+    process.env.SCAN_LOG_DIR = logDir;
+    const nativeInputs: unknown[] = [];
+    const helperClient: HelperClient = {
+      getStatus: async () => ({ available: true, transport: "xpc" }),
+      getVersion: async () => "test-helper",
+      healthCheck: async () => ({ available: true, transport: "xpc" }),
+      register: async () => ({ available: false, transport: "xpc" }),
+      unregister: async () => ({ available: false, transport: "xpc" }),
+      enumerate: async (_input, handlers) => {
+        handlers.onEvent({
+          type: "error",
+          requestId: "request-1",
+          code: "E_INVALID_CLIENT",
+          message: "Rejected caller identity",
+        });
+      },
+    };
+    const handlers = createRecordingHandlers();
+    const orchestrator = new NativeScanOrchestrator(helperClient, {
+      createNativeSession: () => ({
+        binaryPath: "test-native-scanner",
+        dispose: () => undefined,
+        pid: 1,
+        sendControl: () => undefined,
+        waitForExit: async () => undefined,
+        runStage: async (input, nativeHandlers) => {
+          nativeInputs.push(input);
+          nativeHandlers.onMessage({
+            type: "done",
+            elapsedMs: 3,
+            estimated: true,
+          });
+        },
+      }),
+    });
+
+    try {
+      await orchestrator.runStage(
+        {
+          scanId: "scan-helper-error",
+          rootPath: "/Users/tester",
+          permissionDeniedRoots: [],
+          paused: false,
+          cancelled: false,
+          options: resolveScanOptions(
+            {
+              rootPath: "/Users/tester",
+              optInProtected: false,
+              accuracyMode: "full",
+            },
+            "/Users/tester",
+          ),
+        },
+        {
+          mode: "deep",
+          maxDepth: 128,
+          timeBudgetMs: 0,
+        },
+        handlers,
+      );
+
+      expect(nativeInputs).toHaveLength(1);
+      expect(handlers.warns).toEqual([
+        {
+          type: "warn",
+          code: "E_INVALID_CLIENT",
+          message: "Rejected caller identity",
+          recoverable: false,
+        },
+      ]);
+      const logPath = path.join(logDir, "native-scanner.jsonl");
+      const entries = (await fs.readFile(logPath, "utf8"))
+        .trim()
+        .split("\n")
+        .map((line) => JSON.parse(line) as Record<string, unknown>);
+      const fallback = entries.find(
+        (entry) => entry.event === "native_helper_scan_fallback",
+      ) as { details?: Record<string, unknown> } | undefined;
+
+      expect(fallback?.details).toMatchObject({
+        reason: "helper-error:E_INVALID_CLIENT:Rejected caller identity",
+        fallbackEngine: "native",
+      });
+    } finally {
+      await fs.rm(logDir, { recursive: true, force: true });
+    }
+  });
+
+  it("preserves helper terminal error details when enumerate rejects after emitting error", async () => {
+    vi.spyOn(os, "platform").mockReturnValue("darwin");
+    const logDir = await fs.mkdtemp(
+      path.join(process.cwd(), ".tmp-tests", "helper-error-reject-fallback-log-"),
+    );
+    process.env.SCAN_LOG_DIR = logDir;
+    const helperClient: HelperClient = {
+      getStatus: async () => ({ available: true, transport: "xpc" }),
+      getVersion: async () => "test-helper",
+      healthCheck: async () => ({ available: true, transport: "xpc" }),
+      register: async () => ({ available: false, transport: "xpc" }),
+      unregister: async () => ({ available: false, transport: "xpc" }),
+      enumerate: async (_input, handlers) => {
+        handlers.onEvent({
+          type: "error",
+          requestId: "request-1",
+          code: "E_INVALID_REQUEST",
+          message: "Invalid helper request",
+        });
+        throw new Error("helper-enumerate-failed:exit-1:E_INVALID_REQUEST");
+      },
+    };
+    const orchestrator = new NativeScanOrchestrator(helperClient, {
+      createNativeSession: () => ({
+        binaryPath: "test-native-scanner",
+        dispose: () => undefined,
+        pid: 1,
+        sendControl: () => undefined,
+        waitForExit: async () => undefined,
+        runStage: async (_input, nativeHandlers) => {
+          nativeHandlers.onMessage({
+            type: "done",
+            elapsedMs: 3,
+            estimated: true,
+          });
+        },
+      }),
+    });
+
+    try {
+      await orchestrator.runStage(
+        {
+          scanId: "scan-helper-error-reject",
+          rootPath: "/Users/tester",
+          permissionDeniedRoots: [],
+          paused: false,
+          cancelled: false,
+          options: resolveScanOptions(
+            {
+              rootPath: "/Users/tester",
+              optInProtected: false,
+              accuracyMode: "full",
+            },
+            "/Users/tester",
+          ),
+        },
+        {
+          mode: "deep",
+          maxDepth: 128,
+          timeBudgetMs: 0,
+        },
+        createRecordingHandlers(),
+      );
+
+      const logPath = path.join(logDir, "native-scanner.jsonl");
+      const entries = (await fs.readFile(logPath, "utf8"))
+        .trim()
+        .split("\n")
+        .map((line) => JSON.parse(line) as Record<string, unknown>);
+      const fallback = entries.find(
+        (entry) => entry.event === "native_helper_scan_fallback",
+      ) as { details?: Record<string, unknown> } | undefined;
+
+      expect(fallback?.details).toMatchObject({
+        reason: "helper-error:E_INVALID_REQUEST:Invalid helper request",
+        fallbackEngine: "native",
+      });
+    } finally {
+      await fs.rm(logDir, { recursive: true, force: true });
+    }
+  });
+
   it("uses prototype helper enumeration from env without marking helper status ready", async () => {
     vi.spyOn(os, "platform").mockReturnValue("darwin");
     process.env[SCAN_HELPER_PROTOTYPE_ENUMERATE_ENV] = "1";
@@ -559,6 +734,7 @@ function createRecordingHandlers(): NativeStageHandlers & {
     ? T[]
     : never;
   progress: Parameters<NativeStageHandlers["onProgress"]>[0][];
+  warns: Parameters<NativeStageHandlers["onWarn"]>[0][];
 } {
   const aggBatches: Parameters<NativeStageHandlers["onAggBatch"]>[0][] = [];
   const done: Parameters<NativeStageHandlers["onDone"]>[0][] = [];
@@ -568,12 +744,14 @@ function createRecordingHandlers(): NativeStageHandlers & {
     ? T[]
     : never = [];
   const progress: Parameters<NativeStageHandlers["onProgress"]>[0][] = [];
+  const warns: Parameters<NativeStageHandlers["onWarn"]>[0][] = [];
 
   return {
     aggBatches,
     done,
     helperPlans,
     progress,
+    warns,
     onAgg: () => undefined,
     onAggBatch: (message) => aggBatches.push(message),
     onCoverage: () => undefined,
@@ -583,6 +761,6 @@ function createRecordingHandlers(): NativeStageHandlers & {
     onHelperPlan: (message) => helperPlans.push(message),
     onProgress: (message) => progress.push(message),
     onQuickReady: () => undefined,
-    onWarn: () => undefined,
+    onWarn: (message) => warns.push(message),
   };
 }
