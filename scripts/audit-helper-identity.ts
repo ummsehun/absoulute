@@ -7,6 +7,7 @@ import {
 const rawArgs = process.argv.slice(2);
 const outputPath = resolveAuditOutputPath(rawArgs);
 const audit = buildHelperIdentityAudit({
+  appBundleIdentifier: resolveOptionalArg(rawArgs, "--app-bundle-id"),
   designatedRequirement: resolveOptionalArg(rawArgs, "--designated-requirement"),
   projectRoot: resolveOptionalArg(rawArgs, "--project-root"),
   teamId: resolveOptionalArg(rawArgs, "--team-id"),

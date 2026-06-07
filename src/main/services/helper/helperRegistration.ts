@@ -5,6 +5,7 @@ export type HelperServiceManagementModel = "smappservice-daemon";
 
 export type HelperRegistrationBlocker =
   | "team-id-missing"
+  | "production-bundle-identifier-missing"
   | "designated-requirement-missing"
   | "packaging-entitlements-missing"
   | "privileged-helper-executable-missing"
@@ -13,6 +14,7 @@ export type HelperRegistrationBlocker =
   | "fda-validation-matrix-missing";
 
 export interface HelperRegistrationIdentityInput {
+  appBundleIdentifier?: string | null;
   teamId?: string | null;
   designatedRequirement?: string | null;
 }
@@ -42,6 +44,7 @@ export interface HelperRegistrationPreflight {
 }
 
 export const HELPER_TEAM_ID_ENV = "SCAN_HELPER_TEAM_ID";
+export const HELPER_APP_BUNDLE_ID_ENV = "SCAN_HELPER_APP_BUNDLE_ID";
 export const HELPER_DESIGNATED_REQUIREMENT_ENV =
   "SCAN_HELPER_DESIGNATED_REQUIREMENT";
 export const HELPER_PACKAGING_ENTITLEMENTS_READY_ENV =
@@ -106,6 +109,7 @@ export function resolveHelperRegistrationPreflight(
   input: HelperRegistrationPreflightInput = {},
 ): HelperRegistrationPreflight {
   const blockers: HelperRegistrationBlocker[] = [];
+  const appBundleIdentifier = input.identity?.appBundleIdentifier;
   const teamId = input.identity?.teamId;
   const designatedRequirement = input.identity?.designatedRequirement;
 
@@ -113,7 +117,15 @@ export function resolveHelperRegistrationPreflight(
     blockers.push("team-id-missing");
   }
 
-  if (!isValidDesignatedRequirement(designatedRequirement, teamId)) {
+  if (!isProductionAppBundleIdentifier(appBundleIdentifier)) {
+    blockers.push("production-bundle-identifier-missing");
+  }
+
+  if (!isValidDesignatedRequirement(
+    designatedRequirement,
+    teamId,
+    appBundleIdentifier,
+  )) {
     blockers.push("designated-requirement-missing");
   }
 
@@ -144,25 +156,37 @@ export function resolveHelperRegistrationPreflight(
   };
 }
 
-export function buildHelperCodeSigningRequirement(teamId: string): string {
+export function buildHelperCodeSigningRequirement(
+  teamId: string,
+  appBundleIdentifier = DISK_VISUALIZER_APP_BUNDLE_IDENTIFIER,
+): string {
   if (!isValidAppleTeamId(teamId)) {
     throw new Error("helper code signing requirement needs a valid Apple Team ID");
   }
 
-  return `identifier "${DISK_VISUALIZER_APP_BUNDLE_IDENTIFIER}" and anchor apple generic and certificate leaf[subject.OU] = "${teamId}"`;
+  if (!isValidAppBundleIdentifier(appBundleIdentifier)) {
+    throw new Error("helper code signing requirement needs a valid app bundle identifier");
+  }
+
+  return `identifier "${appBundleIdentifier}" and anchor apple generic and certificate leaf[subject.OU] = "${teamId}"`;
 }
 
 export function resolveHelperRegistrationPreflightInputFromEnv(
   env: NodeJS.ProcessEnv,
   projectRoot = process.cwd(),
 ): HelperRegistrationPreflightInput {
+  const appBundleIdentifier = readNonEmptyEnv(env[HELPER_APP_BUNDLE_ID_ENV]);
   const teamId = readNonEmptyEnv(env[HELPER_TEAM_ID_ENV]);
   const designatedRequirement = readNonEmptyEnv(
     env[HELPER_DESIGNATED_REQUIREMENT_ENV],
   );
 
   return {
-    identity: buildIdentityInput(teamId, designatedRequirement),
+    identity: buildIdentityInput(
+      appBundleIdentifier,
+      teamId,
+      designatedRequirement,
+    ),
     packagingEntitlementsReady: readBooleanEvidenceEnv(
       env[HELPER_PACKAGING_ENTITLEMENTS_READY_ENV],
     ) && resolvePackagingEntitlementsEvidence(projectRoot),
@@ -173,7 +197,11 @@ export function resolveHelperRegistrationPreflightInputFromEnv(
       env[HELPER_XPC_ENUMERATE_BRIDGE_READY_ENV],
     ) && resolveHelperXpcEnumerateBridgeEvidence(projectRoot),
     privilegedHelperListenerRequirementReady:
-      resolvePrivilegedHelperListenerRequirementEvidence(projectRoot, teamId),
+      resolvePrivilegedHelperListenerRequirementEvidence(
+        projectRoot,
+        teamId,
+        appBundleIdentifier,
+      ),
     fdaValidationMatrixReady: readBooleanEvidenceEnv(
       env[HELPER_FDA_VALIDATION_MATRIX_READY_ENV],
     ) && resolveFdaValidationMatrixEvidence(projectRoot),
@@ -249,8 +277,13 @@ export function resolveHelperXpcEnumerateBridgeEvidence(
 export function resolvePrivilegedHelperListenerRequirementEvidence(
   projectRoot = process.cwd(),
   teamId?: string | null,
+  appBundleIdentifier: string | null | undefined =
+    DISK_VISUALIZER_APP_BUNDLE_IDENTIFIER,
 ): boolean {
   if (!isValidAppleTeamId(teamId)) {
+    return false;
+  }
+  if (!isValidAppBundleIdentifier(appBundleIdentifier)) {
     return false;
   }
 
@@ -266,7 +299,10 @@ export function resolvePrivilegedHelperListenerRequirementEvidence(
       requirement?: string;
       teamId?: string;
     };
-    const expectedRequirement = buildHelperCodeSigningRequirement(teamId);
+    const expectedRequirement = buildHelperCodeSigningRequirement(
+      teamId,
+      appBundleIdentifier,
+    );
     return metadata.ready === true
       && metadata.teamId === teamId
       && metadata.requirement === expectedRequirement;
@@ -393,10 +429,12 @@ function hasMachOHeader(executablePath: string): boolean {
 }
 
 function buildIdentityInput(
+  appBundleIdentifier: string | undefined,
   teamId: string | undefined,
   designatedRequirement: string | undefined,
 ): HelperRegistrationIdentityInput {
   return {
+    ...(appBundleIdentifier ? { appBundleIdentifier } : {}),
     ...(teamId ? { teamId } : {}),
     ...(designatedRequirement ? { designatedRequirement } : {}),
   };
@@ -421,12 +459,33 @@ export function isValidAppleTeamId(
 export function isValidDesignatedRequirement(
   value: string | null | undefined,
   teamId: string | null | undefined,
+  appBundleIdentifier: string | null | undefined =
+    DISK_VISUALIZER_APP_BUNDLE_IDENTIFIER,
 ): value is string {
   if (!value || !isValidAppleTeamId(teamId)) {
     return false;
   }
 
-  return value === buildHelperCodeSigningRequirement(teamId);
+  if (!isValidAppBundleIdentifier(appBundleIdentifier)) {
+    return false;
+  }
+
+  return value === buildHelperCodeSigningRequirement(
+    teamId,
+    appBundleIdentifier,
+  );
+}
+
+export function isProductionAppBundleIdentifier(
+  value: string | null | undefined,
+): value is string {
+  if (!isValidAppBundleIdentifier(value)) {
+    return false;
+  }
+
+  return value !== DISK_VISUALIZER_APP_BUNDLE_IDENTIFIER
+    && !value.startsWith("com.example.")
+    && !value.includes(".example.");
 }
 
 export function isConcreteMacOsVersion(
@@ -443,6 +502,13 @@ function hasFdaScenarioEvidence(scenario: {
   return isIsoDateTime(scenario.validatedAt)
     && hasNonEmptyText(scenario.validator)
     && hasNonEmptyText(scenario.notes);
+}
+
+function isValidAppBundleIdentifier(
+  value: string | null | undefined,
+): value is string {
+  return typeof value === "string"
+    && /^[A-Za-z0-9][A-Za-z0-9-]*(\.[A-Za-z0-9][A-Za-z0-9-]*)+$/.test(value);
 }
 
 function hasNonEmptyText(value: string | undefined): value is string {

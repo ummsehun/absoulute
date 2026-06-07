@@ -32,6 +32,7 @@ import {
   DISK_SCAN_HELPER_REQUIREMENT_METADATA_SOURCE_RELATIVE_PATH,
   DISK_SCAN_HELPER_REQUIRED_FDA_SCENARIOS,
   DISK_SCAN_HELPER_XPC_ENUMERATE_BRIDGE_SOURCE_RELATIVE_PATH,
+  HELPER_APP_BUNDLE_ID_ENV,
   HELPER_DESIGNATED_REQUIREMENT_ENV,
   HELPER_FDA_VALIDATION_MATRIX_READY_ENV,
   HELPER_PACKAGING_ENTITLEMENTS_READY_ENV,
@@ -45,6 +46,13 @@ import {
 } from "../../src/main/services/helper/macosXpcHelperTransport";
 import { resolveNativeVolumePlan } from "../../src/main/services/scan/nativeScanOrchestrator";
 import { resolveScanOptions } from "../../src/main/services/scan/scanRuntimeOptions";
+
+const TEST_APP_BUNDLE_IDENTIFIER = "com.acme.diskvisualizer";
+const TEST_TEAM_ID = "ABCDE12345";
+const TEST_DESIGNATED_REQUIREMENT = buildHelperCodeSigningRequirement(
+  TEST_TEAM_ID,
+  TEST_APP_BUNDLE_IDENTIFIER,
+);
 
 describe("helperClient", () => {
   it("builds explicit helper health and version control request envelopes", () => {
@@ -216,7 +224,8 @@ describe("helperClient", () => {
     try {
       const transport = createDefaultHelperTransport(
         {
-          [HELPER_TEAM_ID_ENV]: "ABCDE12345",
+          [HELPER_APP_BUNDLE_ID_ENV]: TEST_APP_BUNDLE_IDENTIFIER,
+          [HELPER_TEAM_ID_ENV]: TEST_TEAM_ID,
           [HELPER_DESIGNATED_REQUIREMENT_ENV]: requirement,
           [HELPER_PACKAGING_ENTITLEMENTS_READY_ENV]: "true",
           [HELPER_PRIVILEGED_EXECUTABLE_READY_ENV]: "true",
@@ -250,7 +259,7 @@ describe("helperClient", () => {
     await expect(transport.getStatus()).resolves.toEqual({
       available: false,
       lifecycle: {
-        state: "not-implemented",
+          state: "not-implemented",
         reason: MACOS_XPC_HELPER_NOT_IMPLEMENTED_REASON,
         checks: {
           "service-management": "fail",
@@ -264,6 +273,7 @@ describe("helperClient", () => {
       registrationPreflight: {
         blockers: [
           "team-id-missing",
+          "production-bundle-identifier-missing",
           "designated-requirement-missing",
           "packaging-entitlements-missing",
           "privileged-helper-executable-missing",
@@ -304,6 +314,7 @@ describe("helperClient", () => {
       registrationPreflight: {
         blockers: [
           "team-id-missing",
+          "production-bundle-identifier-missing",
           "designated-requirement-missing",
           "packaging-entitlements-missing",
           "privileged-helper-executable-missing",
@@ -514,7 +525,7 @@ describe("helperClient", () => {
         { onEvent: () => undefined },
       ),
     ).rejects.toMatchObject({
-      reason: "registration-preflight-blocked:team-id-missing,designated-requirement-missing,packaging-entitlements-missing,privileged-helper-executable-missing,helper-xpc-enumerate-bridge-missing,privileged-helper-listener-requirement-missing,fda-validation-matrix-missing",
+      reason: "registration-preflight-blocked:team-id-missing,production-bundle-identifier-missing,designated-requirement-missing,packaging-entitlements-missing,privileged-helper-executable-missing,helper-xpc-enumerate-bridge-missing,privileged-helper-listener-requirement-missing,fda-validation-matrix-missing",
     });
     expect(enumerateCalled).toBe(false);
   });
@@ -551,7 +562,7 @@ describe("helperClient", () => {
     );
 
     await expect(transport.register()).rejects.toMatchObject({
-      reason: "registration-install-preflight-blocked:team-id-missing,designated-requirement-missing,packaging-entitlements-missing,privileged-helper-executable-missing,privileged-helper-listener-requirement-missing",
+      reason: "registration-install-preflight-blocked:team-id-missing,production-bundle-identifier-missing,designated-requirement-missing,packaging-entitlements-missing,privileged-helper-executable-missing,privileged-helper-listener-requirement-missing",
     });
     expect(registerCalled).toBe(false);
   });
@@ -567,9 +578,9 @@ describe("helperClient", () => {
       },
       {
         identity: {
-          teamId: "ABCDE12345",
-          designatedRequirement:
-            'identifier "com.example.diskvisualizer" and anchor apple generic and certificate leaf[subject.OU] = "ABCDE12345"',
+          appBundleIdentifier: TEST_APP_BUNDLE_IDENTIFIER,
+          teamId: TEST_TEAM_ID,
+          designatedRequirement: TEST_DESIGNATED_REQUIREMENT,
         },
         packagingEntitlementsReady: true,
         privilegedHelperExecutableReady: true,
@@ -881,9 +892,9 @@ describe("helperClient", () => {
       },
       {
         identity: {
-          teamId: "ABCDE12345",
-          designatedRequirement:
-            'identifier "com.example.diskvisualizer" and anchor apple generic and certificate leaf[subject.OU] = "ABCDE12345"',
+          appBundleIdentifier: TEST_APP_BUNDLE_IDENTIFIER,
+          teamId: TEST_TEAM_ID,
+          designatedRequirement: TEST_DESIGNATED_REQUIREMENT,
         },
         packagingEntitlementsReady: true,
         privilegedHelperExecutableReady: true,
@@ -929,9 +940,9 @@ describe("helperClient", () => {
       },
       {
         identity: {
-          teamId: "ABCDE12345",
-          designatedRequirement:
-            'identifier "com.example.diskvisualizer" and anchor apple generic and certificate leaf[subject.OU] = "ABCDE12345"',
+          appBundleIdentifier: TEST_APP_BUNDLE_IDENTIFIER,
+          teamId: TEST_TEAM_ID,
+          designatedRequirement: TEST_DESIGNATED_REQUIREMENT,
         },
         packagingEntitlementsReady: true,
         privilegedHelperExecutableReady: true,
@@ -975,9 +986,9 @@ describe("helperClient", () => {
       },
       {
         identity: {
-          teamId: "ABCDE12345",
-          designatedRequirement:
-            'identifier "com.example.diskvisualizer" and anchor apple generic and certificate leaf[subject.OU] = "ABCDE12345"',
+          appBundleIdentifier: TEST_APP_BUNDLE_IDENTIFIER,
+          teamId: TEST_TEAM_ID,
+          designatedRequirement: TEST_DESIGNATED_REQUIREMENT,
         },
         packagingEntitlementsReady: true,
         privilegedHelperExecutableReady: true,
@@ -1013,9 +1024,9 @@ describe("helperClient", () => {
       },
       {
         identity: {
-          teamId: "ABCDE12345",
-          designatedRequirement:
-            'identifier "com.example.diskvisualizer" and anchor apple generic and certificate leaf[subject.OU] = "ABCDE12345"',
+          appBundleIdentifier: TEST_APP_BUNDLE_IDENTIFIER,
+          teamId: TEST_TEAM_ID,
+          designatedRequirement: TEST_DESIGNATED_REQUIREMENT,
         },
         packagingEntitlementsReady: true,
         privilegedHelperExecutableReady: true,
@@ -1281,6 +1292,7 @@ describe("helperClient", () => {
       registrationPreflight: {
         blockers: [
           "team-id-missing",
+          "production-bundle-identifier-missing",
           "designated-requirement-missing",
           "packaging-entitlements-missing",
           "privileged-helper-executable-missing",
@@ -1328,9 +1340,9 @@ describe("helperClient", () => {
       },
       {
         identity: {
-          teamId: "ABCDE12345",
-          designatedRequirement:
-            'identifier "com.example.diskvisualizer" and anchor apple generic and certificate leaf[subject.OU] = "ABCDE12345"',
+          appBundleIdentifier: TEST_APP_BUNDLE_IDENTIFIER,
+          teamId: TEST_TEAM_ID,
+          designatedRequirement: TEST_DESIGNATED_REQUIREMENT,
         },
         packagingEntitlementsReady: true,
         privilegedHelperExecutableReady: true,
@@ -1393,9 +1405,9 @@ describe("helperClient", () => {
       },
       {
         identity: {
-          teamId: "ABCDE12345",
-          designatedRequirement:
-            'identifier "com.example.diskvisualizer" and anchor apple generic and certificate leaf[subject.OU] = "ABCDE12345"',
+          appBundleIdentifier: TEST_APP_BUNDLE_IDENTIFIER,
+          teamId: TEST_TEAM_ID,
+          designatedRequirement: TEST_DESIGNATED_REQUIREMENT,
         },
         packagingEntitlementsReady: true,
         privilegedHelperExecutableReady: true,
@@ -1665,7 +1677,7 @@ describe("helperClient", () => {
 });
 
 function buildReadyHelperProjectEvidence(projectRoot: string): string {
-  const requirement = buildHelperCodeSigningRequirement("ABCDE12345");
+  const requirement = TEST_DESIGNATED_REQUIREMENT;
   writeJson(path.join(projectRoot, "electron-builder.json"), {
     extraResources: [
       {
@@ -1708,7 +1720,7 @@ function buildReadyHelperProjectEvidence(projectRoot: string): string {
     {
       ready: true,
       requirement,
-      teamId: "ABCDE12345",
+      teamId: TEST_TEAM_ID,
     },
   );
   writeJson(path.join(projectRoot, DISK_SCAN_HELPER_FDA_MATRIX_SOURCE_RELATIVE_PATH), {

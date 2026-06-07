@@ -30,8 +30,11 @@ describe("helperIdentityAudit", () => {
       );
 
       expect(buildHelperIdentityAudit({ env: {}, projectRoot })).toEqual({
+        appBundleIdentifier: null,
+        appBundleIdentifierReady: false,
         blockers: [
           "team-id-missing",
+          "production-bundle-identifier-missing",
           "designated-requirement-missing",
           "privileged-helper-listener-requirement-missing",
         ],
@@ -59,8 +62,9 @@ describe("helperIdentityAudit", () => {
       projectRoot,
       DISK_SCAN_HELPER_REQUIREMENT_METADATA_SOURCE_RELATIVE_PATH,
     );
+    const appBundleIdentifier = "com.acme.diskvisualizer";
     const requirement =
-      'identifier "com.example.diskvisualizer" and anchor apple generic and certificate leaf[subject.OU] = "ABCDE12345"';
+      'identifier "com.acme.diskvisualizer" and anchor apple generic and certificate leaf[subject.OU] = "ABCDE12345"';
 
     try {
       fs.mkdirSync(path.dirname(metadataPath), { recursive: true });
@@ -74,10 +78,13 @@ describe("helperIdentityAudit", () => {
       );
 
       expect(buildHelperIdentityAudit({
+        appBundleIdentifier,
         designatedRequirement: requirement,
         projectRoot,
         teamId: "ABCDE12345",
       })).toEqual({
+        appBundleIdentifier,
+        appBundleIdentifierReady: true,
         blockers: [],
         designatedRequirement: requirement,
         designatedRequirementReady: true,

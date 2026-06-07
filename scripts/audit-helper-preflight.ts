@@ -4,6 +4,7 @@ import {
   resolveHelperPreflightAuditStrictExitCode,
 } from "../src/main/services/helper/helperPreflightAudit";
 import {
+  HELPER_APP_BUNDLE_ID_ENV,
   HELPER_DESIGNATED_REQUIREMENT_ENV,
   HELPER_FDA_VALIDATION_MATRIX_READY_ENV,
   HELPER_PACKAGING_ENTITLEMENTS_READY_ENV,
@@ -37,6 +38,7 @@ if (process.env.SCAN_HELPER_PREFLIGHT_AUDIT_STRICT === "1") {
 }
 
 function buildAuditEnv(rawArgs: string[]): NodeJS.ProcessEnv {
+  const appBundleId = resolveOptionalArg(rawArgs, "--app-bundle-id");
   const teamId = resolveOptionalArg(rawArgs, "--team-id");
   const designatedRequirement = resolveOptionalArg(
     rawArgs,
@@ -45,6 +47,7 @@ function buildAuditEnv(rawArgs: string[]): NodeJS.ProcessEnv {
 
   return {
     ...process.env,
+    ...(appBundleId ? { [HELPER_APP_BUNDLE_ID_ENV]: appBundleId } : {}),
     ...(teamId ? { [HELPER_TEAM_ID_ENV]: teamId } : {}),
     ...(designatedRequirement
       ? { [HELPER_DESIGNATED_REQUIREMENT_ENV]: designatedRequirement }

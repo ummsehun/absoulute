@@ -6,6 +6,7 @@ import {
   DISK_SCAN_HELPER_REQUIRED_FDA_SCENARIOS,
   DISK_SCAN_HELPER_REQUIREMENT_METADATA_SOURCE_RELATIVE_PATH,
   DISK_SCAN_HELPER_XPC_ENUMERATE_BRIDGE_SOURCE_RELATIVE_PATH,
+  HELPER_APP_BUNDLE_ID_ENV,
   HELPER_DESIGNATED_REQUIREMENT_ENV,
   HELPER_FDA_VALIDATION_MATRIX_READY_ENV,
   HELPER_PACKAGING_ENTITLEMENTS_READY_ENV,
@@ -14,6 +15,7 @@ import {
   HELPER_XPC_ENUMERATE_BRIDGE_READY_ENV,
   getHelperRegistrationContract,
   isConcreteMacOsVersion,
+  isProductionAppBundleIdentifier,
   isValidAppleTeamId,
   isValidDesignatedRequirement,
   resolveFdaValidationMatrixEvidence,
@@ -35,6 +37,7 @@ export {
 
 export interface HelperPreflightAuditEvidence {
   teamId: boolean;
+  productionBundleIdentifier: boolean;
   designatedRequirement: boolean;
   packagingEntitlements: boolean;
   privilegedHelperExecutable: boolean;
@@ -145,6 +148,12 @@ function remediationForBlocker(
       description: "Set the production Apple Developer Team ID.",
       requiredInputs: [HELPER_TEAM_ID_ENV],
     },
+    "production-bundle-identifier-missing": {
+      blocker,
+      description:
+        "Set the production app bundle identifier instead of the development com.example identifier.",
+      requiredInputs: [HELPER_APP_BUNDLE_ID_ENV],
+    },
     "designated-requirement-missing": {
       blocker,
       description:
@@ -229,13 +238,18 @@ function buildArtifactEvidence(
   projectRoot: string,
 ): HelperPreflightAuditEvidence {
   const teamIdReady = isValidAppleTeamId(input.identity?.teamId);
+  const productionBundleIdentifierReady = isProductionAppBundleIdentifier(
+    input.identity?.appBundleIdentifier,
+  );
   const designatedRequirementReady = isValidDesignatedRequirement(
     input.identity?.designatedRequirement,
     input.identity?.teamId,
+    input.identity?.appBundleIdentifier,
   );
 
   return {
     teamId: teamIdReady,
+    productionBundleIdentifier: productionBundleIdentifierReady,
     designatedRequirement: designatedRequirementReady,
     packagingEntitlements: resolvePackagingEntitlementsEvidence(projectRoot),
     privilegedHelperExecutable:
@@ -246,6 +260,7 @@ function buildArtifactEvidence(
       resolvePrivilegedHelperListenerRequirementEvidence(
         projectRoot,
         input.identity?.teamId,
+        input.identity?.appBundleIdentifier,
       ),
     fdaValidationMatrix: resolveFdaValidationMatrixEvidence(projectRoot),
   };
@@ -256,13 +271,18 @@ function buildConfirmations(
   input: HelperRegistrationPreflightInput,
 ): HelperPreflightAuditEvidence {
   const teamIdReady = isValidAppleTeamId(input.identity?.teamId);
+  const productionBundleIdentifierReady = isProductionAppBundleIdentifier(
+    input.identity?.appBundleIdentifier,
+  );
   const designatedRequirementReady = isValidDesignatedRequirement(
     input.identity?.designatedRequirement,
     input.identity?.teamId,
+    input.identity?.appBundleIdentifier,
   );
 
   return {
     teamId: teamIdReady,
+    productionBundleIdentifier: productionBundleIdentifierReady,
     designatedRequirement: designatedRequirementReady,
     packagingEntitlements:
       readBooleanEvidenceEnv(env[HELPER_PACKAGING_ENTITLEMENTS_READY_ENV]),
@@ -283,6 +303,8 @@ function buildEffectiveEvidence(
 ): HelperPreflightAuditEvidence {
   return {
     teamId: !blockers.includes("team-id-missing"),
+    productionBundleIdentifier:
+      !blockers.includes("production-bundle-identifier-missing"),
     designatedRequirement: !blockers.includes("designated-requirement-missing"),
     packagingEntitlements: input.packagingEntitlementsReady === true,
     privilegedHelperExecutable: input.privilegedHelperExecutableReady === true,

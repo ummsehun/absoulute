@@ -119,6 +119,7 @@ export const ScanHelperLifecycleSchema = z.object({
 
 export const ScanHelperRegistrationBlockerSchema = z.enum([
   "team-id-missing",
+  "production-bundle-identifier-missing",
   "designated-requirement-missing",
   "packaging-entitlements-missing",
   "privileged-helper-executable-missing",

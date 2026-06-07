@@ -14,6 +14,7 @@ import {
 const rawArgs = process.argv.slice(2);
 const outputPath = resolveAuditOutputPath(rawArgs);
 const bundle = await buildHelperReadinessBundle({
+  appBundleIdentifier: resolveOptionalArg(rawArgs, "--app-bundle-id"),
   designatedRequirement: resolveOptionalArg(rawArgs, "--designated-requirement"),
   env: buildAuditEnv(rawArgs),
   platform: resolvePlatform(rawArgs),

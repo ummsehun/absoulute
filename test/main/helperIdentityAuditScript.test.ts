@@ -56,6 +56,7 @@ describe("audit-helper-identity script", () => {
       expect(fileAudit.listenerRequirementReady).toBe(false);
       expect(fileAudit.blockers).toEqual([
         "team-id-missing",
+        "production-bundle-identifier-missing",
         "designated-requirement-missing",
         "privileged-helper-listener-requirement-missing",
       ]);
@@ -72,8 +73,9 @@ describe("audit-helper-identity script", () => {
       projectRoot,
       DISK_SCAN_HELPER_REQUIREMENT_METADATA_SOURCE_RELATIVE_PATH,
     );
+    const appBundleId = "com.acme.diskvisualizer";
     const requirement =
-      'identifier "com.example.diskvisualizer" and anchor apple generic and certificate leaf[subject.OU] = "ABCDE12345"';
+      'identifier "com.acme.diskvisualizer" and anchor apple generic and certificate leaf[subject.OU] = "ABCDE12345"';
 
     try {
       fs.mkdirSync(path.dirname(metadataPath), { recursive: true });
@@ -93,6 +95,8 @@ describe("audit-helper-identity script", () => {
           "scripts/audit-helper-identity.ts",
           "--project-root",
           projectRoot,
+          "--app-bundle-id",
+          appBundleId,
           "--team-id",
           "ABCDE12345",
           "--designated-requirement",
@@ -108,6 +112,7 @@ describe("audit-helper-identity script", () => {
       expect(result.status).toBe(0);
       const stdoutAudit = JSON.parse(result.stdout);
       expect(stdoutAudit.status).toBe("ready");
+      expect(stdoutAudit.appBundleIdentifier).toBe(appBundleId);
       expect(stdoutAudit.blockers).toEqual([]);
       expect(stdoutAudit.listenerRequirementReady).toBe(true);
     } finally {
@@ -128,6 +133,26 @@ describe("audit-helper-identity script", () => {
 
     expect(result.status).toBe(1);
     expect(result.stderr).toContain("missing value for --team-id");
+  });
+
+  it("fails explicitly when app bundle id is followed by another option", () => {
+    const result = spawnSync(
+      "bun",
+      [
+        "run",
+        "scripts/audit-helper-identity.ts",
+        "--app-bundle-id",
+        "--project-root",
+      ],
+      {
+        cwd: process.cwd(),
+        env: process.env,
+        encoding: "utf8",
+      },
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("missing value for --app-bundle-id");
   });
 
   it("fails explicitly when project root is followed by another option", () => {

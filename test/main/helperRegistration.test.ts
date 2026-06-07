@@ -57,6 +57,7 @@ describe("helperRegistration", () => {
       status: "blocked",
       blockers: [
         "team-id-missing",
+        "production-bundle-identifier-missing",
         "designated-requirement-missing",
         "packaging-entitlements-missing",
         "privileged-helper-executable-missing",
@@ -71,9 +72,10 @@ describe("helperRegistration", () => {
     expect(
       resolveHelperRegistrationPreflight({
         identity: {
+          appBundleIdentifier: "com.acme.diskvisualizer",
           teamId: "ABCDE12345",
           designatedRequirement:
-            'identifier "com.example.diskvisualizer" and anchor apple generic and certificate leaf[subject.OU] = "ABCDE12345"',
+            'identifier "com.acme.diskvisualizer" and anchor apple generic and certificate leaf[subject.OU] = "ABCDE12345"',
         },
         packagingEntitlementsReady: true,
         privilegedHelperExecutableReady: true,
@@ -92,6 +94,7 @@ describe("helperRegistration", () => {
     expect(
       resolveHelperRegistrationPreflight({
         identity: {
+          appBundleIdentifier: "com.acme.diskvisualizer",
           teamId: "not-a-team-id",
           designatedRequirement:
             'identifier "com.other.app" and anchor apple generic',
@@ -115,6 +118,11 @@ describe("helperRegistration", () => {
   it("builds the helper code signing requirement from the app identifier and Team ID", () => {
     expect(buildHelperCodeSigningRequirement("ABCDE12345")).toBe(
       'identifier "com.example.diskvisualizer" and anchor apple generic and certificate leaf[subject.OU] = "ABCDE12345"',
+    );
+    expect(
+      buildHelperCodeSigningRequirement("ABCDE12345", "com.acme.diskvisualizer"),
+    ).toBe(
+      'identifier "com.acme.diskvisualizer" and anchor apple generic and certificate leaf[subject.OU] = "ABCDE12345"',
     );
 
     expect(() => buildHelperCodeSigningRequirement("not-a-team-id")).toThrow(
@@ -206,24 +214,26 @@ describe("helperRegistration", () => {
           ready: true,
           teamId: "ABCDE12345",
           requirement:
-            'identifier "com.example.diskvisualizer" and anchor apple generic and certificate leaf[subject.OU] = "ABCDE12345"',
+            'identifier "com.acme.diskvisualizer" and anchor apple generic and certificate leaf[subject.OU] = "ABCDE12345"',
         }),
       );
 
       expect(
         resolveHelperRegistrationPreflightInputFromEnv({
+          SCAN_HELPER_APP_BUNDLE_ID: "com.acme.diskvisualizer",
           SCAN_HELPER_TEAM_ID: "ABCDE12345",
           SCAN_HELPER_DESIGNATED_REQUIREMENT:
-            'identifier "com.example.diskvisualizer" and anchor apple generic and certificate leaf[subject.OU] = "ABCDE12345"',
+            'identifier "com.acme.diskvisualizer" and anchor apple generic and certificate leaf[subject.OU] = "ABCDE12345"',
           SCAN_HELPER_PACKAGING_ENTITLEMENTS_READY: "true",
           SCAN_HELPER_PRIVILEGED_EXECUTABLE_READY: "true",
           SCAN_HELPER_XPC_ENUMERATE_BRIDGE_READY: "true",
         }, projectRoot),
       ).toEqual({
         identity: {
+          appBundleIdentifier: "com.acme.diskvisualizer",
           teamId: "ABCDE12345",
           designatedRequirement:
-            'identifier "com.example.diskvisualizer" and anchor apple generic and certificate leaf[subject.OU] = "ABCDE12345"',
+            'identifier "com.acme.diskvisualizer" and anchor apple generic and certificate leaf[subject.OU] = "ABCDE12345"',
         },
         packagingEntitlementsReady: true,
         privilegedHelperExecutableReady: true,
@@ -671,6 +681,7 @@ describe("helperRegistration", () => {
   it("does not treat missing or false environment variables as helper evidence", () => {
     expect(
       resolveHelperRegistrationPreflightInputFromEnv({
+        SCAN_HELPER_APP_BUNDLE_ID: "com.example.diskvisualizer",
         SCAN_HELPER_TEAM_ID: "",
         SCAN_HELPER_DESIGNATED_REQUIREMENT: "   ",
         SCAN_HELPER_PACKAGING_ENTITLEMENTS_READY: "false",
@@ -679,7 +690,9 @@ describe("helperRegistration", () => {
         SCAN_HELPER_FDA_VALIDATION_MATRIX_READY: "0",
       }),
     ).toEqual({
-      identity: {},
+      identity: {
+        appBundleIdentifier: "com.example.diskvisualizer",
+      },
       packagingEntitlementsReady: false,
       privilegedHelperExecutableReady: false,
       helperXpcEnumerateBridgeReady: false,

@@ -15,6 +15,7 @@ import {
   type HelperReadinessReport,
 } from "./helperReadinessAudit";
 import {
+  HELPER_APP_BUNDLE_ID_ENV,
   resolveHelperRegistrationPreflight,
   resolveHelperRegistrationPreflightInputFromEnv,
 } from "./helperRegistration";
@@ -45,6 +46,7 @@ export interface HelperReadinessBundleComponentStatus {
 }
 
 export interface BuildHelperReadinessBundleOptions {
+  appBundleIdentifier?: string | null;
   designatedRequirement?: string | null;
   env?: NodeJS.ProcessEnv;
   platform?: NodeJS.Platform;
@@ -60,6 +62,7 @@ export async function buildHelperReadinessBundle(
   const env = buildEvidenceEnv(options);
   const projectRoot = options.projectRoot ?? process.cwd();
   const identity = buildHelperIdentityAudit({
+    appBundleIdentifier: options.appBundleIdentifier,
     designatedRequirement: options.designatedRequirement,
     env,
     projectRoot,
@@ -113,6 +116,12 @@ function buildEvidenceEnv(
   options: BuildHelperReadinessBundleOptions,
 ): NodeJS.ProcessEnv {
   const env = { ...(options.env ?? process.env) };
+  if (
+    options.appBundleIdentifier !== undefined
+    && options.appBundleIdentifier !== null
+  ) {
+    env[HELPER_APP_BUNDLE_ID_ENV] = options.appBundleIdentifier;
+  }
   if (options.teamId !== undefined && options.teamId !== null) {
     env.SCAN_HELPER_TEAM_ID = options.teamId;
   }

@@ -3040,3 +3040,83 @@ Interpretation:
   explicit evidence inputs as preflight/readiness audits.
 - It does not perform real helper registration in normal audits, supply
   production identity, provide FDA evidence, or enable default helper scanning.
+
+## Phase B54 Production Bundle Identifier Gate
+
+Date: 2026-06-08
+
+Facts:
+
+- Helper registration preflight now includes
+  `production-bundle-identifier-missing`.
+- Missing bundle identifiers, `com.example.diskvisualizer`, `com.example.*`,
+  and `*.example.*` identifiers are not treated as production-ready helper
+  identity evidence.
+- `SCAN_HELPER_APP_BUNDLE_ID` is now parsed by helper registration evidence.
+- The following CLIs now accept `--app-bundle-id`:
+  - `audit-helper-identity`;
+  - `audit-helper-preflight`;
+  - `audit-helper-readiness`;
+  - `audit-helper-readiness-bundle`;
+  - `control-helper-service-management`.
+- Designated requirement and listener requirement metadata checks now validate
+  against the effective app bundle identifier supplied by evidence.
+- The shared scan helper registration blocker schema now includes
+  `production-bundle-identifier-missing`.
+- Helper default activation remains disabled.
+
+Verification so far:
+
+- RED was confirmed before implementation:
+  - `pnpm test test/main/helperRegistration.test.ts
+    test/main/helperReadinessAudit.test.ts` failed as expected, 2 files and 25
+    tests, 6 failed.
+- `pnpm test test/main/helperRegistration.test.ts
+  test/main/helperReadinessAudit.test.ts` passed, 2 files and 25 tests.
+- `pnpm test test/main/helperIdentityAudit.test.ts
+  test/main/helperIdentityAuditScript.test.ts test/main/helperRegistration.test.ts
+  test/main/helperPreflightAudit.test.ts test/main/helperPreflightAuditScript.test.ts
+  test/main/helperReadinessAudit.test.ts test/main/helperReadinessAuditScript.test.ts
+  test/main/helperReadinessBundle.test.ts test/main/helperReadinessBundleScript.test.ts
+  test/main/helperServiceManagementControlScript.test.ts test/main/helperClient.test.ts
+  test/main/helperScanPlanner.test.ts test/main/nativeScanOrchestrator.test.ts
+  test/main/sharedBoundary.test.ts test/main/scanPolicyContract.test.ts` passed,
+  15 files and 148 tests.
+- `pnpm test` passed, 55 files and 316 tests.
+- `pnpm typecheck` passed.
+- `pnpm lint` passed.
+- `pnpm build` passed.
+- `cargo test --manifest-path native/scanner/Cargo.toml` passed. Existing Rust
+  dead-code warnings remain.
+- `pnpm audit:helper-readiness --platform darwin --resources-path resources`
+  and `pnpm audit:helper-readiness-bundle` remain intentionally blocked and now
+  include `production-bundle-identifier-missing`.
+- Sub-agent review reported no Critical or Important findings. Minor findings
+  were addressed by using the shared `HELPER_APP_BUNDLE_ID_ENV` constant in the
+  readiness bundle and adding `--app-bundle-id` missing-value coverage to the
+  helper identity, preflight, readiness, readiness bundle, and ServiceManagement
+  control script tests. The review was static and did not rerun tests.
+- After the review follow-up, `pnpm test
+  test/main/helperIdentityAuditScript.test.ts
+  test/main/helperPreflightAuditScript.test.ts
+  test/main/helperReadinessAuditScript.test.ts
+  test/main/helperReadinessBundleScript.test.ts
+  test/main/helperServiceManagementControlScript.test.ts` passed, 5 files and
+  46 tests.
+- Current-state verification after the review follow-up:
+  - `pnpm test` passed, 55 files and 316 tests.
+  - `pnpm typecheck` passed.
+  - `pnpm lint` passed.
+  - `pnpm build` passed.
+  - `cargo test --manifest-path native/scanner/Cargo.toml` passed. Existing
+    Rust dead-code warnings remain.
+  - `pnpm audit:helper-readiness --platform darwin --resources-path resources`
+    and `pnpm audit:helper-readiness-bundle` reported blocked and exited 1 as
+    expected.
+
+Interpretation:
+
+- This phase prevents a synthetic green helper readiness state while the app
+  identity is still the documented development bundle identifier.
+- It does not choose the production bundle identifier, register the helper,
+  provide FDA evidence, or enable default helper scanning.

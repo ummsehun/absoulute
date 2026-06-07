@@ -78,7 +78,8 @@ describe("audit-helper-preflight script", () => {
       DISK_SCAN_HELPER_REQUIREMENT_METADATA_SOURCE_RELATIVE_PATH,
     );
     const teamId = "ABCDE12345";
-    const requirement = buildHelperCodeSigningRequirement(teamId);
+    const appBundleId = "com.acme.diskvisualizer";
+    const requirement = buildHelperCodeSigningRequirement(teamId, appBundleId);
 
     try {
       fs.mkdirSync(path.dirname(metadataPath), { recursive: true });
@@ -98,6 +99,8 @@ describe("audit-helper-preflight script", () => {
           "scripts/audit-helper-preflight.ts",
           "--project-root",
           projectRoot,
+          "--app-bundle-id",
+          appBundleId,
           "--team-id",
           teamId,
           "--designated-requirement",
@@ -217,6 +220,27 @@ describe("audit-helper-preflight script", () => {
 
     expect(result.status).toBe(1);
     expect(result.stderr).toContain("missing value for --team-id");
+  });
+
+  it("fails explicitly when app bundle id is followed by another option", () => {
+    const result = spawnSync(
+      "bun",
+      [
+        "run",
+        "scripts/audit-helper-preflight.ts",
+        "--app-bundle-id",
+        "--project-root",
+        process.cwd(),
+      ],
+      {
+        cwd: process.cwd(),
+        env: process.env,
+        encoding: "utf8",
+      },
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("missing value for --app-bundle-id");
   });
 
   it("fails explicitly when designated requirement is followed by another option", () => {

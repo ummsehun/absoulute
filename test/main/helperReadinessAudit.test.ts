@@ -151,6 +151,51 @@ describe("helper readiness audit", () => {
     ]);
   });
 
+  it("reports production bundle identifier blocker evidence explicitly", () => {
+    const report = buildHelperReadinessReport({
+      registrationPreflight: {
+        status: "blocked",
+        blockers: ["production-bundle-identifier-missing"],
+        contract: {
+          appBundleIdentifier: "com.example.diskvisualizer",
+          helperExecutableBundleRelativePath:
+            "Contents/Library/LaunchServices/com.example.diskvisualizer.privileged-helper",
+          helperLabel: "com.example.diskvisualizer.privileged-helper",
+          launchDaemonBundleRelativePath:
+            "Contents/Library/LaunchDaemons/com.example.diskvisualizer.privileged-helper.plist",
+          launchDaemonPlistName:
+            "com.example.diskvisualizer.privileged-helper.plist",
+          serviceManagementModel: "smappservice-daemon",
+        },
+      },
+      fdaMatrixStatus: "ready",
+      serviceManagementStatus: "registered",
+    });
+
+    expect(report.status).toBe("blocked");
+    expect(report.evidence).toEqual([
+      {
+        key: "production-bundle-identifier",
+        guidance: {
+          description: expect.any(String),
+          requiredInputs: ["SCAN_HELPER_APP_BUNDLE_ID"],
+        },
+        reason: "production-bundle-identifier-missing",
+        status: "fail",
+      },
+      {
+        key: "service-management",
+        guidance: {
+          description: expect.any(String),
+          requiredArtifacts: ["resources/bin/service-management-probe-macos"],
+          requiredInputs: ["SCAN_HELPER_SM_PROBE_BIN"],
+        },
+        reason: "registered",
+        status: "pass",
+      },
+    ]);
+  });
+
   it("reports XPC enumerate bridge blocker evidence explicitly", () => {
     const report = buildHelperReadinessReport({
       registrationPreflight: {
@@ -205,6 +250,7 @@ describe("helper readiness audit", () => {
           fdaValidationMatrix: false,
           helperXpcEnumerateBridge: true,
           packagingEntitlements: true,
+          productionBundleIdentifier: false,
           privilegedHelperExecutable: true,
           privilegedHelperListenerRequirement: false,
           teamId: false,
@@ -214,6 +260,7 @@ describe("helper readiness audit", () => {
           fdaValidationMatrix: false,
           helperXpcEnumerateBridge: false,
           packagingEntitlements: false,
+          productionBundleIdentifier: false,
           privilegedHelperExecutable: false,
           privilegedHelperListenerRequirement: false,
           teamId: false,
@@ -223,6 +270,7 @@ describe("helper readiness audit", () => {
           fdaValidationMatrix: false,
           helperXpcEnumerateBridge: false,
           packagingEntitlements: false,
+          productionBundleIdentifier: false,
           privilegedHelperExecutable: false,
           privilegedHelperListenerRequirement: false,
           teamId: false,
@@ -267,6 +315,7 @@ describe("helper readiness audit", () => {
           fdaValidationMatrix: true,
           helperXpcEnumerateBridge: true,
           packagingEntitlements: true,
+          productionBundleIdentifier: false,
           privilegedHelperExecutable: true,
           privilegedHelperListenerRequirement: false,
           teamId: false,
@@ -276,6 +325,7 @@ describe("helper readiness audit", () => {
           fdaValidationMatrix: false,
           helperXpcEnumerateBridge: false,
           packagingEntitlements: false,
+          productionBundleIdentifier: false,
           privilegedHelperExecutable: false,
           privilegedHelperListenerRequirement: false,
           teamId: false,
@@ -285,6 +335,7 @@ describe("helper readiness audit", () => {
           fdaValidationMatrix: false,
           helperXpcEnumerateBridge: false,
           packagingEntitlements: false,
+          productionBundleIdentifier: false,
           privilegedHelperExecutable: false,
           privilegedHelperListenerRequirement: false,
           teamId: false,
@@ -360,6 +411,7 @@ describe("helper readiness audit", () => {
           fdaValidationMatrix: false,
           helperXpcEnumerateBridge: true,
           packagingEntitlements: false,
+          productionBundleIdentifier: false,
           privilegedHelperExecutable: false,
           privilegedHelperListenerRequirement: false,
           teamId: false,
@@ -369,6 +421,7 @@ describe("helper readiness audit", () => {
           fdaValidationMatrix: false,
           helperXpcEnumerateBridge: true,
           packagingEntitlements: false,
+          productionBundleIdentifier: false,
           privilegedHelperExecutable: false,
           privilegedHelperListenerRequirement: false,
           teamId: false,
@@ -378,6 +431,7 @@ describe("helper readiness audit", () => {
           fdaValidationMatrix: false,
           helperXpcEnumerateBridge: false,
           packagingEntitlements: false,
+          productionBundleIdentifier: false,
           privilegedHelperExecutable: false,
           privilegedHelperListenerRequirement: false,
           teamId: false,
@@ -420,6 +474,7 @@ describe("helper readiness audit", () => {
           fdaValidationMatrix: true,
           helperXpcEnumerateBridge: true,
           packagingEntitlements: true,
+          productionBundleIdentifier: true,
           privilegedHelperExecutable: true,
           privilegedHelperListenerRequirement: true,
           teamId: true,
@@ -429,6 +484,7 @@ describe("helper readiness audit", () => {
           fdaValidationMatrix: true,
           helperXpcEnumerateBridge: true,
           packagingEntitlements: true,
+          productionBundleIdentifier: true,
           privilegedHelperExecutable: true,
           privilegedHelperListenerRequirement: true,
           teamId: true,
@@ -438,6 +494,7 @@ describe("helper readiness audit", () => {
           fdaValidationMatrix: true,
           helperXpcEnumerateBridge: true,
           packagingEntitlements: true,
+          productionBundleIdentifier: true,
           privilegedHelperExecutable: true,
           privilegedHelperListenerRequirement: true,
           teamId: true,
@@ -533,6 +590,18 @@ describe("helper readiness audit", () => {
             "resources/helper/LaunchServices/com.example.diskvisualizer.privileged-helper",
           ],
           requiredInputs: ["SCAN_HELPER_PRIVILEGED_EXECUTABLE_READY"],
+        },
+        reason: "ready",
+        status: "pass",
+      },
+      {
+        artifactReady: true,
+        confirmationReady: true,
+        effectiveReady: true,
+        key: "production-bundle-identifier",
+        guidance: {
+          description: expect.any(String),
+          requiredInputs: ["SCAN_HELPER_APP_BUNDLE_ID"],
         },
         reason: "ready",
         status: "pass",

@@ -56,8 +56,9 @@ describe("audit-helper-readiness-bundle script", () => {
       DISK_SCAN_HELPER_REQUIREMENT_METADATA_SOURCE_RELATIVE_PATH,
     );
     const probePath = path.join(projectRoot, "sm-probe");
+    const appBundleId = "com.acme.diskvisualizer";
     const requirement =
-      'identifier "com.example.diskvisualizer" and anchor apple generic and certificate leaf[subject.OU] = "ABCDE12345"';
+      'identifier "com.acme.diskvisualizer" and anchor apple generic and certificate leaf[subject.OU] = "ABCDE12345"';
 
     try {
       fs.mkdirSync(path.dirname(metadataPath), { recursive: true });
@@ -82,6 +83,8 @@ describe("audit-helper-readiness-bundle script", () => {
           "scripts/audit-helper-readiness-bundle.ts",
           "--project-root",
           projectRoot,
+          "--app-bundle-id",
+          appBundleId,
           "--team-id",
           "ABCDE12345",
           "--designated-requirement",
@@ -214,6 +217,26 @@ describe("audit-helper-readiness-bundle script", () => {
     } finally {
       fs.rmSync(projectRoot, { recursive: true, force: true });
     }
+  });
+
+  it("fails explicitly when app bundle id is followed by another option", () => {
+    const result = spawnSync(
+      "bun",
+      [
+        "run",
+        "scripts/audit-helper-readiness-bundle.ts",
+        "--app-bundle-id",
+        "--platform",
+      ],
+      {
+        cwd: process.cwd(),
+        env: process.env,
+        encoding: "utf8",
+      },
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("missing value for --app-bundle-id");
   });
 
   it("fails explicitly when designated requirement is followed by another option", () => {

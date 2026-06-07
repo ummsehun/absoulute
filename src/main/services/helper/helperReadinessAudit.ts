@@ -10,6 +10,7 @@ import {
   DISK_SCAN_HELPER_FDA_MATRIX_SOURCE_RELATIVE_PATH,
   DISK_SCAN_HELPER_REQUIREMENT_METADATA_SOURCE_RELATIVE_PATH,
   DISK_SCAN_HELPER_XPC_ENUMERATE_BRIDGE_SOURCE_RELATIVE_PATH,
+  HELPER_APP_BUNDLE_ID_ENV,
   HELPER_DESIGNATED_REQUIREMENT_ENV,
   HELPER_FDA_VALIDATION_MATRIX_READY_ENV,
   HELPER_PACKAGING_ENTITLEMENTS_READY_ENV,
@@ -120,6 +121,7 @@ function passEvidenceForReadyPreflightKeys(
     "fda-validation-matrix",
     "listener-requirement",
     "packaging-entitlements",
+    "production-bundle-identifier",
     "privileged-helper-executable",
     "team-id",
     "xpc-enumerate-bridge",
@@ -210,6 +212,11 @@ function guidanceForEvidenceKey(
       ],
       requiredInputs: [HELPER_PACKAGING_ENTITLEMENTS_READY_ENV],
     },
+    "production-bundle-identifier": {
+      description:
+        "Set the production app bundle identifier instead of the development com.example identifier.",
+      requiredInputs: [HELPER_APP_BUNDLE_ID_ENV],
+    },
     "privileged-helper-executable": {
       description:
         "Build and package an executable Mach-O privileged helper artifact.",
@@ -249,6 +256,7 @@ function blockerEvidenceKey(
     "fda-validation-matrix-missing": "fda-validation-matrix",
     "helper-xpc-enumerate-bridge-missing": "xpc-enumerate-bridge",
     "packaging-entitlements-missing": "packaging-entitlements",
+    "production-bundle-identifier-missing": "production-bundle-identifier",
     "privileged-helper-executable-missing": "privileged-helper-executable",
     "privileged-helper-listener-requirement-missing": "listener-requirement",
     "team-id-missing": "team-id",
@@ -284,6 +292,7 @@ function preflightEvidenceFieldForKey(
     "fda-validation-matrix": "fdaValidationMatrix",
     "listener-requirement": "privilegedHelperListenerRequirement",
     "packaging-entitlements": "packagingEntitlements",
+    "production-bundle-identifier": "productionBundleIdentifier",
     "privileged-helper-executable": "privilegedHelperExecutable",
     "team-id": "teamId",
     "xpc-enumerate-bridge": "helperXpcEnumerateBridge",

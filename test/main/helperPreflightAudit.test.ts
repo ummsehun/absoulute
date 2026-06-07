@@ -136,12 +136,14 @@ describe("helperPreflightAudit", () => {
       expect(audit.status).toBe("blocked");
       expect(audit.blockers).toEqual([
         "team-id-missing",
+        "production-bundle-identifier-missing",
         "designated-requirement-missing",
         "privileged-helper-listener-requirement-missing",
         "fda-validation-matrix-missing",
       ]);
       expect(audit.effectiveEvidence).toEqual({
         teamId: false,
+        productionBundleIdentifier: false,
         designatedRequirement: false,
         packagingEntitlements: true,
         privilegedHelperExecutable: true,
@@ -187,6 +189,11 @@ describe("helperPreflightAudit", () => {
           blocker: "team-id-missing",
           description: expect.any(String),
           requiredInputs: ["SCAN_HELPER_TEAM_ID"],
+        },
+        {
+          blocker: "production-bundle-identifier-missing",
+          description: expect.any(String),
+          requiredInputs: ["SCAN_HELPER_APP_BUNDLE_ID"],
         },
         {
           blocker: "designated-requirement-missing",
@@ -350,7 +357,10 @@ describe("helperPreflightAudit", () => {
         projectRoot,
         DISK_SCAN_HELPER_EXECUTABLE_SOURCE_RELATIVE_PATH,
       );
-      const requirement = buildHelperCodeSigningRequirement("ABCDE12345");
+      const requirement = buildHelperCodeSigningRequirement(
+        "ABCDE12345",
+        "com.acme.diskvisualizer",
+      );
 
       fs.mkdirSync(entitlementsPath, { recursive: true });
       fs.writeFileSync(path.join(entitlementsPath, "mac.plist"), "<plist/>");
@@ -393,6 +403,7 @@ describe("helperPreflightAudit", () => {
 
       const audit = buildHelperPreflightAudit({
         env: {
+          SCAN_HELPER_APP_BUNDLE_ID: "com.acme.diskvisualizer",
           SCAN_HELPER_TEAM_ID: "ABCDE12345",
           SCAN_HELPER_DESIGNATED_REQUIREMENT: requirement,
           SCAN_HELPER_PACKAGING_ENTITLEMENTS_READY: "1",

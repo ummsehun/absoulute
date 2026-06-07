@@ -94,8 +94,9 @@ describe("control-helper-service-management script", () => {
     );
     const markerPath = path.join(tempDir, "called");
     const probePath = writeProbe(tempDir, markerPath, "pending-approval");
+    const appBundleId = "com.acme.diskvisualizer";
     const teamId = "ABCDE12345";
-    const requirement = buildHelperCodeSigningRequirement(teamId);
+    const requirement = buildHelperCodeSigningRequirement(teamId, appBundleId);
 
     try {
       writeInstallReadyProject(tempDir, teamId, requirement);
@@ -110,6 +111,8 @@ describe("control-helper-service-management script", () => {
         probePath,
         "--project-root",
         tempDir,
+        "--app-bundle-id",
+        appBundleId,
         "--team-id",
         teamId,
         "--designated-requirement",
@@ -238,6 +241,20 @@ describe("control-helper-service-management script", () => {
 
     expect(result.status).toBe(1);
     expect(result.stderr).toContain("missing value for --team-id");
+  });
+
+  it("fails explicitly when app bundle id is followed by another option", () => {
+    const result = runControl([
+      "--operation",
+      "register",
+      "--confirm",
+      "--app-bundle-id",
+      "--project-root",
+      process.cwd(),
+    ]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("missing value for --app-bundle-id");
   });
 
   it("fails explicitly when designated requirement is followed by another option", () => {
