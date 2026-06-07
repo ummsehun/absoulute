@@ -109,8 +109,9 @@ export class MacOsXpcHelperTransport implements HelperTransport {
       return status;
     }
 
+    let healthResult: Awaited<ReturnType<MacOsHelperControl["healthCheck"]>>;
     try {
-      await this.control.healthCheck({
+      healthResult = await this.control.healthCheck({
         scanId: "helper-health",
         stageId: "control",
       });
@@ -131,6 +132,21 @@ export class MacOsXpcHelperTransport implements HelperTransport {
     }
 
     if (status.lifecycle && canAcceptXpcChannelEvidence(status)) {
+      if (healthResult.peerValidation !== "listener-code-signing-requirement") {
+        return {
+          ...status,
+          lifecycle: {
+            ...status.lifecycle,
+            checks: {
+              ...status.lifecycle.checks,
+              "caller-identity": "fail",
+              "xpc-channel": "pass",
+            },
+          },
+          reason: "helper-control-peer-validation-missing",
+        };
+      }
+
       const lifecycle = {
         ...status.lifecycle,
         state: "ready" as const,

@@ -17,6 +17,7 @@ export const MACOS_HELPER_CONTROL_BINARY_MISSING_REASON =
 
 export interface MacOsHelperControlResult {
   helperVersion: string;
+  peerValidation?: "listener-code-signing-requirement";
 }
 
 export interface MacOsHelperControlRequestInput {
@@ -90,11 +91,13 @@ export class CommandMacOsHelperControl implements MacOsHelperControl {
     }
 
     let helperVersion: string | null = null;
+    let peerValidation: MacOsHelperControlResult["peerValidation"];
     let terminalReceived = false;
     const boundHandlers = bindHandlersToRequest(request.requestId, {
       onEvent: (event) => {
         if (event.type === "ready") {
           helperVersion = event.helperVersion;
+          peerValidation = event.peerValidation;
         }
         if (event.type === "done") {
           terminalReceived = true;
@@ -124,7 +127,10 @@ export class CommandMacOsHelperControl implements MacOsHelperControl {
       throw new Error("helper-control-missing-terminal");
     }
 
-    return { helperVersion };
+    return {
+      helperVersion,
+      ...(peerValidation ? { peerValidation } : {}),
+    };
   }
 }
 

@@ -721,6 +721,9 @@ describe("helperClient", () => {
           type: "ready",
           requestId: request.request.requestId,
           helperVersion: "test-control-helper",
+          peerValidation: request.request.operation === "health.check"
+            ? "listener-code-signing-requirement"
+            : undefined,
         });
         handlers.onEvent({
           type: "done",
@@ -742,6 +745,7 @@ describe("helperClient", () => {
       }),
     ).resolves.toMatchObject({
       helperVersion: "test-control-helper",
+      peerValidation: "listener-code-signing-requirement",
     });
     await expect(
       control.getVersion({
@@ -906,6 +910,7 @@ describe("helperClient", () => {
         control: {
           healthCheck: async () => ({
             helperVersion: "test-control-helper",
+            peerValidation: "listener-code-signing-requirement",
           }),
           getVersion: async () => "test-control-helper",
         },
@@ -954,6 +959,7 @@ describe("helperClient", () => {
         control: {
           healthCheck: async () => ({
             helperVersion: "test-control-helper",
+            peerValidation: "listener-code-signing-requirement",
           }),
           getVersion: async () => "test-control-helper",
         },
@@ -972,6 +978,50 @@ describe("helperClient", () => {
           "xpc-channel": "pass",
         },
       },
+      transport: "xpc",
+    });
+  });
+
+  it("keeps xpc transport unavailable when control health lacks peer validation evidence", async () => {
+    const transport = new MacOsXpcHelperTransport(
+      {
+        getStatus: async () => ({
+          state: "registered",
+          reason: "registered",
+        }),
+      },
+      {
+        identity: {
+          appBundleIdentifier: TEST_APP_BUNDLE_IDENTIFIER,
+          teamId: TEST_TEAM_ID,
+          designatedRequirement: TEST_DESIGNATED_REQUIREMENT,
+        },
+        packagingEntitlementsReady: true,
+        privilegedHelperExecutableReady: true,
+        helperXpcEnumerateBridgeReady: true,
+        privilegedHelperListenerRequirementReady: true,
+        fdaValidationMatrixReady: true,
+      },
+      {
+        control: {
+          healthCheck: async () => ({
+            helperVersion: "test-control-helper",
+          }),
+          getVersion: async () => "test-control-helper",
+        },
+      },
+    );
+
+    await expect(transport.healthCheck()).resolves.toMatchObject({
+      available: false,
+      lifecycle: {
+        state: "not-implemented",
+        checks: {
+          "caller-identity": "fail",
+          "xpc-channel": "pass",
+        },
+      },
+      reason: "helper-control-peer-validation-missing",
       transport: "xpc",
     });
   });

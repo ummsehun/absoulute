@@ -56,6 +56,11 @@ Facts:
   diagnostics schema and renderer helper-plan label, so the classification is
   preserved across IPC-facing diagnostics instead of existing only in native
   orchestrator internals.
+- XPC control health checks now require explicit peer-validation evidence from
+  the privileged helper before the macOS XPC transport can mark
+  `caller-identity` as pass and become available. Missing peer-validation
+  evidence keeps the transport unavailable with
+  `helper-control-peer-validation-missing`.
 - `bun run audit:helper-readiness` reports `status: "blocked"` with
   `canEnableHelperByDefault: false`.
 

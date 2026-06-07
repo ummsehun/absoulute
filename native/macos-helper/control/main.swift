@@ -3,6 +3,7 @@ import Foundation
 let helperMachServiceName = "com.example.diskvisualizer.privileged-helper"
 let startedAt = Date()
 let xpcTimeoutSeconds = 15
+let expectedPeerValidation = "listener-code-signing-requirement"
 
 @objc(DiskVisualizerPrivilegedHelperProtocol)
 protocol DiskVisualizerPrivilegedHelperProtocol {
@@ -64,12 +65,19 @@ let input = FileHandle.standardInput.readDataToEndOfFile()
 do {
     let request = try JSONDecoder().decode(HelperControlRequest.self, from: input)
     try validateRequest(request)
-    let helperVersion = try runXpcControlRequest(request)
-    emit([
+    let response = try parseControlResponse(
+        try runXpcControlRequest(request),
+        operation: request.operation
+    )
+    var readyEvent: [String: Any] = [
         "type": "ready",
         "requestId": request.requestId,
-        "helperVersion": helperVersion,
-    ])
+        "helperVersion": response.helperVersion,
+    ]
+    if let peerValidation = response.peerValidation {
+        readyEvent["peerValidation"] = peerValidation
+    }
+    emit(readyEvent)
     emit([
         "type": "done",
         "requestId": request.requestId,
@@ -85,6 +93,45 @@ do {
         "message": "helper xpc control request failed: \(error)",
     ])
     exit(1)
+}
+
+struct ControlResponse {
+    let helperVersion: String
+    let peerValidation: String?
+}
+
+struct HealthCheckResponse: Decodable {
+    let helperVersion: String
+    let peerValidation: String
+}
+
+func parseControlResponse(_ response: String, operation: String) throws -> ControlResponse {
+    switch operation {
+    case "health.check":
+        guard let data = response.data(using: .utf8) else {
+            throw XpcProbeError.invalidHealthResponse
+        }
+        let parsed: HealthCheckResponse
+        do {
+            parsed = try JSONDecoder().decode(HealthCheckResponse.self, from: data)
+        } catch {
+            throw XpcProbeError.invalidHealthResponse
+        }
+        guard !parsed.helperVersion.isEmpty else {
+            throw XpcProbeError.invalidHealthResponse
+        }
+        guard parsed.peerValidation == expectedPeerValidation else {
+            throw XpcProbeError.invalidHealthResponse
+        }
+        return ControlResponse(
+            helperVersion: parsed.helperVersion,
+            peerValidation: parsed.peerValidation
+        )
+    case "version.get":
+        return ControlResponse(helperVersion: response, peerValidation: nil)
+    default:
+        throw ValidationError.unsupportedOperation
+    }
 }
 
 func runXpcControlRequest(_ request: HelperControlRequest) throws -> String {
@@ -264,6 +311,7 @@ enum XpcProbeError: Error, CustomStringConvertible {
     case connectionInterrupted
     case connectionInvalidated
     case emptyResponse
+    case invalidHealthResponse
     case missingResponse
     case remoteProxyUnavailable
     case timeout
@@ -276,6 +324,8 @@ enum XpcProbeError: Error, CustomStringConvertible {
             return "xpc connection invalidated"
         case .emptyResponse:
             return "xpc control response was empty"
+        case .invalidHealthResponse:
+            return "xpc health response missing peer validation"
         case .missingResponse:
             return "xpc control response was missing"
         case .remoteProxyUnavailable:

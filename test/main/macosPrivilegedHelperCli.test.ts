@@ -186,6 +186,8 @@ describe("macOS privileged helper executable", () => {
     expect(source).toContain("@objc(DiskVisualizerPrivilegedHelperProtocol)");
     expect(source).toContain("func healthCheck(_ reply:");
     expect(source).toContain("func getVersion(_ reply:");
+    expect(source).toContain("peerValidation");
+    expect(source).toContain("listener-code-signing-requirement");
     expect(source).toContain("func enumerate(_ requestJson:");
     expect(source).toContain("withReply reply:");
     expect(source).toContain("HelperEnumerateRequest");
@@ -457,6 +459,10 @@ describe("macOS privileged helper executable", () => {
     expect(source).toContain("remoteObjectProxyWithErrorHandler");
     expect(source).toContain("helper.healthCheck");
     expect(source).toContain("helper.getVersion");
+    expect(source).toContain("peerValidation");
+    expect(source).toContain("listener-code-signing-requirement");
+    expect(source).toContain("catch {");
+    expect(source).toContain("throw XpcProbeError.invalidHealthResponse");
     expect(source).toContain("helperProtocolErrorCode");
     expect(source).toContain('"E_INVALID_REQUEST"');
     expect(source).toContain('"E_HELPER_INTERNAL"');

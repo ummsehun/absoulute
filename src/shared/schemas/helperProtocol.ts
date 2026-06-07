@@ -133,6 +133,7 @@ export const HelperReadyEventSchema = z.object({
   type: z.literal("ready"),
   requestId: HelperIdSchema,
   helperVersion: z.string().min(1).max(128),
+  peerValidation: z.literal("listener-code-signing-requirement").optional(),
 });
 
 export const HelperEntryBatchEventSchema = z.object({
