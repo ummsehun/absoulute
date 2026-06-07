@@ -21,6 +21,17 @@ export interface HelperFdaValidationMatrix {
   scenarios: HelperFdaScenarioRecord[];
 }
 
+export interface HelperFdaMatrixAudit {
+  failedScenarios: string[];
+  missingPassedScenarios: string[];
+  passedScenarioCount: number;
+  scenarioCount: number;
+  scenariosMissingEvidence: string[];
+  status: "blocked" | "ready";
+  targetMacOS: string;
+  targetMacOSReady: boolean;
+}
+
 export interface RecordHelperFdaScenarioInput {
   notes: string;
   projectRoot?: string;
@@ -38,6 +49,10 @@ export interface RecordHelperFdaScenarioResult {
 }
 
 export interface ListHelperFdaScenariosInput {
+  projectRoot?: string;
+}
+
+export interface BuildHelperFdaMatrixAuditInput {
   projectRoot?: string;
 }
 
@@ -65,6 +80,45 @@ export function listHelperFdaScenarios(
         validator: null,
       }
     ),
+  };
+}
+
+export function buildHelperFdaMatrixAudit(
+  input: BuildHelperFdaMatrixAuditInput = {},
+): HelperFdaMatrixAudit {
+  const matrix = listHelperFdaScenarios(input);
+  const targetMacOSReady = isConcreteMacOsVersion(matrix.targetMacOS);
+  const passedScenarioIds = new Set(
+    matrix.scenarios
+      .filter((scenario) =>
+        scenario.status === "passed" && hasScenarioEvidence(scenario)
+      )
+      .map((scenario) => scenario.id),
+  );
+  const failedScenarios = matrix.scenarios
+    .filter((scenario) => scenario.status === "failed")
+    .map((scenario) => scenario.id);
+  const missingPassedScenarios = DISK_SCAN_HELPER_REQUIRED_FDA_SCENARIOS.filter(
+    (scenarioId) => !passedScenarioIds.has(scenarioId),
+  );
+  const scenariosMissingEvidence = matrix.scenarios
+    .filter((scenario) => !hasScenarioEvidence(scenario))
+    .map((scenario) => scenario.id);
+  const status = targetMacOSReady
+      && failedScenarios.length === 0
+      && missingPassedScenarios.length === 0
+    ? "ready"
+    : "blocked";
+
+  return {
+    failedScenarios,
+    missingPassedScenarios,
+    passedScenarioCount: passedScenarioIds.size,
+    scenarioCount: DISK_SCAN_HELPER_REQUIRED_FDA_SCENARIOS.length,
+    scenariosMissingEvidence,
+    status,
+    targetMacOS: matrix.targetMacOS,
+    targetMacOSReady,
   };
 }
 
@@ -193,4 +247,11 @@ function isIsoDateTime(value: string | undefined): value is string {
 
   const timestamp = Date.parse(value);
   return Number.isFinite(timestamp) && value.includes("T");
+}
+
+function hasScenarioEvidence(scenario: HelperFdaScenarioRecord): boolean {
+  return typeof scenario.validatedAt === "string"
+    && isIsoDateTime(scenario.validatedAt)
+    && hasNonEmptyText(scenario.validator ?? undefined)
+    && hasNonEmptyText(scenario.notes);
 }

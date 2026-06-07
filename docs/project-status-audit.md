@@ -1481,6 +1481,73 @@ Cold assessment:
 - It does not make helper readiness pass.
 - It does not enable helper-backed scan execution by default.
 
+## Phase B25 Helper FDA Matrix Audit
+
+Facts:
+
+- Phase B25 is scoped in
+  `docs/superpowers/plans/2026-06-08-phase-b25-helper-fda-matrix-audit.md`.
+- `src/main/services/helper/helperFdaValidationMatrix.ts` now exposes
+  `buildHelperFdaMatrixAudit`.
+- `scripts/audit-helper-fda-matrix.ts` prints the FDA matrix audit JSON to
+  stdout.
+- `package.json` now exposes `audit:helper-fda-matrix`.
+- The FDA matrix audit supports `--project-root <path>` for isolated matrix
+  checks.
+- The FDA matrix audit supports `--out <path>` and writes the same JSON payload
+  to the requested UTF-8 output file.
+- The audit reports `status: "ready"` only when the target macOS version is
+  concrete, every required FDA scenario is passed with evidence, and no required
+  scenario is failed.
+- No generated audit JSON files are committed.
+- Helper readiness gates did not change.
+- The current repo FDA matrix remains blocked with `targetMacOS: "pending"`,
+  `passedScenarioCount: 0`, six missing passed scenarios, and six scenarios
+  missing evidence.
+- The helper remains disabled by default and readiness remains blocked without
+  real ServiceManagement registration, production identity, and FDA evidence.
+
+Verification commands run for this Phase B25 slice:
+
+- `pnpm test test/main/helperFdaValidationMatrix.test.ts
+  test/main/helperFdaMatrixAuditScript.test.ts` passed after implementation:
+  2 files, 11 tests.
+- `pnpm audit:helper-fda-matrix` printed `status: "blocked"`,
+  `targetMacOS: "pending"`, `passedScenarioCount: 0`, and exited 1 as intended.
+- Direct `--out` check wrote `/tmp/luie-helper-audit-b25/fda-matrix.json`;
+  the file parsed as JSON and retained `status: "blocked"`,
+  `targetMacOSReady: false`, six missing passed scenarios, and six scenarios
+  missing evidence.
+- `bun run scripts/audit-helper-fda-matrix.ts --out` failed explicitly with
+  `--out requires an output file path`.
+- `pnpm test` passed: 47 files, 226 tests.
+- `pnpm typecheck` passed.
+- `pnpm lint` passed.
+- `pnpm build` passed.
+- `cargo test --manifest-path native/scanner/Cargo.toml` passed. Existing Rust
+  dead-code warnings remain.
+- `pnpm audit:helper-preflight` printed `status: "blocked"` and exited 0.
+- `pnpm audit:helper-readiness` printed `status: "blocked"`,
+  `canEnableHelperByDefault: false`, and exited 1 as intended.
+- Sub-agent review found no Critical or Important issues. Minor feedback about
+  `--out` error consistency and CLI ready/missing-argument coverage was
+  addressed.
+
+External blockers still missing:
+
+- Full FDA validation matrix on the target macOS version.
+- Installed privileged helper ServiceManagement evidence.
+- Production XPC peer identity validation with a real Team ID.
+- Production signing, packaging, and notarization evidence.
+
+Cold assessment:
+
+- This mini phase makes FDA validation blockers independently auditable and
+  file-retainable.
+- It does not record real FDA evidence.
+- It does not make helper readiness pass.
+- It does not enable helper-backed scan execution by default.
+
 ## Findings
 
 ### P1: Privileged Helper Is Still Blocked by Real Identity and FDA Evidence

@@ -9,6 +9,7 @@ import {
   resolveFdaValidationMatrixEvidence,
 } from "../../src/main/services/helper/helperRegistration";
 import {
+  buildHelperFdaMatrixAudit,
   listHelperFdaScenarios,
   recordHelperFdaScenario,
 } from "../../src/main/services/helper/helperFdaValidationMatrix";
@@ -162,6 +163,88 @@ describe("helperFdaValidationMatrix", () => {
     }
   });
 
+  it("builds a blocked FDA matrix audit with missing evidence details", () => {
+    const projectRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "diskviz-helper-fda-audit-"),
+    );
+    const matrixPath = path.join(
+      projectRoot,
+      "docs",
+      "helper-fda-validation-matrix.json",
+    );
+
+    try {
+      fs.mkdirSync(path.dirname(matrixPath), { recursive: true });
+      fs.writeFileSync(
+        matrixPath,
+        JSON.stringify({
+          targetMacOS: "pending",
+          scenarios: DISK_SCAN_HELPER_REQUIRED_FDA_SCENARIOS.map((id) => ({
+            id,
+            notes: `pending validation for ${id}`,
+            status: "pending",
+            validatedAt: null,
+            validator: null,
+          })),
+        }),
+      );
+
+      expect(buildHelperFdaMatrixAudit({ projectRoot })).toEqual({
+        failedScenarios: [],
+        missingPassedScenarios: [...DISK_SCAN_HELPER_REQUIRED_FDA_SCENARIOS],
+        passedScenarioCount: 0,
+        scenarioCount: DISK_SCAN_HELPER_REQUIRED_FDA_SCENARIOS.length,
+        scenariosMissingEvidence: [...DISK_SCAN_HELPER_REQUIRED_FDA_SCENARIOS],
+        status: "blocked",
+        targetMacOS: "pending",
+        targetMacOSReady: false,
+      });
+    } finally {
+      fs.rmSync(projectRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("builds a ready FDA matrix audit only when every scenario has passed evidence", () => {
+    const projectRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "diskviz-helper-fda-audit-ready-"),
+    );
+    const matrixPath = path.join(
+      projectRoot,
+      "docs",
+      "helper-fda-validation-matrix.json",
+    );
+
+    try {
+      fs.mkdirSync(path.dirname(matrixPath), { recursive: true });
+      fs.writeFileSync(
+        matrixPath,
+        JSON.stringify({
+          targetMacOS: "15.0",
+          scenarios: DISK_SCAN_HELPER_REQUIRED_FDA_SCENARIOS.map((id) => ({
+            id,
+            notes: `validated ${id} on macOS 15.0`,
+            status: "passed",
+            validatedAt: "2026-06-08T00:00:00.000Z",
+            validator: "manual-fda-audit",
+          })),
+        }),
+      );
+
+      expect(buildHelperFdaMatrixAudit({ projectRoot })).toEqual({
+        failedScenarios: [],
+        missingPassedScenarios: [],
+        passedScenarioCount: DISK_SCAN_HELPER_REQUIRED_FDA_SCENARIOS.length,
+        scenarioCount: DISK_SCAN_HELPER_REQUIRED_FDA_SCENARIOS.length,
+        scenariosMissingEvidence: [],
+        status: "ready",
+        targetMacOS: "15.0",
+        targetMacOSReady: true,
+      });
+    } finally {
+      fs.rmSync(projectRoot, { recursive: true, force: true });
+    }
+  });
+
   it("does not carry passed FDA evidence across target macOS versions", () => {
     const projectRoot = fs.mkdtempSync(
       path.join(os.tmpdir(), "diskviz-helper-fda-target-change-"),
@@ -238,6 +321,9 @@ describe("helperFdaValidationMatrix", () => {
 
     expect(packageJson.scripts?.["record:helper-fda-scenario"]).toBe(
       "bun run scripts/record-helper-fda-scenario.ts",
+    );
+    expect(packageJson.scripts?.["audit:helper-fda-matrix"]).toBe(
+      "bun run scripts/audit-helper-fda-matrix.ts",
     );
   });
 });
