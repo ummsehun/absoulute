@@ -87,4 +87,102 @@ describe("helperScanPlanner", () => {
       reason: "helper-unavailable",
     });
   });
+
+  it("keeps helper blocked when registration preflight is blocked even if xpc transport is requested", () => {
+    expect(
+      resolveHelperScanPlan({
+        platform: "darwin",
+        stage: "deep",
+        options: exactOptions,
+        helperStatus: {
+          available: false,
+          reason: "registration-preflight-blocked:team-id-missing",
+          transport: "xpc",
+          registrationPreflight: {
+            status: "blocked",
+            blockers: ["team-id-missing"],
+            contract: {
+              appBundleIdentifier: "com.example.diskvisualizer",
+              helperExecutableBundleRelativePath:
+                "Contents/Library/LaunchServices/com.example.diskvisualizer.privileged-helper",
+              helperLabel: "com.example.diskvisualizer.privileged-helper",
+              launchDaemonBundleRelativePath:
+                "Contents/Library/LaunchDaemons/com.example.diskvisualizer.privileged-helper.plist",
+              launchDaemonPlistName:
+                "com.example.diskvisualizer.privileged-helper.plist",
+              serviceManagementModel: "smappservice-daemon",
+            },
+          },
+        },
+      }),
+    ).toEqual({
+      engine: "native",
+      reason: "registration-preflight-blocked",
+    });
+  });
+
+  it("keeps helper blocked when registration preflight is blocked even if helper status is available", () => {
+    expect(
+      resolveHelperScanPlan({
+        platform: "darwin",
+        stage: "deep",
+        options: exactOptions,
+        helperStatus: {
+          available: true,
+          transport: "xpc",
+          registrationPreflight: {
+            status: "blocked",
+            blockers: ["team-id-missing"],
+            contract: {
+              appBundleIdentifier: "com.example.diskvisualizer",
+              helperExecutableBundleRelativePath:
+                "Contents/Library/LaunchServices/com.example.diskvisualizer.privileged-helper",
+              helperLabel: "com.example.diskvisualizer.privileged-helper",
+              launchDaemonBundleRelativePath:
+                "Contents/Library/LaunchDaemons/com.example.diskvisualizer.privileged-helper.plist",
+              launchDaemonPlistName:
+                "com.example.diskvisualizer.privileged-helper.plist",
+              serviceManagementModel: "smappservice-daemon",
+            },
+          },
+        },
+      }),
+    ).toEqual({
+      engine: "native",
+      reason: "registration-preflight-blocked",
+    });
+  });
+
+  it("allows prototype helper only for exact deep macOS scans on xpc transport", () => {
+    expect(
+      resolveHelperScanPlan({
+        platform: "darwin",
+        stage: "deep",
+        options: exactOptions,
+        helperStatus: {
+          available: false,
+          reason: "helper-prototype",
+          transport: "xpc",
+        },
+        helperPrototypeEnumerate: true,
+      }),
+    ).toEqual({ engine: "helper" });
+
+    expect(
+      resolveHelperScanPlan({
+        platform: "darwin",
+        stage: "quick",
+        options: exactOptions,
+        helperStatus: {
+          available: false,
+          reason: "helper-prototype",
+          transport: "xpc",
+        },
+        helperPrototypeEnumerate: true,
+      }),
+    ).toEqual({
+      engine: "native",
+      reason: "quick-stage",
+    });
+  });
 });

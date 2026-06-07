@@ -2,7 +2,6 @@ import crypto from "node:crypto";
 import fs from "node:fs/promises";
 import os from "node:os";
 import type {
-  AggDelta,
   AppError,
   ScanConfidence,
   ScanCoverageUpdate,
@@ -13,14 +12,12 @@ import type {
   ScanProgressBatch,
   ScanQuickReady,
   ScanResumeResponse,
-  ScanSkipSamples,
   ScanStartRequest,
   ScanStartResponse,
   ScanTerminalEvent,
   ScanTerminalStatus,
 } from "../../types/contracts";
 import {
-  createPathPolicyClassifier,
   evaluateRootPath,
 } from "../core/securityPolicy";
 import { makeAppError, unknownToAppError } from "../utils/appError";
@@ -30,7 +27,6 @@ import {
 } from "./diagnostics/nativeScannerLogger";
 import { buildQuickReadyPayload } from "./diagnostics/scanDiagnostics";
 import { ScanEventBus } from "./scan/scanEventBus";
-import { ScanAggregator } from "./scanAggregator";
 import { ScanHistoryStore } from "./cache/scanHistoryStore";
 import {
   NativeScanOrchestrator,
@@ -41,10 +37,17 @@ import { PortableScanService } from "./scan/portableScanService";
 import { ScanPolicyService } from "./scan/scanPolicyService";
 import { refreshScanJobPathAccess } from "./scan/scanPermissionAccess";
 import {
+  createNativeStageHandlers as createNativeStageHandlersForJob,
+} from "./scan/nativeStageHandlers";
+import {
+  runPermissionRescanStages as runNativePermissionRescanStages,
+} from "./scan/nativePermissionRescanRunner";
+import { createScanJob } from "./scan/scanJobFactory";
+import {
   isFilesystemRoot,
-  resolveScanOptions,
 } from "./scan/scanRuntimeOptions";
 import { type ScanJob } from "./scan/scanSessionTypes";
+import { ScanStatTaskCoordinator } from "./scan/scanStatTaskCoordinator";
 
 const TOP_LIMIT_PER_DIRECTORY = 200;
 const MAX_RECOVERABLE_ERRORS = 100;
@@ -52,13 +55,16 @@ const DEEP_START_GRACE_MS = 500;
 const NATIVE_DEEP_MAX_DEPTH = 128;
 const NATIVE_QUICK_ROOT_MAX_DEPTH = 2;
 const NATIVE_QUICK_DEFAULT_MAX_DEPTH = 3;
-const MAX_SKIP_SAMPLE_PATHS = 25;
 
 export class DiskScanService {
   private readonly eventBus = new ScanEventBus();
   private readonly jobs = new Map<string, ScanJob>();
   private readonly nativeScanOrchestrator = new NativeScanOrchestrator();
   private readonly scanHistoryStore = new ScanHistoryStore();
+  private readonly statTaskCoordinator = new ScanStatTaskCoordinator({
+    emitProgressBatch: (job, phase, force) =>
+      this.eventBus.emitProgressBatch(job, phase, force),
+  });
   private readonly scanPolicyService = new ScanPolicyService({
     eventBus: this.eventBus,
     maxRecoverableErrors: MAX_RECOVERABLE_ERRORS,
@@ -79,8 +85,8 @@ export class DiskScanService {
     emitRecoverableError: (job, error) =>
       this.scanPolicyService.emitRecoverableError(job, error),
     eventBus: this.eventBus,
-    flushStatTasks: (job) => this.flushStatTasks(job),
-    hasPendingStatTasks: (job) => this.hasPendingStatTasks(job),
+    flushStatTasks: (job) => this.statTaskCoordinator.flush(job),
+    hasPendingStatTasks: (job) => this.statTaskCoordinator.hasPending(job),
     persistScanCache: (job) => this.scanPolicyService.persistScanCache(job),
     recordEstimatedDirectory: (job, dirPath, estimatedSize) =>
       this.scanPolicyService.recordEstimatedDirectory(job, dirPath, estimatedSize),
@@ -89,12 +95,12 @@ export class DiskScanService {
     recordPolicySoftSkip: (job, input) =>
       this.scanPolicyService.recordPolicySoftSkip(job, input),
     recordScopeSkip: (job) => this.scanPolicyService.recordScopeSkip(job),
-    scheduleStatTask: (job, task) => this.scheduleStatTask(job, task),
+    scheduleStatTask: (job, task) => this.statTaskCoordinator.schedule(job, task),
     syncExactTraversal: (job, targetPath) =>
       this.scanPolicyService.syncExactTraversal(job, targetPath),
     toFilesystemError,
-    waitForNextStatTask: (job) => this.waitForNextStatTask(job),
-    waitWhilePaused: (job) => this.waitWhilePaused(job),
+    waitForNextStatTask: (job) => this.statTaskCoordinator.waitForNext(job),
+    waitWhilePaused: (job) => this.statTaskCoordinator.waitWhilePaused(job),
   });
 
   onProgress(listener: (batch: ScanProgressBatch) => void): () => void {
@@ -141,66 +147,20 @@ export class DiskScanService {
     const scanId = crypto.randomUUID();
     const startedAt = Date.now();
 
-    const options = resolveScanOptions(input, rootDecision.normalizedPath);
-
-    const job: ScanJob = {
-      scanId,
-      rootPath: rootDecision.normalizedPath,
-      startedAt,
-      optInProtected: input.optInProtected,
-      cancelled: false,
-      paused: false,
-      completed: false,
-      scannedCount: 0,
-      totalBytes: 0,
-      currentPath: rootDecision.normalizedPath,
+    const job = createScanJob({
+      homeDirectory: os.homedir(),
+      input,
       lastEmitAt: Date.now(),
-      pendingDeltaMap: new Map<string, AggDelta>(),
-      pendingDeltaEventCount: 0,
-      blockedByPolicyCount: 0,
-      blockedByPermissionCount: 0,
-      skippedByScopeCount: 0,
-      elevationRequired: false,
-      elevationAttempted: false,
-      lastCoverageEmitAt: startedAt,
-      stageStartedAt: startedAt,
-      emittedErrorCount: 0,
-      permissionErrorCount: 0,
-      ioErrorCount: 0,
-      quickReadyEmitted: false,
-      estimatedResult: true,
-      diagnosticsLastEmitAt: startedAt,
-      estimatedDirectories: new Set<string>(),
-      skippedHeavyDirectories: new Set<string>(),
-      deepSkippedByPolicy: false,
-      softSkippedByPolicyCount: 0,
-      deferredByBudgetCount: 0,
-      skipSamples: {},
-      inflightCount: 0,
+      platform: os.platform(),
+      rootDecision,
       rootDeviceId:
         rootStat && typeof rootStat.dev === "number" && Number.isFinite(rootStat.dev)
           ? rootStat.dev
           : null,
-      deniedPermissionRoots:
-        rootDecision.effectiveAccess?.deniedPermissionRoots ?? [],
-      pendingPermissionRescanRoots: new Set<string>(),
-      completedPermissionRescanRoots: [],
-      nonRemovableRoots: rootDecision.effectiveAccess?.nonRemovableRoots ?? [],
-      visibleNonRemovableRoots: new Set<string>(),
-      options,
-      engine: options.scanMode === "native_rust" ? "native" : "node",
-      aggregator: new ScanAggregator(
-        rootDecision.normalizedPath,
-        TOP_LIMIT_PER_DIRECTORY,
-        os.platform(),
-      ),
-      pathClassifier: createPathPolicyClassifier(
-        os.platform(),
-        os.homedir(),
-        rootDecision.effectiveAccess,
-      ),
-      scanStage: "quick",
-    };
+      scanId,
+      startedAt,
+      topLimitPerDirectory: TOP_LIMIT_PER_DIRECTORY,
+    });
 
     this.jobs.set(scanId, job);
     this.scanPolicyService.applyCachedPreview(job);
@@ -305,10 +265,6 @@ export class DiskScanService {
       }
     }
 
-    return await this.runPortableScan(job);
-  }
-
-  private async runPortableScan(job: ScanJob): Promise<ScanTerminalStatus> {
     return await this.portableScanService.run(job);
   }
 
@@ -419,197 +375,30 @@ export class DiskScanService {
     job: ScanJob,
     stageStartedAt: number,
   ): NativeStageHandlers {
-    let queueDepth = 0;
-
-    return {
-      onAgg: (message) => {
-        job.currentPath = message.path;
-        this.markVisibleNonRemovableRoot(job, message.path);
-        if (message.countDelta > 0) {
-          this.scanPolicyService.recordFileObservation(
-            job,
-            message.path,
-            message.sizeDelta,
-          );
-        } else if (message.sizeDelta > 0) {
-          this.scanPolicyService.recordEstimatedDirectory(
-            job,
-            message.path,
-            message.sizeDelta,
-          );
-        }
-        this.eventBus.emitProgressBatch(job, "walking", false);
-      },
-      onAggBatch: (message) => {
-        let lastPath: string | null = null;
-        for (const item of message.items) {
-          lastPath = item.path;
-          this.markVisibleNonRemovableRoot(job, item.path);
-          if (item.countDelta > 0) {
-            this.scanPolicyService.recordFileObservation(
-              job,
-              item.path,
-              item.sizeDelta,
-            );
-            continue;
-          }
-
-          if (item.sizeDelta > 0) {
-            this.scanPolicyService.recordEstimatedDirectory(
-              job,
-              item.path,
-              item.sizeDelta,
-            );
-          }
-        }
-        if (lastPath) {
-          job.currentPath = lastPath;
-        }
-        this.eventBus.emitProgressBatch(job, "walking", false);
-      },
-      onProgress: (message) => {
-        job.scannedCount = Math.max(job.scannedCount, message.scannedCount);
-        queueDepth = message.queuedDirs;
-        if (message.currentPath) {
-          this.scanPolicyService.syncExactTraversal(job, message.currentPath);
-          job.currentPath = message.currentPath;
-          this.markVisibleNonRemovableRoot(job, message.currentPath);
-        }
-        this.eventBus.emitProgressBatch(job, "walking", false);
-        this.eventBus.emitDiagnostics(job, "walking", queueDepth, false);
-      },
-      onCoverage: (message) => {
-        job.blockedByPolicyCount = Math.max(
-          job.blockedByPolicyCount,
-          message.blockedByPolicy,
-        );
-        job.blockedByPermissionCount = Math.max(
-          job.blockedByPermissionCount,
-          message.blockedByPermission,
-        );
-        job.skippedByScopeCount = Math.max(
-          job.skippedByScopeCount,
-          message.skippedByScope,
-        );
-        job.elevationRequired =
-          job.elevationRequired || Boolean(message.elevationRequired);
-        this.eventBus.emitCoverageUpdate(job, true);
-      },
-      onDiagnostics: (message) => {
-        if (message.hotPath) {
-          job.currentPath = message.hotPath;
-        }
-        if (typeof message.softSkippedByPolicy === "number") {
-          job.softSkippedByPolicyCount = Math.max(
-            job.softSkippedByPolicyCount,
-            message.softSkippedByPolicy,
-          );
-        }
-        if (typeof message.deferredByBudget === "number") {
-          job.deferredByBudgetCount = Math.max(
-            job.deferredByBudgetCount,
-            message.deferredByBudget,
-          );
-        }
-        if (typeof message.inflight === "number") {
-          job.inflightCount = message.inflight;
-        }
-        job.skipSamples = mergeSkipSamples(job.skipSamples, {
-          policy: message.policySkipSamples,
-          permission: message.permissionSamples,
-          scope: message.scopeSkipSamples,
-          budgetDeferred: message.budgetDeferredSamples,
-        });
-        this.eventBus.emitPerfSample(job, {
-          filesPerSec: message.filesPerSec,
-          stageElapsedMs: message.stageElapsedMs,
-          ioWaitRatio: message.ioWaitRatio,
-          queueDepth: message.queueDepth,
-          hotPath: message.hotPath,
-          softSkippedByPolicy: message.softSkippedByPolicy,
-          deferredByBudget: message.deferredByBudget,
-          inflight: message.inflight,
-        });
-      },
-      onElevationRequired: (message) => {
-        job.elevationRequired = true;
-        this.scanPolicyService.emitElevationRequired(job, message.targetPath, message.reason);
-        this.eventBus.emitCoverageUpdate(job, true);
-      },
-      onHelperPlan: (message) => {
-        job.helperPlan = message;
-        this.eventBus.emitDiagnostics(job, "walking", queueDepth, true);
-      },
-      onQuickReady: (message) => {
-        this.emitQuickReadyFromNative(job, message, stageStartedAt);
-      },
-      onWarn: (message) => {
-        this.scanPolicyService.emitRecoverableError(
-          job,
-          toNativeScannerError(job.scanId, message),
-        );
-      },
-      onDone: () => {
-        this.eventBus.emitProgressBatch(job, "walking", true);
-        this.eventBus.emitDiagnostics(job, "walking", queueDepth, true);
-      },
-    };
+    return createNativeStageHandlersForJob({
+      job,
+      stageStartedAt,
+      eventBus: this.eventBus,
+      scanPolicyService: this.scanPolicyService,
+      emitQuickReadyFromNative: (targetJob, event, startedAt) =>
+        this.emitQuickReadyFromNative(targetJob, event, startedAt),
+      markVisibleNonRemovableRoot: (targetJob, targetPath) =>
+        this.markVisibleNonRemovableRoot(targetJob, targetPath),
+      toNativeScannerError,
+    });
   }
 
   private async runPermissionRescanStages(job: ScanJob): Promise<void> {
-    const roots = [...job.pendingPermissionRescanRoots];
-    if (roots.length === 0) {
-      return;
-    }
-
-    for (const rootPath of roots) {
-      if (job.cancelled) {
-        return;
-      }
-
-      job.pendingPermissionRescanRoots.delete(rootPath);
-      job.activePermissionRescanRoot = rootPath;
-      job.scanStage = "deep";
-      const stageStartedAt = Date.now();
-      job.stageStartedAt = stageStartedAt;
-      appendNativeScannerLog({
-        event: "native_permission_rescan_start",
-        scanId: job.scanId,
-        stage: "deep",
-        details: {
-          rootPath,
-          pendingRoots: [...job.pendingPermissionRescanRoots],
-          completedRoots: job.completedPermissionRescanRoots,
-        },
-      });
-      this.eventBus.emitProgressBatch(job, "walking", true);
-      this.eventBus.emitDiagnostics(job, "walking", 0, true);
-
-      const result = await this.nativeScanOrchestrator.runStage(
-        this.toNativeStageContext(job, rootPath),
-        {
-          mode: "deep",
-          maxDepth: NATIVE_DEEP_MAX_DEPTH,
-          timeBudgetMs: job.options.deepBudgetMs,
-        },
-        this.createNativeStageHandlers(job, stageStartedAt),
-      );
-
-      job.estimatedResult = job.estimatedResult || result.estimated;
-      job.completedPermissionRescanRoots.push(rootPath);
-      appendNativeScannerLog({
-        event: "native_permission_rescan_done",
-        scanId: job.scanId,
-        stage: "deep",
-        details: {
-          rootPath,
-          estimated: result.estimated,
-          completedRoots: job.completedPermissionRescanRoots,
-        },
-      });
-      job.activePermissionRescanRoot = undefined;
-      this.eventBus.emitDiagnostics(job, "walking", 0, true);
-    }
+    await runNativePermissionRescanStages({
+      createNativeStageHandlers: (targetJob, stageStartedAt) =>
+        this.createNativeStageHandlers(targetJob, stageStartedAt),
+      eventBus: this.eventBus,
+      job,
+      maxDepth: NATIVE_DEEP_MAX_DEPTH,
+      nativeScanOrchestrator: this.nativeScanOrchestrator,
+      toNativeStageContext: (targetJob, rootPath) =>
+        this.toNativeStageContext(targetJob, rootPath),
+    });
   }
 
   private toNativeStageContext(job: ScanJob, rootPath = job.rootPath): NativeStageContext {
@@ -623,8 +412,6 @@ export class DiskScanService {
     };
   }
 
-  private readonly activeStatTasks = new WeakMap<ScanJob, Set<Promise<void>>>();
-
   private markVisibleNonRemovableRoot(job: ScanJob, targetPath: string): void {
     for (const root of job.nonRemovableRoots) {
       if (targetPath === root || targetPath.startsWith(`${root}/`)) {
@@ -633,62 +420,6 @@ export class DiskScanService {
     }
   }
 
-  private async scheduleStatTask(
-    job: ScanJob,
-    task: () => Promise<void>,
-  ): Promise<void> {
-    const tasks = this.activeStatTasks.get(job) ?? new Set<Promise<void>>();
-    this.activeStatTasks.set(job, tasks);
-    job.inflightCount = tasks.size;
-
-    while (tasks.size >= job.options.statConcurrency && !job.cancelled) {
-      await Promise.race(tasks);
-      await this.waitWhilePaused(job);
-      job.inflightCount = tasks.size;
-    }
-
-    const running = task()
-      .catch(() => undefined)
-      .finally(() => {
-        tasks.delete(running);
-        job.inflightCount = tasks.size;
-      });
-
-    tasks.add(running);
-    job.inflightCount = tasks.size;
-  }
-
-  private async flushStatTasks(job: ScanJob): Promise<void> {
-    const tasks = this.activeStatTasks.get(job);
-    if (!tasks || tasks.size === 0) {
-      return;
-    }
-
-    await Promise.allSettled(tasks);
-    tasks.clear();
-    job.inflightCount = 0;
-  }
-
-  private hasPendingStatTasks(job: ScanJob): boolean {
-    const tasks = this.activeStatTasks.get(job);
-    return Boolean(tasks && tasks.size > 0);
-  }
-
-  private async waitForNextStatTask(job: ScanJob): Promise<void> {
-    const tasks = this.activeStatTasks.get(job);
-    if (!tasks || tasks.size === 0) {
-      return;
-    }
-
-    await Promise.race(tasks);
-  }
-
-  private async waitWhilePaused(job: ScanJob): Promise<void> {
-    while (job.paused && !job.cancelled) {
-      this.eventBus.emitProgressBatch(job, "paused", false);
-      await sleep(80);
-    }
-  }
 }
 
 function toFilesystemError(
@@ -760,35 +491,6 @@ function toNativeScannerError(
     source: "native-scanner",
     nativeCode: message.code,
   });
-}
-
-function mergeSkipSamples(
-  current: ScanSkipSamples,
-  next: ScanSkipSamples,
-): ScanSkipSamples {
-  return {
-    policy: mergeSampleList(current.policy, next.policy),
-    permission: mergeSampleList(current.permission, next.permission),
-    scope: mergeSampleList(current.scope, next.scope),
-    budgetDeferred: mergeSampleList(current.budgetDeferred, next.budgetDeferred),
-  };
-}
-
-function mergeSampleList(
-  current: string[] | undefined,
-  next: string[] | undefined,
-): string[] | undefined {
-  const merged: string[] = [];
-  for (const value of [...(current ?? []), ...(next ?? [])]) {
-    if (!value || merged.includes(value)) {
-      continue;
-    }
-    merged.push(value);
-    if (merged.length >= MAX_SKIP_SAMPLE_PATHS) {
-      break;
-    }
-  }
-  return merged.length > 0 ? merged : undefined;
 }
 
 function sleep(ms: number): Promise<void> {

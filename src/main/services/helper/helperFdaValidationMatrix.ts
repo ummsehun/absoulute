@@ -100,11 +100,15 @@ export function recordHelperFdaScenario(
     validatedAt: input.status === "pending" ? null : input.validatedAt,
     validator: input.status === "pending" ? null : input.validator.trim(),
   };
+  const preserveExistingScenarios = matrix.targetMacOS === "pending"
+    || matrix.targetMacOS === input.targetMacOS;
   const scenariosById = new Map(
-    matrix.scenarios.map((existingScenario) => [
-      existingScenario.id,
-      existingScenario,
-    ]),
+    preserveExistingScenarios
+      ? matrix.scenarios.map((existingScenario) => [
+        existingScenario.id,
+        existingScenario,
+      ])
+      : [],
   );
   scenariosById.set(input.scenarioId, scenario);
 

@@ -162,6 +162,73 @@ describe("helperFdaValidationMatrix", () => {
     }
   });
 
+  it("does not carry passed FDA evidence across target macOS versions", () => {
+    const projectRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "diskviz-helper-fda-target-change-"),
+    );
+    const matrixPath = path.join(
+      projectRoot,
+      "docs",
+      "helper-fda-validation-matrix.json",
+    );
+    const passedScenarios = DISK_SCAN_HELPER_REQUIRED_FDA_SCENARIOS.map((id) => ({
+      id,
+      notes: `validated ${id} on macOS 15.0`,
+      status: "passed",
+      validatedAt: "2026-06-06T00:00:00.000Z",
+      validator: "manual-fda-audit",
+    }));
+
+    try {
+      fs.mkdirSync(path.dirname(matrixPath), { recursive: true });
+      fs.writeFileSync(
+        matrixPath,
+        JSON.stringify({
+          targetMacOS: "15.0",
+          scenarios: passedScenarios,
+        }),
+      );
+
+      expect(resolveFdaValidationMatrixEvidence(projectRoot)).toBe(true);
+
+      recordHelperFdaScenario({
+        notes: "validated signed app with Full Disk Access on macOS 15.1",
+        projectRoot,
+        scenarioId: "signed-dev-app-with-fda",
+        status: "passed",
+        targetMacOS: "15.1",
+        validatedAt: "2026-06-07T00:00:00.000Z",
+        validator: "manual-fda-audit",
+      });
+
+      const matrix = listHelperFdaScenarios({ projectRoot });
+
+      expect(matrix.targetMacOS).toBe("15.1");
+      expect(resolveFdaValidationMatrixEvidence(projectRoot)).toBe(false);
+      expect(matrix.scenarios).toEqual(
+        DISK_SCAN_HELPER_REQUIRED_FDA_SCENARIOS.map((id) =>
+          id === "signed-dev-app-with-fda"
+            ? {
+              id,
+              notes: "validated signed app with Full Disk Access on macOS 15.1",
+              status: "passed",
+              validatedAt: "2026-06-07T00:00:00.000Z",
+              validator: "manual-fda-audit",
+            }
+            : {
+              id,
+              notes: "",
+              status: "pending",
+              validatedAt: null,
+              validator: null,
+            }
+        ),
+      );
+    } finally {
+      fs.rmSync(projectRoot, { recursive: true, force: true });
+    }
+  });
+
   it("exposes the FDA matrix recorder as a package script", () => {
     const packageJson = JSON.parse(
       fs.readFileSync(path.join(process.cwd(), "package.json"), "utf8"),

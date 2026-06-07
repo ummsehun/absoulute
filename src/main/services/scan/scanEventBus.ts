@@ -23,7 +23,7 @@ import {
   buildScanDiagnostics,
   inferQuickConfidence,
 } from "../diagnostics/scanDiagnostics";
-import { detectCpuHintFromPlatform } from "../native/nativeRustScannerClient";
+import { detectCpuHintFromPlatform } from "../native/nativeScannerBinary";
 
 const COVERAGE_INTERVAL_MS = 300;
 const DELTA_BATCH_LIMIT = 1024;

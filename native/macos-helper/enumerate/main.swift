@@ -9,6 +9,34 @@ struct HelperRequest: Decodable {
     let issuedAtMs: Int
     let nonce: String
     let payload: Payload
+
+    enum CodingKeys: String, CodingKey, CaseIterable {
+        case schemaVersion
+        case requestId
+        case scanId
+        case stageId
+        case operation
+        case issuedAtMs
+        case nonce
+        case payload
+    }
+
+    init(from decoder: Decoder) throws {
+        try rejectUnknownFields(
+            decoder,
+            allowedKeys: CodingKeys.allCases.map(\.rawValue),
+            objectName: "request"
+        )
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        schemaVersion = try container.decode(Int.self, forKey: .schemaVersion)
+        requestId = try container.decode(String.self, forKey: .requestId)
+        scanId = try container.decode(String.self, forKey: .scanId)
+        stageId = try container.decode(String.self, forKey: .stageId)
+        operation = try container.decode(String.self, forKey: .operation)
+        issuedAtMs = try container.decode(Int.self, forKey: .issuedAtMs)
+        nonce = try container.decode(String.self, forKey: .nonce)
+        payload = try container.decode(Payload.self, forKey: .payload)
+    }
 }
 
 struct Payload: Decodable {
@@ -22,11 +50,59 @@ struct Payload: Decodable {
     let permissionPolicy: String
     let traversalPolicyPlanId: String
     let emitPolicy: EmitPolicy
+
+    enum CodingKeys: String, CodingKey, CaseIterable {
+        case root
+        case scanMode
+        case accuracyMode
+        case volumePolicy
+        case plannedRoots
+        case maxDepth
+        case sameDeviceOnly
+        case permissionPolicy
+        case traversalPolicyPlanId
+        case emitPolicy
+    }
+
+    init(from decoder: Decoder) throws {
+        try rejectUnknownFields(
+            decoder,
+            allowedKeys: CodingKeys.allCases.map(\.rawValue),
+            objectName: "payload"
+        )
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        root = try container.decode(String.self, forKey: .root)
+        scanMode = try container.decode(String.self, forKey: .scanMode)
+        accuracyMode = try container.decode(String.self, forKey: .accuracyMode)
+        volumePolicy = try container.decode(String.self, forKey: .volumePolicy)
+        plannedRoots = try container.decode([String].self, forKey: .plannedRoots)
+        maxDepth = try container.decode(Int.self, forKey: .maxDepth)
+        sameDeviceOnly = try container.decode(Bool.self, forKey: .sameDeviceOnly)
+        permissionPolicy = try container.decode(String.self, forKey: .permissionPolicy)
+        traversalPolicyPlanId = try container.decode(String.self, forKey: .traversalPolicyPlanId)
+        emitPolicy = try container.decode(EmitPolicy.self, forKey: .emitPolicy)
+    }
 }
 
 struct EmitPolicy: Decodable {
     let batchMaxItems: Int
     let progressIntervalMs: Int
+
+    enum CodingKeys: String, CodingKey, CaseIterable {
+        case batchMaxItems
+        case progressIntervalMs
+    }
+
+    init(from decoder: Decoder) throws {
+        try rejectUnknownFields(
+            decoder,
+            allowedKeys: CodingKeys.allCases.map(\.rawValue),
+            objectName: "emitPolicy"
+        )
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        batchMaxItems = try container.decode(Int.self, forKey: .batchMaxItems)
+        progressIntervalMs = try container.decode(Int.self, forKey: .progressIntervalMs)
+    }
 }
 
 struct EntryEventItem: Encodable {
@@ -243,6 +319,37 @@ enum ValidationError: Error, CustomStringConvertible {
 func validateId(_ value: String, field: String) throws {
     guard value.count >= 1 && value.count <= 128 else {
         throw ValidationError.invalidField(field)
+    }
+}
+
+struct AnyCodingKey: CodingKey {
+    let stringValue: String
+    let intValue: Int?
+
+    init?(stringValue: String) {
+        self.stringValue = stringValue
+        self.intValue = nil
+    }
+
+    init?(intValue: Int) {
+        self.stringValue = "\(intValue)"
+        self.intValue = intValue
+    }
+}
+
+func rejectUnknownFields(
+    _ decoder: Decoder,
+    allowedKeys: [String],
+    objectName: String
+) throws {
+    let allowed = Set(allowedKeys)
+    let container = try decoder.container(keyedBy: AnyCodingKey.self)
+    let unknownKeys = container.allKeys
+        .map(\.stringValue)
+        .filter { !allowed.contains($0) }
+
+    if let unknownKey = unknownKeys.first {
+        throw ValidationError.invalidField("\(objectName).\(unknownKey)")
     }
 }
 

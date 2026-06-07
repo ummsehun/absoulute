@@ -170,10 +170,29 @@ export function resolveHelperRegistrationPreflightInputFromEnv(
 export function resolvePackagingEntitlementsEvidence(
   projectRoot = process.cwd(),
 ): boolean {
-  return fs.existsSync(path.join(projectRoot, "resources", "entitlements", "mac.plist"))
-    && fs.existsSync(
-      path.join(projectRoot, "resources", "entitlements", "mac.inherit.plist"),
-    );
+  const entitlementsPath = "resources/entitlements/mac.plist";
+  const inheritedEntitlementsPath = "resources/entitlements/mac.inherit.plist";
+
+  try {
+    const config = JSON.parse(fs.readFileSync(
+      path.join(projectRoot, "electron-builder.json"),
+      "utf8",
+    )) as {
+      mac?: {
+        entitlements?: string;
+        entitlementsInherit?: string;
+        hardenedRuntime?: boolean;
+      };
+    };
+
+    return config.mac?.hardenedRuntime === true
+      && config.mac.entitlements === entitlementsPath
+      && config.mac.entitlementsInherit === inheritedEntitlementsPath
+      && fs.existsSync(path.join(projectRoot, entitlementsPath))
+      && fs.existsSync(path.join(projectRoot, inheritedEntitlementsPath));
+  } catch {
+    return false;
+  }
 }
 
 export function resolvePrivilegedHelperExecutableEvidence(
@@ -189,7 +208,7 @@ export function resolvePrivilegedHelperExecutableEvidence(
     return stat.isFile()
       && (stat.mode & 0o111) !== 0
       && hasMachOHeader(executablePath)
-      && resolvePrivilegedHelperExecutablePackagingEvidence(projectRoot);
+      && resolvePrivilegedHelperBundlePackagingEvidence(projectRoot);
   } catch {
     return false;
   }
@@ -263,7 +282,7 @@ export function resolveFdaValidationMatrixEvidence(
   }
 }
 
-function resolvePrivilegedHelperExecutablePackagingEvidence(
+function resolvePrivilegedHelperBundlePackagingEvidence(
   projectRoot: string,
 ): boolean {
   const configPath = path.join(projectRoot, "electron-builder.json");
@@ -278,11 +297,19 @@ function resolvePrivilegedHelperExecutablePackagingEvidence(
       };
     };
 
-    return config.mac?.extraFiles?.some((entry) =>
+    const extraFiles = config.mac?.extraFiles ?? [];
+    const packagesExecutable = extraFiles.some((entry) =>
       entry.from === path.dirname(DISK_SCAN_HELPER_EXECUTABLE_SOURCE_RELATIVE_PATH)
       && entry.to === "Library/LaunchServices"
       && entry.filter?.includes(DISK_SCAN_HELPER_LABEL)
-    ) === true;
+    );
+    const packagesLaunchDaemonPlist = extraFiles.some((entry) =>
+      entry.from === "resources/helper/LaunchDaemons"
+      && entry.to === "Library/LaunchDaemons"
+      && entry.filter?.includes(DISK_SCAN_HELPER_LAUNCH_DAEMON_PLIST_NAME)
+    );
+
+    return packagesExecutable && packagesLaunchDaemonPlist;
   } catch {
     return false;
   }

@@ -54,6 +54,36 @@ describe("helperProtocol", () => {
     expect(parsed.success).toBe(false);
   });
 
+  it("rejects helper requests with unknown schema fields before dispatch", () => {
+    expect(
+      HelperRequestEnvelopeSchema.safeParse({
+        ...validEnvelope,
+        unexpectedTopLevel: true,
+      }).success,
+    ).toBe(false);
+    expect(
+      HelperRequestEnvelopeSchema.safeParse({
+        ...validEnvelope,
+        payload: {
+          ...validPayload,
+          unexpectedPayloadField: true,
+        },
+      }).success,
+    ).toBe(false);
+    expect(
+      HelperRequestEnvelopeSchema.safeParse({
+        ...validEnvelope,
+        payload: {
+          ...validPayload,
+          emitPolicy: {
+            ...validPayload.emitPolicy,
+            unexpectedEmitPolicyField: true,
+          },
+        },
+      }).success,
+    ).toBe(false);
+  });
+
   it("rejects relative or non-normalized scan roots", () => {
     expect(
       HelperScanEnumeratePayloadSchema.safeParse({
@@ -79,6 +109,37 @@ describe("helperProtocol", () => {
     });
 
     expect(parsed.success).toBe(false);
+  });
+
+  it("keeps volume policy and same-device flags consistent with the helper guard", () => {
+    expect(
+      HelperScanEnumeratePayloadSchema.safeParse({
+        ...validPayload,
+        sameDeviceOnly: false,
+        volumePolicy: "same-device",
+      }).success,
+    ).toBe(false);
+    expect(
+      HelperScanEnumeratePayloadSchema.safeParse({
+        ...validPayload,
+        sameDeviceOnly: true,
+        volumePolicy: "root-cross-device",
+      }).success,
+    ).toBe(false);
+    expect(
+      HelperScanEnumeratePayloadSchema.safeParse({
+        ...validPayload,
+        sameDeviceOnly: true,
+        volumePolicy: "explicit-volumes",
+      }).success,
+    ).toBe(true);
+    expect(
+      HelperScanEnumeratePayloadSchema.safeParse({
+        ...validPayload,
+        sameDeviceOnly: false,
+        volumePolicy: "root-cross-device",
+      }).success,
+    ).toBe(true);
   });
 
   it("rejects unbounded emit policy inputs", () => {

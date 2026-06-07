@@ -33,7 +33,7 @@ export const HelperPermissionPolicySchema = z.literal("report-only");
 export const HelperEmitPolicySchema = z.object({
   batchMaxItems: z.number().int().positive().max(20_000),
   progressIntervalMs: z.number().int().positive().max(5_000),
-});
+}).strict();
 
 export const HelperScanEnumeratePayloadSchema = z.object({
   root: AbsoluteNormalizedPathSchema,
@@ -46,12 +46,26 @@ export const HelperScanEnumeratePayloadSchema = z.object({
   permissionPolicy: HelperPermissionPolicySchema,
   traversalPolicyPlanId: HelperIdSchema,
   emitPolicy: HelperEmitPolicySchema,
-}).superRefine((payload, ctx) => {
+}).strict().superRefine((payload, ctx) => {
   if (!payload.plannedRoots.includes(payload.root)) {
     ctx.addIssue({
       code: "custom",
       message: "root must be included in plannedRoots",
       path: ["root"],
+    });
+  }
+  if (payload.volumePolicy === "root-cross-device" && payload.sameDeviceOnly) {
+    ctx.addIssue({
+      code: "custom",
+      message: "root-cross-device requests must not be same-device only",
+      path: ["sameDeviceOnly"],
+    });
+  }
+  if (payload.volumePolicy !== "root-cross-device" && !payload.sameDeviceOnly) {
+    ctx.addIssue({
+      code: "custom",
+      message: "same-device and explicit-volumes requests must stay same-device only",
+      path: ["sameDeviceOnly"],
     });
   }
 });
@@ -65,7 +79,7 @@ const BaseHelperRequestEnvelopeSchema = z.object({
   stageId: HelperIdSchema,
   issuedAtMs: z.number().int().positive(),
   nonce: z.string().min(16).max(256),
-});
+}).strict();
 
 export const HelperScanEnumerateRequestSchema = BaseHelperRequestEnvelopeSchema.extend({
   operation: z.literal("scan.enumerate"),

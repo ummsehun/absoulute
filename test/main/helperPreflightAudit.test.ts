@@ -12,6 +12,7 @@ import {
 } from "../../src/main/services/helper/helperPreflightAudit";
 import {
   buildHelperCodeSigningRequirement,
+  DISK_SCAN_HELPER_LAUNCH_DAEMON_PLIST_NAME,
 } from "../../src/main/services/helper/helperRegistration";
 
 function writeMachOExecutable(executablePath: string): void {
@@ -62,13 +63,21 @@ describe("helperPreflightAudit", () => {
         path.join(projectRoot, "electron-builder.json"),
         JSON.stringify({
           mac: {
+            entitlements: "resources/entitlements/mac.plist",
+            entitlementsInherit: "resources/entitlements/mac.inherit.plist",
             extraFiles: [
               {
                 from: path.dirname(DISK_SCAN_HELPER_EXECUTABLE_SOURCE_RELATIVE_PATH),
                 to: "Library/LaunchServices",
                 filter: ["com.example.diskvisualizer.privileged-helper"],
               },
+              {
+                from: "resources/helper/LaunchDaemons",
+                to: "Library/LaunchDaemons",
+                filter: [DISK_SCAN_HELPER_LAUNCH_DAEMON_PLIST_NAME],
+              },
             ],
+            hardenedRuntime: true,
           },
         }),
       );
@@ -189,13 +198,21 @@ describe("helperPreflightAudit", () => {
         path.join(projectRoot, "electron-builder.json"),
         JSON.stringify({
           mac: {
+            entitlements: "resources/entitlements/mac.plist",
+            entitlementsInherit: "resources/entitlements/mac.inherit.plist",
             extraFiles: [
               {
                 from: path.dirname(DISK_SCAN_HELPER_EXECUTABLE_SOURCE_RELATIVE_PATH),
                 to: "Library/LaunchServices",
                 filter: ["com.example.diskvisualizer.privileged-helper"],
               },
+              {
+                from: "resources/helper/LaunchDaemons",
+                to: "Library/LaunchDaemons",
+                filter: [DISK_SCAN_HELPER_LAUNCH_DAEMON_PLIST_NAME],
+              },
             ],
+            hardenedRuntime: true,
           },
         }),
       );
@@ -268,13 +285,21 @@ describe("helperPreflightAudit", () => {
         path.join(projectRoot, "electron-builder.json"),
         JSON.stringify({
           mac: {
+            entitlements: "resources/entitlements/mac.plist",
+            entitlementsInherit: "resources/entitlements/mac.inherit.plist",
             extraFiles: [
               {
                 from: path.dirname(DISK_SCAN_HELPER_EXECUTABLE_SOURCE_RELATIVE_PATH),
                 to: "Library/LaunchServices",
                 filter: ["com.example.diskvisualizer.privileged-helper"],
               },
+              {
+                from: "resources/helper/LaunchDaemons",
+                to: "Library/LaunchDaemons",
+                filter: [DISK_SCAN_HELPER_LAUNCH_DAEMON_PLIST_NAME],
+              },
             ],
+            hardenedRuntime: true,
           },
         }),
       );

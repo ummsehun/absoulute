@@ -17,6 +17,7 @@ export type HelperFallbackReason =
   | "non-darwin-platform"
   | "quick-stage"
   | "non-exact-scan"
+  | "registration-preflight-blocked"
   | "helper-unavailable";
 
 export interface ResolveHelperScanPlanInput {
@@ -54,6 +55,13 @@ export function resolveHelperScanPlan(
     return {
       engine: "native",
       reason: "non-exact-scan",
+    };
+  }
+
+  if (input.helperStatus.registrationPreflight?.status === "blocked") {
+    return {
+      engine: "native",
+      reason: "registration-preflight-blocked",
     };
   }
 

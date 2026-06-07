@@ -238,6 +238,46 @@ describe("macOS helper enumerate CLI", () => {
     }
   });
 
+  it("rejects helper requests with unknown schema fields", () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "diskviz-helper-enum-"));
+
+    try {
+      const normalizedRoot = fs.realpathSync(root);
+      const validPayload = buildRequest(normalizedRoot).payload as Record<string, unknown>;
+      const validEmitPolicy = validPayload.emitPolicy as Record<string, unknown>;
+      const invalidRequests = [
+        buildRequest(normalizedRoot, { unexpectedTopLevel: true }),
+        buildRequest(normalizedRoot, {
+          payload: { ...validPayload, unexpectedPayloadField: true },
+        }),
+        buildRequest(normalizedRoot, {
+          payload: {
+            ...validPayload,
+            emitPolicy: {
+              ...validEmitPolicy,
+              unexpectedEmitPolicyField: true,
+            },
+          },
+        }),
+      ];
+
+      for (const request of invalidRequests) {
+        const result = runHelper(request);
+
+        expect(result.status).not.toBe(0);
+        expect(parseEvents(result.stdout)).toEqual([
+          expect.objectContaining({
+            type: "error",
+            requestId: "request-1",
+            code: "E_INVALID_REQUEST",
+          }),
+        ]);
+      }
+    } finally {
+      fs.rmSync(root, { force: true, recursive: true });
+    }
+  });
+
   it("rejects requests that violate helper protocol bounds", () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "diskviz-helper-enum-"));
 

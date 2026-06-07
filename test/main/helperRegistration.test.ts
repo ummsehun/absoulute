@@ -154,13 +154,21 @@ describe("helperRegistration", () => {
         path.join(projectRoot, "electron-builder.json"),
         JSON.stringify({
           mac: {
+            entitlements: "resources/entitlements/mac.plist",
+            entitlementsInherit: "resources/entitlements/mac.inherit.plist",
             extraFiles: [
               {
                 from: path.dirname(DISK_SCAN_HELPER_EXECUTABLE_SOURCE_RELATIVE_PATH),
                 to: "Library/LaunchServices",
                 filter: ["com.example.diskvisualizer.privileged-helper"],
               },
+              {
+                from: "resources/helper/LaunchDaemons",
+                to: "Library/LaunchDaemons",
+                filter: [DISK_SCAN_HELPER_LAUNCH_DAEMON_PLIST_NAME],
+              },
             ],
+            hardenedRuntime: true,
           },
         }),
       );
@@ -198,7 +206,7 @@ describe("helperRegistration", () => {
     }
   });
 
-  it("accepts packaging entitlement evidence only when configured files exist", () => {
+  it("accepts packaging entitlement evidence only when configured files are wired into mac packaging", () => {
     const projectRoot = fs.mkdtempSync(
       path.join(os.tmpdir(), "diskviz-helper-packaging-evidence-"),
     );
@@ -217,6 +225,19 @@ describe("helperRegistration", () => {
       fs.writeFileSync(
         path.join(projectRoot, "resources", "entitlements", "mac.inherit.plist"),
         "<plist/>",
+      );
+
+      expect(resolvePackagingEntitlementsEvidence(projectRoot)).toBe(false);
+
+      fs.writeFileSync(
+        path.join(projectRoot, "electron-builder.json"),
+        JSON.stringify({
+          mac: {
+            entitlements: "resources/entitlements/mac.plist",
+            entitlementsInherit: "resources/entitlements/mac.inherit.plist",
+            hardenedRuntime: true,
+          },
+        }),
       );
 
       expect(resolvePackagingEntitlementsEvidence(projectRoot)).toBe(true);
@@ -274,6 +295,28 @@ describe("helperRegistration", () => {
         0x00,
         0x01,
       ]));
+
+      expect(resolvePrivilegedHelperExecutableEvidence(projectRoot)).toBe(false);
+
+      fs.writeFileSync(
+        path.join(projectRoot, "electron-builder.json"),
+        JSON.stringify({
+          mac: {
+            extraFiles: [
+              {
+                from: path.dirname(DISK_SCAN_HELPER_EXECUTABLE_SOURCE_RELATIVE_PATH),
+                to: "Library/LaunchServices",
+                filter: ["com.example.diskvisualizer.privileged-helper"],
+              },
+              {
+                from: "resources/helper/LaunchDaemons",
+                to: "Library/LaunchDaemons",
+                filter: [DISK_SCAN_HELPER_LAUNCH_DAEMON_PLIST_NAME],
+              },
+            ],
+          },
+        }),
+      );
 
       expect(resolvePrivilegedHelperExecutableEvidence(projectRoot)).toBe(true);
     } finally {
