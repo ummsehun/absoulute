@@ -130,6 +130,75 @@ describe("audit-helper-identity script", () => {
     expect(result.stderr).toContain("missing value for --team-id");
   });
 
+  it("fails explicitly when project root is followed by another option", () => {
+    const result = spawnSync(
+      "bun",
+      [
+        "run",
+        "scripts/audit-helper-identity.ts",
+        "--project-root",
+        "--team-id",
+      ],
+      {
+        cwd: process.cwd(),
+        env: process.env,
+        encoding: "utf8",
+      },
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("missing value for --project-root");
+  });
+
+  it("fails explicitly when team id is followed by another option", () => {
+    const projectRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "diskviz-helper-identity-team-option-"),
+    );
+
+    try {
+      const result = spawnSync(
+        "bun",
+        [
+          "run",
+          "scripts/audit-helper-identity.ts",
+          "--team-id",
+          "--project-root",
+          projectRoot,
+        ],
+        {
+          cwd: process.cwd(),
+          env: process.env,
+          encoding: "utf8",
+        },
+      );
+
+      expect(result.status).toBe(1);
+      expect(result.stderr).toContain("missing value for --team-id");
+    } finally {
+      fs.rmSync(projectRoot, { force: true, recursive: true });
+    }
+  });
+
+  it("fails explicitly when designated requirement is followed by another option", () => {
+    const result = spawnSync(
+      "bun",
+      [
+        "run",
+        "scripts/audit-helper-identity.ts",
+        "--designated-requirement",
+        "--project-root",
+      ],
+      {
+        cwd: process.cwd(),
+        env: process.env,
+        encoding: "utf8",
+      },
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("missing value for --designated-requirement");
+  });
+
   it("uses the shared output path error when --out is missing", () => {
     const result = spawnSync(
       "bun",
