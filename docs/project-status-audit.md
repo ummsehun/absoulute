@@ -2406,6 +2406,8 @@ Verification so far:
   dead-code warnings remain.
 - `pnpm audit:helper-readiness --platform darwin --resources-path resources`
   and `pnpm audit:helper-readiness-bundle` remain intentionally blocked.
+- Sub-agent review reported no Critical, Important, or Minor findings. The
+  review was static and did not rerun tests.
 
 Interpretation:
 
@@ -2456,3 +2458,46 @@ Interpretation:
 - This phase lets the ServiceManagement probe artifact be rehearsed in isolated
   roots without writing into the live repo.
 - It does not provide real ServiceManagement registration or approval evidence.
+
+## Phase B42 Helper Control Build Project Root
+
+Date: 2026-06-08
+
+Facts:
+
+- `build-macos-helper-control` now accepts `--project-root <path>`.
+- The selected project root is used for:
+  - `native/macos-helper/control/main.swift`;
+  - `resources/bin/helper-control-macos`;
+  - `.tmp/swift-module-cache`.
+- When `--project-root` is absent, the script keeps using `process.cwd()`.
+- `--project-root` without a value, or followed by another option-looking
+  value, fails explicitly with `missing value for --project-root`.
+- Helper control protocol/readiness semantics are unchanged.
+- No helper register/unregister action is performed.
+- Helper default activation remains disabled.
+
+Verification so far:
+
+- RED was confirmed before implementation:
+  - the script ignored `--project-root` and did not write
+    `helper-control-macos` under the explicit artifact root;
+  - missing-value forms exited `0` instead of failing.
+- `pnpm test test/main/macosPrivilegedHelperCli.test.ts` passed, 1 file and 18
+  tests.
+- `pnpm test test/main/macosPrivilegedHelperCli.test.ts test/main/helperClient.test.ts test/main/helperServiceManagementControlScript.test.ts test/main/helperPackaging.test.ts`
+  passed, 4 files and 66 tests.
+- `pnpm test` passed, 55 files and 277 tests.
+- `pnpm typecheck` passed.
+- `pnpm lint` passed.
+- `pnpm build` passed.
+- `cargo test --manifest-path native/scanner/Cargo.toml` passed. Existing Rust
+  dead-code warnings remain.
+- `pnpm audit:helper-readiness --platform darwin --resources-path resources`
+  and `pnpm audit:helper-readiness-bundle` remain intentionally blocked.
+
+Interpretation:
+
+- This phase lets the helper control command artifact be rehearsed in isolated
+  roots without writing into the live repo.
+- It does not provide real helper registration, approval, or readiness evidence.

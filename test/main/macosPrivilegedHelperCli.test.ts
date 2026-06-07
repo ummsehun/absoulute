@@ -29,6 +29,11 @@ const controlSourcePath = path.join(
   "control",
   "main.swift",
 );
+const controlBuildScriptPath = path.join(
+  process.cwd(),
+  "scripts",
+  "build-macos-helper-control.ts",
+);
 const xpcEnumerateSourcePath = path.join(
   process.cwd(),
   "native",
@@ -103,6 +108,19 @@ function writeMinimalServiceManagementProbeSource(projectRoot: string): void {
 
   fs.mkdirSync(path.dirname(sourcePath), { recursive: true });
   fs.writeFileSync(sourcePath, "print(\"service management probe\")\n");
+}
+
+function writeMinimalHelperControlSource(projectRoot: string): void {
+  const sourcePath = path.join(
+    projectRoot,
+    "native",
+    "macos-helper",
+    "control",
+    "main.swift",
+  );
+
+  fs.mkdirSync(path.dirname(sourcePath), { recursive: true });
+  fs.writeFileSync(sourcePath, "print(\"helper control\")\n");
 }
 
 function writeFakeSwiftCompiler(binDir: string): string {
@@ -430,6 +448,150 @@ describe("macOS privileged helper executable", () => {
     expect(source).toContain('"type": "error"');
     expect(source).not.toContain("scan.enumerate");
     expect(source).not.toContain("enumerate(");
+  });
+
+  it("builds helper control artifacts under an explicit project root", () => {
+    const cwdRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "diskviz-helper-control-build-cwd-"),
+    );
+    const artifactRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "diskviz-helper-control-build-artifacts-"),
+    );
+    const fakeBinDir = fs.mkdtempSync(
+      path.join(os.tmpdir(), "diskviz-helper-control-build-bin-"),
+    );
+    const artifactOutputPath = path.join(
+      artifactRoot,
+      "resources",
+      "bin",
+      "helper-control-macos",
+    );
+    const cwdOutputPath = path.join(
+      cwdRoot,
+      "resources",
+      "bin",
+      "helper-control-macos",
+    );
+    const artifactModuleCachePath = path.join(
+      artifactRoot,
+      ".tmp",
+      "swift-module-cache",
+    );
+    const argsLogPath = path.join(artifactRoot, "swiftc-args.log");
+
+    try {
+      writeMinimalHelperControlSource(cwdRoot);
+      writeMinimalHelperControlSource(artifactRoot);
+      writeFakeSwiftCompiler(fakeBinDir);
+
+      const result = spawnSync(
+        "bun",
+        [
+          "run",
+          controlBuildScriptPath,
+          "--project-root",
+          artifactRoot,
+        ],
+        {
+          cwd: cwdRoot,
+          env: {
+            ...process.env,
+            FAKE_SWIFTC_ARGS_LOG: argsLogPath,
+            PATH: `${fakeBinDir}${path.delimiter}${process.env.PATH ?? ""}`,
+          },
+          encoding: "utf8",
+        },
+      );
+
+      expect(result.status).toBe(0);
+      expect(fs.existsSync(artifactOutputPath)).toBe(true);
+      expect(fs.existsSync(artifactModuleCachePath)).toBe(true);
+      expect(fs.existsSync(cwdOutputPath)).toBe(false);
+      expect(fs.readFileSync(argsLogPath, "utf8")).toContain(
+        path.join(
+          artifactRoot,
+          "native",
+          "macos-helper",
+          "control",
+          "main.swift",
+        ),
+      );
+    } finally {
+      fs.rmSync(cwdRoot, { force: true, recursive: true });
+      fs.rmSync(artifactRoot, { force: true, recursive: true });
+      fs.rmSync(fakeBinDir, { force: true, recursive: true });
+    }
+  });
+
+  it("fails explicitly when helper control build project root is missing", () => {
+    const cwdRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "diskviz-helper-control-build-missing-cwd-"),
+    );
+    const fakeBinDir = fs.mkdtempSync(
+      path.join(os.tmpdir(), "diskviz-helper-control-build-missing-bin-"),
+    );
+
+    try {
+      writeMinimalHelperControlSource(cwdRoot);
+      writeFakeSwiftCompiler(fakeBinDir);
+
+      const result = spawnSync(
+        "bun",
+        ["run", controlBuildScriptPath, "--project-root"],
+        {
+          cwd: cwdRoot,
+          env: {
+            ...process.env,
+            PATH: `${fakeBinDir}${path.delimiter}${process.env.PATH ?? ""}`,
+          },
+          encoding: "utf8",
+        },
+      );
+
+      expect(result.status).toBe(1);
+      expect(result.stderr).toContain("missing value for --project-root");
+    } finally {
+      fs.rmSync(cwdRoot, { force: true, recursive: true });
+      fs.rmSync(fakeBinDir, { force: true, recursive: true });
+    }
+  });
+
+  it("fails explicitly when helper control build project root is followed by another option", () => {
+    const cwdRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "diskviz-helper-control-build-option-cwd-"),
+    );
+    const fakeBinDir = fs.mkdtempSync(
+      path.join(os.tmpdir(), "diskviz-helper-control-build-option-bin-"),
+    );
+
+    try {
+      writeMinimalHelperControlSource(cwdRoot);
+      writeFakeSwiftCompiler(fakeBinDir);
+
+      const result = spawnSync(
+        "bun",
+        [
+          "run",
+          controlBuildScriptPath,
+          "--project-root",
+          "--other",
+        ],
+        {
+          cwd: cwdRoot,
+          env: {
+            ...process.env,
+            PATH: `${fakeBinDir}${path.delimiter}${process.env.PATH ?? ""}`,
+          },
+          encoding: "utf8",
+        },
+      );
+
+      expect(result.status).toBe(1);
+      expect(result.stderr).toContain("missing value for --project-root");
+    } finally {
+      fs.rmSync(cwdRoot, { force: true, recursive: true });
+      fs.rmSync(fakeBinDir, { force: true, recursive: true });
+    }
   });
 
   it("builds a helper xpc enumerate command that bridges to the privileged helper service", () => {
