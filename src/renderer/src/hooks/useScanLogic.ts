@@ -24,8 +24,8 @@ import {
     buildBreadcrumbPaths,
 } from "../utils/helpers";
 import {
+    buildDefaultScanRequest,
     buildExactScanRequest,
-    buildPreviewScanRequest,
 } from "./scanRequestFactory";
 
 export function useScanLogic() {
@@ -246,12 +246,12 @@ export function useScanLogic() {
             return;
         }
 
-        const scanRequest = exact
+        const scanRequest = exact === true
             ? buildExactScanRequest({
                 rootPath: normalizedRoot,
                 optInProtected: allowProtectedOptIn,
             })
-            : buildPreviewScanRequest({
+            : buildDefaultScanRequest({
                 rootPath: normalizedRoot,
                 optInProtected: allowProtectedOptIn,
             });
