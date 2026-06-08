@@ -4,6 +4,17 @@ import { describe, expect, it } from "vitest";
 import { ScanAggregator } from "../../src/main/services/scanAggregator";
 
 describe("ScanAggregator estimate convergence", () => {
+  it("treats filesystem root children as within the scan root", () => {
+    const aggregator = new ScanAggregator("/", 200, "darwin");
+
+    const deltas = aggregator.addDirectoryEstimate("/Users", 60 * 1024 ** 3);
+
+    expect(deltas.some((delta) => delta.nodePath === "/Users")).toBe(true);
+    expect(deltas.some((delta) => delta.nodePath === "/")).toBe(true);
+    expect(aggregator.getDirectorySize("/Users")).toBe(60 * 1024 ** 3);
+    expect(aggregator.getDirectorySize("/")).toBe(60 * 1024 ** 3);
+  });
+
   it("removes directory estimates before exact file sizes are applied", () => {
     const rootPath = "/Users/tester";
     const targetDir = "/Users/tester/Library/Caches";

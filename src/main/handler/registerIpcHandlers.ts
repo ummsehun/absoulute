@@ -51,7 +51,13 @@ export function registerIpcHandlers(
       if (!filePath) {
         return { ok: false as const, dataUrl: null };
       }
-      const icon = await app.getFileIcon(filePath, { size: "normal" });
+      const icon = await app.getFileIcon(filePath, { size: "large" });
+      // Guard against empty NativeImage — toDataURL() on an empty image produces
+      // a truthy but broken data URL ("data:image/png;base64,") that renders as a
+      // broken image placeholder in the browser.
+      if (icon.isEmpty()) {
+        return { ok: false as const, dataUrl: null };
+      }
       return { ok: true as const, dataUrl: icon.toDataURL() };
     } catch {
       return { ok: false as const, dataUrl: null };
@@ -113,7 +119,7 @@ export function registerIpcHandlers(
       return ScanElevationResultSchema.parse({
         ok: false as const,
         error: unknownToAppError(
-          makeAppError("E_VALIDATION", "Invalid elevation request payload", true, {
+          makeAppError("E_IO", "Failed to open Full Disk Access settings", true, {
             raw: String(error),
           }),
         ),

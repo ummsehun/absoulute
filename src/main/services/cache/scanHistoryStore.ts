@@ -9,6 +9,7 @@ interface ScanCacheNode {
 interface ScanCacheEntry {
   rootPath: string;
   capturedAt: number;
+  policyVersion?: number;
   nodes: ScanCacheNode[];
 }
 
@@ -17,6 +18,7 @@ interface ScanCacheState {
 }
 
 const STORE_NAME = "scan-history-cache";
+const SCAN_CACHE_POLICY_VERSION = 2;
 const MAX_ROOT_ENTRIES = 64;
 const MAX_NODES_PER_ROOT = 400;
 
@@ -44,6 +46,9 @@ export class ScanHistoryStore {
       ? this.store.get(`entries.${key}` as const)
       : this.memoryState.entries[key];
     if (!entry || !Array.isArray(entry.nodes)) {
+      return null;
+    }
+    if (entry.policyVersion !== SCAN_CACHE_POLICY_VERSION) {
       return null;
     }
 
@@ -79,6 +84,7 @@ export class ScanHistoryStore {
     const entry: ScanCacheEntry = {
       rootPath,
       capturedAt: Date.now(),
+      policyVersion: SCAN_CACHE_POLICY_VERSION,
       nodes: normalizedNodes,
     };
 

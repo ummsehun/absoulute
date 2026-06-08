@@ -25,16 +25,15 @@ import {
 } from "../utils/helpers";
 import {
     buildDefaultScanRequest,
-    buildExactScanRequest,
 } from "./scanRequestFactory";
 
-type ScanRequestMode = "default" | "exact";
-
 const PREFLIGHT_SCAN_ID = "preflight";
+const RESPONSIVE_POLICY_SKIPS = true;
+const DEFAULT_SCAN_ROOT = "/Users";
 
 export function useScanLogic() {
     const electronAPI = getElectronAPI();
-    const [rootPath, setRootPath] = useState<string>(".");
+    const [rootPath, setRootPath] = useState<string>(DEFAULT_SCAN_ROOT);
     const [scanId, setScanId] = useState<string>("");
     const [allowProtectedOptIn, setAllowProtectedOptIn] = useState<boolean>(false);
     const [systemInfo, setSystemInfo] = useState<SystemInfo | null>(null);
@@ -46,7 +45,6 @@ export function useScanLogic() {
     const [perfSample, setPerfSample] = useState<ScanPerfSample | null>(null);
     const [elevationRequired, setElevationRequired] = useState<ScanElevationRequired | null>(null);
     const [scanTerminal, setScanTerminal] = useState<ScanTerminalEvent | null>(null);
-    const [responsivePolicySkips, setResponsivePolicySkips] = useState<boolean>(true);
     const [warningSummary, setWarningSummary] = useState<{
         permission: number;
         io: number;
@@ -238,10 +236,7 @@ export function useScanLogic() {
         }
     };
 
-    const startScanForPath = async (
-        nextRootPath: string,
-        mode: ScanRequestMode = "default",
-    ) => {
+    const startScanForPath = async (nextRootPath: string) => {
         if (!electronAPI) return;
 
         const normalizedRoot = normalizeFsPath(nextRootPath);
@@ -254,16 +249,11 @@ export function useScanLogic() {
             return;
         }
 
-        const scanRequest = mode === "exact"
-            ? buildExactScanRequest({
-                rootPath: normalizedRoot,
-                optInProtected: allowProtectedOptIn,
-            })
-            : buildDefaultScanRequest({
-                rootPath: normalizedRoot,
-                optInProtected: allowProtectedOptIn,
-                responsivePolicySkips,
-            });
+        const scanRequest = buildDefaultScanRequest({
+            rootPath: normalizedRoot,
+            optInProtected: allowProtectedOptIn,
+            responsivePolicySkips: RESPONSIVE_POLICY_SKIPS,
+        });
 
         const result = await electronAPI.scanStart(scanRequest);
 
@@ -302,10 +292,7 @@ export function useScanLogic() {
     };
 
     const oneClickScan = async () => await startScanForPath(rootPath);
-    const exactScan = async () => await startScanForPath(rootPath, "exact");
     const scanTopRoot = async () => await startScanForPath(getTopRootPath(rootPath));
-    const exactRecheck = async () =>
-        await startScanForPath(scanBasePathRef.current || rootPathRef.current, "exact");
 
     const cancelScan = async () => {
         if (!scanId || !electronAPI) return;
@@ -379,15 +366,17 @@ export function useScanLogic() {
         if (result.data.granted) {
             setAllowProtectedOptIn(true);
             setElevationRequired(null);
+            setError(null);
             return;
         }
 
-        setError({
-            code: "E_PERMISSION",
-            message: "권한이 아직 허용되지 않았습니다. 시스템 설정에서 Full Disk Access를 허용해 주세요.",
-            recoverable: true,
-            details: { targetPath: normalized },
-        });
+        setElevationRequired((current) => ({
+            scanId: current?.scanId ?? PREFLIGHT_SCAN_ID,
+            targetPath: normalized,
+            reason: "시스템 설정에서 앱의 Full Disk Access를 허용한 뒤 SCAN을 다시 실행해 주세요.",
+            policy: "manual",
+        }));
+        setError(null);
     };
 
     const visualizationRoot = useMemo(
@@ -418,7 +407,6 @@ export function useScanLogic() {
         perfSample,
         elevationRequired,
         scanTerminal,
-        responsivePolicySkips, setResponsivePolicySkips,
         aggregateSizes,
         patchStats,
         scanBasePath,
@@ -432,9 +420,7 @@ export function useScanLogic() {
         // Actions
         loadSystemInfo,
         oneClickScan,
-        exactScan,
         scanTopRoot,
-        exactRecheck,
         cancelScan,
         pauseScan,
         resumeScan,

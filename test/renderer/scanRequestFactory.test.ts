@@ -2,28 +2,30 @@ import { describe, expect, it } from "vitest";
 import { buildDefaultScanRequest, buildExactScanRequest } from "../../src/renderer/src/hooks/scanRequestFactory";
 
 describe("scanRequestFactory", () => {
-  it("builds exact requests for the default scan path", () => {
+  it("builds folder-only blacklist requests for the default scan path", () => {
     const request = buildDefaultScanRequest({
       rootPath: "/Users/user",
       optInProtected: false,
+      responsivePolicySkips: true,
     });
 
     expect(request).toMatchObject({
       rootPath: "/Users/user",
       optInProtected: false,
-      performanceProfile: "accuracy-first",
+      performanceProfile: "preview-first",
       scanMode: "native_rust",
-      accuracyMode: "full",
-      deepPolicyPreset: "exact",
+      accuracyMode: "preview",
+      deepPolicyPreset: "responsive",
       elevationPolicy: "manual",
       allowNodeFallback: false,
+      responsivePolicySkips: true,
     });
   });
 
-  it("default and exact scans both use exact deepPolicyPreset", () => {
+  it("keeps explicit exact rechecks separate from the default scan", () => {
     const defaultReq = buildDefaultScanRequest({ rootPath: "/Users/user", optInProtected: false });
     const exactReq = buildExactScanRequest({ rootPath: "/Users/user", optInProtected: false });
-    expect(defaultReq.deepPolicyPreset).toBe("exact");
+    expect(defaultReq.deepPolicyPreset).toBe("responsive");
     expect(exactReq.deepPolicyPreset).toBe("exact");
   });
 

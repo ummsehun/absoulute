@@ -189,7 +189,7 @@ export function VisualizationView({
                         />
 
                         <div className="relative flex-1 flex items-center justify-center px-8 pb-10">
-                            <div className="absolute inset-0 z-0">
+                            <div className="relative z-10 w-full h-full">
                                 <BubbleChart
                                     packedTree={packedTree}
                                     isTreePending={isTreePending}

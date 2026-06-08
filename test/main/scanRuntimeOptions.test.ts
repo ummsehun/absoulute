@@ -20,7 +20,7 @@ describe("scanRuntimeOptions", () => {
     expect(options.deepPolicyPreset).toBe("responsive");
     expect(options.accuracyMode).toBe("preview");
     expect(options.performanceProfile).toBe("preview-first");
-    expect(options.deepBudgetMs).toBeGreaterThan(0);
+    expect(options.deepBudgetMs).toBe(0);
   });
 
   it("canonicalizes exact scans to full traversal semantics", () => {
@@ -56,7 +56,7 @@ describe("scanRuntimeOptions", () => {
     expect(options.deepBudgetMs).toBe(0);
   });
 
-  it("shrinks preview deep budget for filesystem roots", () => {
+  it("keeps responsive deep traversal unbounded for filesystem roots", () => {
     const rootOptions = resolveScanOptions(
       {
         rootPath: "/",
@@ -74,10 +74,11 @@ describe("scanRuntimeOptions", () => {
       "/Users/tester",
     );
 
-    expect(rootOptions.deepBudgetMs).toBeLessThan(userOptions.deepBudgetMs);
+    expect(rootOptions.deepBudgetMs).toBe(0);
+    expect(userOptions.deepBudgetMs).toBe(0);
   });
 
-  it("does not apply responsive deep soft-skips to filesystem roots", () => {
+  it("applies folder-only blacklist soft-skips to filesystem roots", () => {
     const options = resolveScanOptions(
       {
         rootPath: "/",
@@ -87,11 +88,11 @@ describe("scanRuntimeOptions", () => {
       "/",
     );
 
-    expect(options.deepSkipPackageManagers).toBe(false);
-    expect(options.deepSkipCachePrefixes).toBe(false);
-    expect(options.deepSkipBundleDirs).toBe(false);
-    expect(options.deepSoftSkipPrefixes).toEqual([]);
-    expect(options.deepSkipDirSuffixes).toEqual([]);
+    expect(options.deepSkipPackageManagers).toBe(true);
+    expect(options.deepSkipCachePrefixes).toBe(true);
+    expect(options.deepSkipBundleDirs).toBe(true);
+    expect(options.deepSoftSkipPrefixes.length).toBeGreaterThan(0);
+    expect(options.deepSkipDirSuffixes).toContain(".app");
   });
 
   it("allows responsive scans to disable policy soft-skips manually", () => {
@@ -107,7 +108,7 @@ describe("scanRuntimeOptions", () => {
 
     expect(options.deepPolicyPreset).toBe("responsive");
     expect(options.accuracyMode).toBe("preview");
-    expect(options.deepBudgetMs).toBeGreaterThan(0);
+    expect(options.deepBudgetMs).toBe(0);
     expect(options.deepSkipPackageManagers).toBe(false);
     expect(options.deepSkipCachePrefixes).toBe(false);
     expect(options.deepSkipBundleDirs).toBe(false);

@@ -18,7 +18,7 @@ use super::{ScanExecutionOptions, ScanRuntime};
 pub(crate) enum EntryAction {
     File(PathBuf),
     Directory { path: PathBuf, depth: usize },
-    SoftSkipped,
+    SoftSkipped(PathBuf),
     Skip,
 }
 
@@ -68,7 +68,7 @@ pub(crate) fn classify_entry<W: Write>(
             "Path skipped by performance policy",
             PolicyBlockKind::SoftSkip,
         )?;
-        return Ok(EntryAction::SoftSkipped);
+        return Ok(EntryAction::SoftSkipped(path));
     }
 
     let basename = path
@@ -84,7 +84,7 @@ pub(crate) fn classify_entry<W: Write>(
             "Path skipped by performance policy",
             PolicyBlockKind::SoftSkip,
         )?;
-        return Ok(EntryAction::SoftSkipped);
+        return Ok(EntryAction::SoftSkipped(path));
     }
 
     let file_type = match entry.file_type() {
@@ -126,7 +126,7 @@ pub(crate) fn classify_entry<W: Write>(
             "Path skipped by performance policy",
             PolicyBlockKind::SoftSkip,
         )?;
-        return Ok(EntryAction::SoftSkipped);
+        return Ok(EntryAction::SoftSkipped(path));
     }
 
     if runtime.request.same_device_only && !same_device(&path, plan.root_device) {

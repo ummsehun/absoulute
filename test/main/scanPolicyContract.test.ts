@@ -18,6 +18,18 @@ describe("scanPolicyContract", () => {
     expect(contract.softSkipPathRules.length).toBeGreaterThan(0);
   });
 
+  it("does not treat user structure folders as folder-only blacklist entries", () => {
+    const contract = getScanTraversalContract();
+
+    expect(contract.heavyDirectoryBasenames).not.toContain("Library");
+    expect(contract.heavyDirectoryBasenames).not.toContain("Applications");
+    expect(contract.heavyDirectoryBasenames).not.toContain("Trash");
+    expect(contract.heavyDirectoryBasenames).not.toContain(".Trash");
+    expect(contract.deepPackageSkipBasenames).not.toContain("library");
+    expect(contract.deepPackageSkipBasenames).not.toContain("applications");
+    expect(contract.deepPackageSkipBasenames).not.toContain("trash");
+  });
+
   it("matches shared responsive soft-skip path rules", () => {
     expect(
       matchesSoftSkipPathRules(

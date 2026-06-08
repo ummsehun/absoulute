@@ -20,9 +20,6 @@ const QUICK_PASS_TIME_BUDGET_MS = 5000;
 const ROOT_QUICK_PASS_DEPTH = 1;
 const ROOT_QUICK_PASS_TIME_BUDGET_MS = 3000;
 const DEFAULT_NON_ROOT_QUICK_BUDGET_MS = 3000;
-const ROOT_PREVIEW_DEEP_BUDGET_MS = 6000;
-const SHALLOW_PREVIEW_DEEP_BUDGET_MS = 9000;
-const DEFAULT_PREVIEW_DEEP_BUDGET_MS = 12000;
 const DEFAULT_AGG_BATCH_MAX_ITEMS = 512;
 const DEFAULT_AGG_BATCH_MAX_MS = 120;
 const DEFAULT_PROGRESS_INTERVAL_MS = 120;
@@ -84,7 +81,6 @@ export function resolveScanOptions(
   normalizedRootPath: string,
 ): ResolvedScanOptions {
   const isRoot = normalizedRootPath === path.parse(normalizedRootPath).root;
-  const pathDepth = getPathDepth(normalizedRootPath);
   const scanMode: ScanMode =
     input.scanMode ?? (process.platform === "darwin" ? "native_rust" : "portable");
   const intent = resolveScanIntent({
@@ -117,10 +113,10 @@ export function resolveScanOptions(
   const allowNodeFallback =
     Boolean(input.allowNodeFallback) || process.env.SCAN_ALLOW_NODE_FALLBACK === "1";
   const responsivePolicySkips = input.responsivePolicySkips ?? true;
-  const isResponsiveNonRoot = !isRoot && deepPolicyPreset === "responsive" && responsivePolicySkips;
-  const deepSkipPackageManagers = isResponsiveNonRoot && DEEP_SKIP_PACKAGE_MANAGERS_DEFAULT;
-  const deepSkipCachePrefixes = isResponsiveNonRoot && DEEP_SKIP_CACHE_PREFIXES_DEFAULT;
-  const deepSkipBundleDirs = isResponsiveNonRoot && DEEP_SKIP_BUNDLE_DIRS_DEFAULT;
+  const isResponsiveFolderOnlyPolicy = deepPolicyPreset === "responsive" && responsivePolicySkips;
+  const deepSkipPackageManagers = isResponsiveFolderOnlyPolicy && DEEP_SKIP_PACKAGE_MANAGERS_DEFAULT;
+  const deepSkipCachePrefixes = isResponsiveFolderOnlyPolicy && DEEP_SKIP_CACHE_PREFIXES_DEFAULT;
+  const deepSkipBundleDirs = isResponsiveFolderOnlyPolicy && DEEP_SKIP_BUNDLE_DIRS_DEFAULT;
   const deepSoftSkipPrefixes = resolveDeepSoftSkipPrefixes(
     os.platform(),
     os.homedir(),
@@ -136,13 +132,10 @@ export function resolveScanOptions(
       ? defaultBudget + 1500
       : Math.min(defaultBudget, QUICK_PASS_TIME_BUDGET_MS);
   const deepBudgetMs =
-    intent.semanticMode === "exact"
-      ? 0
-      : isRoot
-        ? ROOT_PREVIEW_DEEP_BUDGET_MS
-        : pathDepth <= 2
-          ? SHALLOW_PREVIEW_DEEP_BUDGET_MS
-          : DEFAULT_PREVIEW_DEEP_BUDGET_MS;
+    // Quick pass remains budgeted for fast first paint. Deep pass must be
+    // unbounded so responsive scans can still account for large top-level
+    // folders such as /Users/user and /Applications.
+    0;
 
   return {
     performanceProfile,
@@ -218,13 +211,4 @@ function resolveConcurrencyPolicy(
   const adaptive = input?.adaptive ?? true;
 
   return { min, max, adaptive };
-}
-
-function getPathDepth(inputPath: string): number {
-  const normalized = path.resolve(inputPath).replace(/\\/g, "/");
-  if (normalized === "/") {
-    return 0;
-  }
-
-  return normalized.split("/").filter(Boolean).length;
 }

@@ -66,6 +66,37 @@ describe("scanTraversalPolicy", () => {
     expect(skipped).toBe(true);
   });
 
+  it("does not skip top-level user structure folders during quick or responsive deep scans", () => {
+    const options = resolveScanOptions(
+      {
+        rootPath: "/Users",
+        optInProtected: true,
+      },
+      "/Users",
+    );
+
+    expect(resolveNativeSkipBasenames(options, "quick")).not.toContain("Library");
+    expect(resolveNativeSkipBasenames(options, "quick")).not.toContain("Applications");
+    expect(resolveNativeSkipBasenames(options, "quick")).not.toContain(".Trash");
+
+    for (const dirPath of [
+      "/Users/tester/Library",
+      "/Users/tester/Applications",
+      "/Users/tester/.Trash",
+    ]) {
+      expect(
+        shouldSkipDeepPackageTraversal({
+          options,
+          rootPath: "/Users",
+          dirPath,
+          platform: "darwin",
+          skippedDirectories: new Set(),
+        }),
+      ).toBe(false);
+    }
+  });
+
+
   it("soft-skips KakaoTalk chat tag containers during responsive deep scans", () => {
     const options = resolveScanOptions(
       {

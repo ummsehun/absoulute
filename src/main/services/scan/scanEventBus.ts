@@ -464,7 +464,7 @@ function emitTerminalSummaryToConsole(
   if (job.softSkippedByPolicyCount > 0) {
     suggestedActions.push("run-exact-scan-or-disable-responsive-skips");
   }
-  if (job.deferredByBudgetCount > 0 || job.estimatedResult) {
+  if (job.deferredByBudgetCount > 0) {
     suggestedActions.push("run-exact-scan-with-unbounded-deep-budget");
   }
   if (job.helperPlan?.productionReadiness !== undefined

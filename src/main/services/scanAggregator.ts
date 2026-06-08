@@ -295,6 +295,10 @@ export class ScanAggregator {
 
   private isWithinRoot(targetPath: string): boolean {
     const normalizedTarget = normalizePath(targetPath, this.platform);
+    if (this.normalizedRoot === "/") {
+      return normalizedTarget === "/" || normalizedTarget.startsWith("/");
+    }
+
     return (
       normalizedTarget === this.normalizedRoot ||
       normalizedTarget.startsWith(`${this.normalizedRoot}/`)

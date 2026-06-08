@@ -14,7 +14,11 @@ const electronAPIMock = {
   })),
   getDefaultScanRoot: vi.fn(async () => ({
     ok: true,
-    data: { path: "/Users/tester" },
+    data: { path: "/Users" },
+  })),
+  getFileIcon: vi.fn(async () => ({
+    ok: true,
+    dataUrl: "data:image/png;base64,test",
   })),
 
   scanStart: vi.fn(async () => {

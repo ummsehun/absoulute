@@ -1,9 +1,7 @@
-import React from 'react';
-import { formatBytes, truncateLabel, resolveBubbleTone } from '../utils/helpers';
-import { FolderGlyph, StackGlyph, ChevronRightIcon } from './icons';
+import { formatBytes } from '../utils/helpers';
+import { ChevronRightIcon, NativeFileIcon } from './icons';
 import type { ListRow } from './VisualizationView';
 import { Checkbox } from './ui/checkbox';
-import { Button } from './ui/button';
 
 export interface SidebarListProps {
     listRows: ListRow[];
@@ -27,14 +25,6 @@ export function SidebarList({
             <div className="flex h-full flex-col gap-1.5 overflow-y-auto pr-1">
                 {listRows.map((row) => {
                     const selected = selectedPaths.has(row.path);
-                    const tone =
-                        row.kind === 'other'
-                            ? {
-                                fill: 'rgba(255,255,255,0.12)',
-                                stroke: 'rgba(255,255,255,0.16)',
-                                text: 'rgba(255,255,255,0.86)',
-                            }
-                            : resolveBubbleTone(row.path);
 
                     return (
                         <div
@@ -61,15 +51,13 @@ export function SidebarList({
                                 </div>
 
                                 {/* Sleek small icon wrapper */}
-                                <div
-                                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]"
-                                    style={{ background: tone.fill, border: `1px solid ${tone.stroke || 'transparent'}` }}
-                                >
-                                    {row.kind === 'other' ? (
-                                        <StackGlyph className="h-3.5 w-3.5" />
-                                    ) : (
-                                        <FolderGlyph className="h-3.5 w-3.5 text-white/90" />
-                                    )}
+                                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-white">
+                                    <NativeFileIcon
+                                        path={row.path}
+                                        name={row.name}
+                                        kind={row.kind}
+                                        style={{ width: '22px', height: '18px' }}
+                                    />
                                 </div>
 
                                 {/* Text stack - Title and Path */}

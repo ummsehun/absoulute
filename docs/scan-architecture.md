@@ -62,30 +62,29 @@ native stage is considered complete only after `done`.
 
 ## Current Scan Modes
 
-`resolveScanIntent` reduces scan inputs to two semantic modes:
+`resolveScanIntent` still supports two semantic modes:
 
 - `preview`: `accuracyMode = preview`, `deepPolicyPreset = responsive`.
 - `exact`: `accuracyMode = full`, `deepPolicyPreset = exact`.
 
 The renderer builds scan requests through `scanRequestFactory.ts`.
-Normal scan actions use `buildPreviewScanRequest`, which sends
+The user-facing `SCAN` action uses `buildDefaultScanRequest`, which sends
 `performanceProfile = preview-first`, `accuracyMode = preview`, and
-`deepPolicyPreset = responsive`. Explicit recheck actions use
-`buildExactScanRequest`, which sends `accuracyMode = full` and
-`deepPolicyPreset = exact`.
+`deepPolicyPreset = responsive`. The responsive policy is now the main product
+path: known cache, package-manager, build-output, and bundle directories are
+represented as folder-level estimated items and are not deeply traversed.
 
-Exact mode still sets `deepBudgetMs = 0`, and the Rust scanner only enforces a
-time limit when `timeBudgetMs > 0`. That unbounded deep stage is now reserved
-for explicit exact rechecks instead of the default UI path.
+Responsive and exact deep stages both set `deepBudgetMs = 0`, and the Rust
+scanner only enforces a time limit when `timeBudgetMs > 0`. The quick pass
+remains time-budgeted for fast first paint, while the deep pass is unbounded so
+large top-level folders such as `/Users/user` and `/Applications` are not
+deferred before their folder-level totals are accounted for.
 
-Filesystem-root scans are a special case. They still start through the preview
-flow, but the main process disables responsive deep soft-skips for `/` so app
-policy does not omit package-manager directories, cache prefixes, or bundle
-directories. Native root stages also disable the same-device restriction so
-mounted APFS/system volumes are not silently counted as scope skips. Normal
-directory scans keep the same-device restriction. Remaining omissions at `/`
-should come from OS permission failures, hard blocked roots, or an explicit time
-budget, and must be reported through coverage counters.
+Filesystem-root scans also use the folder-only blacklist. Native root stages
+still disable the same-device restriction so mounted APFS/system volumes are not
+silently counted as scope skips. Remaining omissions at `/` should come from OS
+permission failures, hard blocked roots, the folder-only blacklist, or an
+explicit time budget, and must be reported through coverage counters.
 
 ## Current Permission Model
 
@@ -183,8 +182,8 @@ native scanner core
   -> emitter
 ```
 
-The common UI path should start with `preview-first` responsive scan. Exact scan
-must remain available as explicit recheck, not as the default start action.
+The common UI path starts with a single `SCAN` action using the `preview-first`
+responsive policy. Separate exact actions are not part of the default UI.
 
 Permission approval must trigger an effective-access refresh. After refresh, the
 scanner must either resume with a new access plan or rescan affected roots. It

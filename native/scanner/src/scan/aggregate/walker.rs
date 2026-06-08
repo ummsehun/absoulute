@@ -1,5 +1,5 @@
 use std::io::Write;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::Ordering;
 use std::thread;
 use std::time::{Duration, Instant};
@@ -85,6 +85,7 @@ pub fn run_bfs_scan<W: Write>(
             plan.deep_responsive_preset,
         ) {
             estimated_by_policy = true;
+            emit_soft_skip_estimate(runtime, &mut accum, &dir_path)?;
             on_policy_block(
                 runtime,
                 &mut accum,
@@ -163,10 +164,10 @@ pub fn run_bfs_scan<W: Write>(
                 EntryAction::File(path) | EntryAction::Directory { path, .. } => {
                     Some(path_to_string(path))
                 }
-                EntryAction::SoftSkipped | EntryAction::Skip => None,
+                EntryAction::SoftSkipped(_) | EntryAction::Skip => None,
             };
 
-            if matches!(action, EntryAction::SoftSkipped) {
+            if matches!(action, EntryAction::SoftSkipped(_)) {
                 estimated_by_policy = true;
             }
             match apply_entry_action(
@@ -293,10 +294,60 @@ fn apply_entry_action<W: Write>(
         EntryAction::Directory { path, depth } => {
             plan.queue.push_back((path, depth));
         }
-        EntryAction::SoftSkipped | EntryAction::Skip => {}
+        EntryAction::SoftSkipped(path) => {
+            emit_soft_skip_estimate(runtime, accum, &path)?;
+        }
+        EntryAction::Skip => {}
     }
 
     Ok(ScanLoopControl::Continue)
+}
+
+fn emit_soft_skip_estimate<W: Write>(
+    runtime: &mut ScanRuntime<'_, W>,
+    accum: &mut EmitAccumulator,
+    path: &Path,
+) -> Result<()> {
+    let bulk_size = match macos_fast::estimate_dir_size_getattrlistbulk(path) {
+        Ok(Some(total)) => total,
+        _ => 0,
+    };
+    let tree_size = estimate_dir_tree_size(path).unwrap_or(0);
+    let estimated_size = bulk_size.max(tree_size);
+
+    if estimated_size == 0 {
+        return Ok(());
+    }
+
+    accum.pending_agg.push(AggBatchItem {
+        path: path_to_string(path),
+        size_delta: estimated_size,
+        count_delta: 0,
+        estimated: true,
+    });
+    flush_agg_batch(runtime, accum, false)
+}
+
+fn estimate_dir_tree_size(path: &Path) -> Result<u64> {
+    let metadata = std::fs::symlink_metadata(path)?;
+    if metadata.is_file() {
+        return Ok(metadata.len());
+    }
+    if !metadata.is_dir() {
+        return Ok(0);
+    }
+
+    let mut total = 0_u64;
+    let entries = match std::fs::read_dir(path) {
+        Ok(entries) => entries,
+        Err(_) => return Ok(0),
+    };
+
+    for entry in entries.flatten() {
+        total = total.saturating_add(estimate_dir_tree_size(&entry.path()).unwrap_or(0));
+    }
+
+    Ok(total)
 }
 
 fn map_batch_control(control: BatchControl) -> Result<ScanLoopControl> {

@@ -3,30 +3,36 @@
 See `docs/scan-architecture.md` for the current end-to-end scanner pipeline,
 state ownership, native protocol, and refactoring target.
 
-## Scan modes
+## Scan mode
 
-- `preview`: fast estimation mode. It allows cached preview data, responsive deep policy, and soft-skip/estimate rules for high-cost directories.
-- `exact`: accuracy mode. It disables cached preview data, locks deep policy to `exact`, and removes responsive soft-skip rules so traversed paths converge to real values.
+The user-facing app is built around one `SCAN` action. That action uses the
+responsive deep policy so high-cost, low-value directories are represented as
+folder-level estimated items instead of being deeply traversed file by file.
+The quick pass is time-budgeted for responsiveness, but the deep pass is
+unbounded by default so large visible roots are not dropped from the final
+folder totals by a traversal deadline.
 
-Conflicting combinations such as `accuracyMode: "full"` with `deepPolicyPreset: "responsive"` are normalized to one of the two canonical modes above.
+The internal `exact` preset still exists for tests and explicit internal
+rechecks, but it is not the default UI path.
 
 ## Traversal decisions
 
-- `full traverse`: normal directories and exact-mode scans. Files are statted and aggregated without policy-based shortcuts.
-- `estimate`: heavy responsive-only directories where a fast size estimate is cheaper than a deep traversal. Estimates are removed once exact traversal reaches the same path.
-- `skip`: protected paths, blocked system roots, and responsive-only soft-skip rules for known high-churn storage trees.
+- `full traverse`: normal directories. Files are statted and aggregated.
+- `folder-only estimate`: known high-cost directories where a fast directory
+  size estimate is cheaper and more useful than deep traversal.
+- `skip`: protected paths and blocked system roots that should not be scanned.
 
-## Responsive-only soft-skip rules
+## Folder-only blacklist rules
 
 The canonical rule data lives in `src/shared/domain/scanPolicyContract.ts`.
 TypeScript traversal uses that contract directly, and native Rust scans receive
 the same path-rule data through the `softSkipPathRules` start protocol field.
 
-- Browser extension trees under Chromium/Firefox profile roots: skip and estimate in preview scans.
-- Browser storage/cache roots such as `Storage/ext`, `storage/default/*/cache`, `cache2`, and `shared dictionary/cache`: skip and estimate in preview scans.
-- Browser web app resources such as `Web Applications` and `Manifest Resources`: skip and estimate in preview scans.
-- Package/cache ecosystems such as `node_modules`, `.pnpm`, `.cache`, `.rustup`, `.pyenv`, and virtualenv package trees: skip and estimate in preview scans.
-- KakaoTalk container chat-tag resources at `~/Library/Containers/com.kakao.KakaoTalkMac/.../commonResource/myChatTag`: skip and estimate in preview scans to avoid long stalls near completion.
+- Browser extension trees under Chromium/Firefox profile roots: folder-only estimate.
+- Browser storage/cache roots such as `Storage/ext`, `storage/default/*/cache`, `cache2`, and `shared dictionary/cache`: folder-only estimate.
+- Browser web app resources such as `Web Applications` and `Manifest Resources`: folder-only estimate.
+- Package/cache ecosystems such as `node_modules`, `.pnpm`, `.cache`, `.rustup`, `.pyenv`, and virtualenv package trees: folder-only estimate.
+- KakaoTalk container chat-tag resources at `~/Library/Containers/com.kakao.KakaoTalkMac/.../commonResource/myChatTag`: folder-only estimate to avoid long stalls near completion.
 
 ## Protected and FDA paths
 

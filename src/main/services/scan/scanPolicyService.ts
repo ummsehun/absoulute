@@ -168,6 +168,7 @@ export class ScanPolicyService {
       return;
     }
 
+    job.totalBytes = Math.max(job.totalBytes + getRootSizeDelta(job.rootPath, deltas), 0);
     this.deps.eventBus.appendDeltas(job, deltas);
     job.estimatedDirectories.add(dirPath);
   }
@@ -175,10 +176,15 @@ export class ScanPolicyService {
   syncExactTraversal(job: ScanJob, targetPath: string): void {
     const { deltas, cleared } = job.aggregator.clearEstimatedAncestors(targetPath);
     if (deltas.length > 0) {
+      job.totalBytes = Math.max(job.totalBytes + getRootSizeDelta(job.rootPath, deltas), 0);
       this.deps.eventBus.appendDeltas(job, deltas);
     }
     for (const dirPath of cleared) {
       job.estimatedDirectories.delete(dirPath);
     }
   }
+}
+
+function getRootSizeDelta(rootPath: string, deltas: Array<{ nodePath: string; sizeDelta: number }>): number {
+  return deltas.find((delta) => delta.nodePath === rootPath)?.sizeDelta ?? 0;
 }

@@ -38,10 +38,6 @@ export function useFileIcon(filePath: string | null | undefined): string | null 
 
     useEffect(() => {
         if (!filePath) return;
-        if (iconCache.has(filePath)) {
-            setDataUrl(iconCache.get(filePath) ?? null);
-            return;
-        }
         let cancelled = false;
         getOrFetchIcon(filePath).then((url) => {
             if (!cancelled) setDataUrl(url);

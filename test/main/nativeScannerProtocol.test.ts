@@ -9,7 +9,9 @@ import { describe, expect, it } from "vitest";
 interface NativeMessage {
   type: string;
   items?: Array<{
+    estimated?: boolean;
     path?: string;
+    sizeDelta?: number;
   }>;
   blockedByPolicy?: number;
   code?: string;
@@ -141,6 +143,69 @@ describe("native scanner protocol", () => {
     }
   }, 20_000);
 
+  it("emits responsive skip directories as estimated aggregate items", async () => {
+    const root = await fs.mkdtemp(path.join(process.cwd(), ".tmp-tests", "native-estimate-"));
+    const skippedRoot = path.join(root, "node_modules");
+    await fs.mkdir(path.join(skippedRoot, "pkg"), { recursive: true });
+    const directPayload = "direct payload".repeat(512);
+    const nestedPayload = "nested payload".repeat(1024);
+    await fs.writeFile(path.join(skippedRoot, "direct.bin"), directPayload);
+    await fs.writeFile(path.join(skippedRoot, "pkg", "index.js"), nestedPayload);
+    await fs.writeFile(path.join(root, "kept.txt"), "kept");
+
+    try {
+      const messages = await runNativeScan({
+        type: "start",
+        scanId: "native-estimate-policy-test",
+        root,
+        mode: "deep",
+        platform: process.platform,
+        timeBudgetMs: 0,
+        maxDepth: 8,
+        sameDeviceOnly: true,
+        concurrency: 16,
+        accuracyMode: "preview",
+        deepPolicyPreset: "responsive",
+        elevationPolicy: "manual",
+        emitPolicy: {
+          aggBatchMaxItems: 64,
+          aggBatchMaxMs: 20,
+          progressIntervalMs: 80,
+        },
+        concurrencyPolicy: {
+          min: 4,
+          max: 16,
+          adaptive: true,
+        },
+        skipBasenames: ["node_modules"],
+        softSkipPathRules: [],
+        softSkipPrefixes: [],
+        skipDirSuffixes: [],
+        blockedPrefixes: [],
+        permissionPrefixes: [],
+      });
+
+      const estimatedItems = collectAggItems(messages).filter((item) => item.estimated);
+
+      expect(estimatedItems).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            path: skippedRoot,
+            estimated: true,
+          }),
+        ]),
+      );
+      const estimatedNodeModules = estimatedItems.find((item) => item.path === skippedRoot);
+      expect(estimatedNodeModules?.sizeDelta ?? 0).toBeGreaterThanOrEqual(
+        Buffer.byteLength(directPayload) + Buffer.byteLength(nestedPayload),
+      );
+      expect(collectEmittedPaths(messages).has(path.join(skippedRoot, "pkg", "index.js")))
+        .toBe(false);
+    } finally {
+      await fs.rm(root, { recursive: true, force: true });
+    }
+  }, 20_000);
+
   it("emits elevation_required when a directory read fails with permission denied", async () => {
     const root = await fs.mkdtemp(path.join(process.cwd(), ".tmp-tests", "native-permission-"));
     const deniedRoot = path.join(root, "denied");
@@ -243,17 +308,27 @@ async function runNativeScan(
 
 function collectEmittedPaths(messages: NativeMessage[]): Set<string> {
   const paths = new Set<string>();
+  for (const item of collectAggItems(messages)) {
+    if (typeof item.path === "string") {
+      paths.add(item.path);
+    }
+  }
   for (const message of messages) {
     if (typeof message.path === "string") {
       paths.add(message.path);
     }
-    for (const item of message.items ?? []) {
-      if (typeof item.path === "string") {
-        paths.add(item.path);
-      }
-    }
   }
   return paths;
+}
+
+function collectAggItems(messages: NativeMessage[]): NonNullable<NativeMessage["items"]> {
+  const items: NonNullable<NativeMessage["items"]> = [];
+  for (const message of messages) {
+    for (const item of message.items ?? []) {
+      items.push(item);
+    }
+  }
+  return items;
 }
 
 function parseLine(line: string): NativeMessage | null {

@@ -3,6 +3,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ScanHistoryStore } from "../../src/main/services/cache/scanHistoryStore";
 import { ScanPolicyService } from "../../src/main/services/scan/scanPolicyService";
+import { ScanAggregator } from "../../src/main/services/scanAggregator";
 import type { ScanJob } from "../../src/main/services/scan/scanSessionTypes";
 
 const { requestElevationMock } = vi.hoisted(() => ({
@@ -68,6 +69,44 @@ describe("ScanPolicyService", () => {
     expect(job.elevationAttempted).toBe(true);
     expect(job.optInProtected).toBe(true);
     expect(refreshPathAccess).toHaveBeenCalledWith(job);
+  });
+
+  it("adds estimated folder sizes to the scan total", () => {
+    const appendDeltas = vi.fn();
+    const service = new ScanPolicyService({
+      emitError: vi.fn(),
+      eventBus: {
+        appendDeltas,
+        emitCoverageUpdate: vi.fn(),
+      },
+      maxRecoverableErrors: 100,
+      scanHistoryStore: new ScanHistoryStore(),
+    } as unknown as ConstructorParameters<typeof ScanPolicyService>[0]);
+    const job = {
+      aggregator: new ScanAggregator("/Users/tester", 200, "darwin"),
+      estimatedDirectories: new Set<string>(),
+      rootPath: "/Users/tester",
+      totalBytes: 0,
+    } as unknown as ScanJob;
+
+    service.recordEstimatedDirectory(
+      job,
+      "/Users/tester/Library/Caches",
+      5 * 1024 ** 3,
+    );
+
+    expect(job.totalBytes).toBe(5 * 1024 ** 3);
+    expect(job.estimatedDirectories.has("/Users/tester/Library/Caches")).toBe(true);
+    expect(appendDeltas).toHaveBeenCalled();
+
+    service.recordFileObservation(
+      job,
+      "/Users/tester/Library/Caches/file.bin",
+      256,
+    );
+
+    expect(job.totalBytes).toBe(256);
+    expect(job.estimatedDirectories.has("/Users/tester/Library/Caches")).toBe(false);
   });
 });
 
