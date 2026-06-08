@@ -23,8 +23,8 @@ export function getScanAccessStatus(coverage?: ScanCoverage | null): ScanAccessS
   if (coverage.estimated === true) {
     return {
       tone: "warning",
-      title: "Preview estimate",
-      detail: "빠른 스캔 추정치가 포함되어 있습니다. 정확한 용량 확인은 Exact Recheck를 실행하세요.",
+      title: "추정치 포함",
+      detail: "일부 용량은 추정값입니다. 스캔 모드, 권한 상태, helper 상태를 확인하세요.",
     };
   }
 

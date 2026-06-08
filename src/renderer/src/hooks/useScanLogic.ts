@@ -129,7 +129,15 @@ export function useScanLogic() {
                 const normalized = normalizeFsPath(defaultRootResult.data.path);
                 if (normalized) {
                     setRootPath(normalized);
+                } else {
+                    setError({
+                        code: "E_VALIDATION",
+                        message: "Default scan root is empty",
+                        recoverable: true,
+                    });
                 }
+            } else {
+                setError(defaultRootResult.error);
             }
 
             const stateResult = await electronAPI.getWindowState();

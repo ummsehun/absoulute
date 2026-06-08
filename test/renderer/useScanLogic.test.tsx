@@ -10,6 +10,11 @@ let container: HTMLDivElement | null = null;
 afterEach(() => {
   container?.remove();
   container = null;
+  vi.mocked(window.electronAPI.getDefaultScanRoot).mockReset();
+  vi.mocked(window.electronAPI.getDefaultScanRoot).mockResolvedValue({
+    ok: true,
+    data: { path: "/Users/tester" },
+  });
   vi.mocked(window.electronAPI.checkFullDiskAccess).mockReset();
   vi.mocked(window.electronAPI.checkFullDiskAccess).mockResolvedValue({
     ok: true,
@@ -34,6 +39,26 @@ describe("useScanLogic", () => {
     await nextFrame();
 
     expect(container.textContent).toBe("/Users/tester");
+  });
+
+  it("shows a recoverable error when default scan root loading fails", async () => {
+    vi.mocked(window.electronAPI.getDefaultScanRoot).mockResolvedValueOnce({
+      ok: false,
+      error: {
+        code: "E_IO",
+        message: "Failed to resolve default scan root",
+        recoverable: true,
+      },
+    });
+    container = document.createElement("div");
+    document.body.appendChild(container);
+
+    createRoot(container).render(<RootPathErrorProbe />);
+
+    await nextFrame();
+    await nextFrame();
+
+    expect(container.textContent).toContain("Failed to resolve default scan root");
   });
 
   it("does not show an error when Full Disk Access settings are opened but permission is not granted yet", async () => {
@@ -187,6 +212,11 @@ describe("useScanLogic", () => {
 function RootPathProbe() {
   const { rootPath } = useScanLogic();
   return <div>{rootPath}</div>;
+}
+
+function RootPathErrorProbe() {
+  const { error } = useScanLogic();
+  return <div>{error ? error.message : "no-error"}</div>;
 }
 
 function ElevationProbe() {

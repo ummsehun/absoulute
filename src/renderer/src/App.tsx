@@ -36,8 +36,12 @@ function App() {
   } = useScanLogic();
 
   const isCompleted = useMemo(
-    () => scanTerminal?.status === "done" && Object.keys(aggregateSizes).length > 0,
-    [scanTerminal, aggregateSizes],
+    () =>
+      !error
+      && !elevationRequired
+      && scanTerminal?.status === "done"
+      && Object.keys(aggregateSizes).length > 0,
+    [error, elevationRequired, scanTerminal, aggregateSizes],
   );
   const isScanning = Boolean(scanId);
 
