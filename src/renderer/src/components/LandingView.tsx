@@ -160,7 +160,7 @@ export function LandingView({
                                     disabled={!apiReady}
                                     className="relative flex items-center justify-center w-40 h-16 rounded-[28px] text-xl font-bold tracking-widest transition-all duration-300 transform group-hover:scale-105 bg-white/10 border border-white/20 backdrop-blur-xl shadow-2xl text-white overflow-hidden ring-1 ring-white/30"
                                 >
-                                    <span className="relative z-10 drop-shadow-[0_0_10px_rgba(255,255,255,0.8)]">PREVIEW</span>
+                                    <span className="relative z-10 drop-shadow-[0_0_10px_rgba(255,255,255,0.8)]">SCAN</span>
                                     <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
                                 </button>
                             </div>

@@ -8,11 +8,7 @@ interface BuildScanRequestInput {
 }
 
 export function buildDefaultScanRequest(input: BuildScanRequestInput): ScanStartRequest {
-  return buildScanRequest(input, "responsive");
-}
-
-export function buildPreviewScanRequest(input: BuildScanRequestInput): ScanStartRequest {
-  return buildScanRequest(input, "responsive");
+  return buildScanRequest(input, "exact");
 }
 
 export function buildExactScanRequest(input: BuildScanRequestInput): ScanStartRequest {
