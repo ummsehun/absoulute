@@ -65,6 +65,9 @@ export interface ScanEventJob extends ScanProgressLike {
     emitPolicy: {
       progressIntervalMs: number;
     };
+    accuracyMode?: string;
+    deepPolicyPreset?: string;
+    performanceProfile?: string;
   };
   pendingDeltaEventCount: number;
   pendingDeltaMap: Map<string, AggDelta>;
@@ -369,6 +372,8 @@ export class ScanEventBus {
       coverage: this.getCoverage(job),
     };
 
+    emitTerminalSummaryToConsole(job, event);
+
     for (const listener of this.terminalListeners) {
       listener(event);
     }
@@ -442,4 +447,86 @@ export class ScanEventBus {
       ioErrors: job.ioErrorCount,
     });
   }
+}
+
+function emitTerminalSummaryToConsole(
+  job: ScanEventJob,
+  event: ScanTerminalEvent,
+): void {
+  if (!shouldPrintTerminalSummary()) {
+    return;
+  }
+
+  const suggestedActions: string[] = [];
+  if (job.blockedByPermissionCount > 0 || job.elevationRequired) {
+    suggestedActions.push("grant-full-disk-access-to-running-app");
+  }
+  if (job.softSkippedByPolicyCount > 0) {
+    suggestedActions.push("run-exact-scan-or-disable-responsive-skips");
+  }
+  if (job.deferredByBudgetCount > 0 || job.estimatedResult) {
+    suggestedActions.push("run-exact-scan-with-unbounded-deep-budget");
+  }
+  if (job.helperPlan?.productionReadiness !== undefined
+    && job.helperPlan.productionReadiness !== "ready") {
+    suggestedActions.push("complete-privileged-helper-readiness-gates");
+  }
+
+  const payload = {
+    event: "scan_terminal_summary",
+    scanId: job.scanId,
+    status: event.status,
+    rootPath: job.rootPath,
+    engine: job.engine,
+    completeness: event.completeness,
+    estimated: job.estimatedResult,
+    scanMode: {
+      performanceProfile: job.options.performanceProfile,
+      accuracyMode: job.options.accuracyMode,
+      deepPolicyPreset: job.options.deepPolicyPreset,
+    },
+    coverage: event.coverage,
+    skipSummary: {
+      softSkippedByPolicy: job.softSkippedByPolicyCount,
+      blockedByPermission: job.blockedByPermissionCount,
+      blockedByPolicy: job.blockedByPolicyCount,
+      skippedByScope: job.skippedByScopeCount,
+      deferredByBudget: job.deferredByBudgetCount,
+      policySamples: job.skipSamples.policy?.slice(0, 10) ?? [],
+      permissionSamples: job.skipSamples.permission?.slice(0, 10) ?? [],
+      scopeSamples: job.skipSamples.scope?.slice(0, 10) ?? [],
+      budgetDeferredSamples: job.skipSamples.budgetDeferred?.slice(0, 10) ?? [],
+    },
+    helperPlan: job.helperPlan
+      ? {
+          engine: job.helperPlan.engine,
+          productionReadiness: job.helperPlan.productionReadiness,
+          fallbackReason: job.helperPlan.fallbackReason,
+          registrationBlockers: job.helperPlan.registrationBlockers,
+          readinessBlockers: job.helperPlan.readinessBlockers,
+        }
+      : undefined,
+    suggestedActions,
+  };
+
+  try {
+    console.log(JSON.stringify(payload));
+  } catch {
+    // Terminal diagnostics must never break scanning.
+  }
+}
+
+function shouldPrintTerminalSummary(): boolean {
+  const explicit = process.env.SCAN_SUMMARY_TO_TERMINAL?.trim().toLowerCase();
+  if (explicit === "1" || explicit === "true" || explicit === "yes") {
+    return true;
+  }
+  if (explicit === "0" || explicit === "false" || explicit === "no") {
+    return false;
+  }
+
+  const lifecycle = process.env.npm_lifecycle_event;
+  return Boolean(process.env.ELECTRON_RENDERER_URL)
+    || lifecycle === "dev"
+    || lifecycle === "preview";
 }

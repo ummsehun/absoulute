@@ -146,7 +146,7 @@ export function VisualizationView({
         ? Math.min(100, (displayVisualizationSize / displayScanRootSize) * 100)
         : 0;
 
-    const filesPerSec = 0;
+    const filesPerSec = perfSample?.filesPerSec ?? 0;
 
     return (
         <div

@@ -13,3 +13,4 @@ out
 target
 bun.lock
 native/scanner/target
+.env

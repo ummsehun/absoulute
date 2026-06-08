@@ -8,6 +8,7 @@
   "scripts": {
     "dev": "electron-vite dev",
     "build": "electron-vite build",
+    "build:mac": "pnpm build && electron-builder --mac",
     "build:native:helper-control": "bun run scripts/build-macos-helper-control.ts",
     "build:native:helper-enumerate": "bun run scripts/build-macos-helper-enumerate.ts",
     "build:native:helper-xpc-enumerate": "bun run scripts/build-macos-helper-xpc-enumerate.ts",

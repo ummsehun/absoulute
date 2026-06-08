@@ -37,56 +37,79 @@ export function VisualizationSidebar({
     setActiveRootPath,
 }: VisualizationSidebarProps) {
     return (
-        <aside className="flex min-h-0 flex-col border-r border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.02))] px-5 py-5">
-            <div className="rounded-[26px] border border-white/12 bg-white/[0.06] p-6 shadow-[0_24px_50px_rgba(18,6,54,0.18)]">
-                <div className="flex items-start justify-between gap-4">
-                    <div>
-                        <p className="text-[13px] font-semibold text-white">
-                            {labelFromPath(rootPath)}
-                        </p>
-                        <p className="mt-2 text-[15px] text-white/58">
-                            {formatBytes(displayVisualizationSize)} of {formatBytes(displayScanRootSize)} in view
-                        </p>
+        <aside className="flex min-h-0 flex-col border-r border-white/10 bg-black/15 backdrop-blur-xl px-4 py-5 gap-4">
+            {/* Unified Sleek Stats Header Container */}
+            <div className="flex flex-col gap-4 rounded-[24px] border border-white/10 bg-white/[0.04] p-5 shadow-[0_24px_50px_rgba(18,6,54,0.12)]">
+                {/* Section 1: Scan Target (Root Path) */}
+                <div className="flex flex-col">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-white/40">Scan Target</p>
+                    <div className="mt-1.5 flex items-start justify-between gap-3">
+                        <div className="min-w-0 flex-1">
+                            <h2 className="truncate text-base font-semibold tracking-tight text-white" title={rootPath}>
+                                {labelFromPath(rootPath)}
+                            </h2>
+                            <p className="mt-0.5 truncate text-[11px] font-mono text-white/50" title={rootPath}>
+                                {rootPath}
+                            </p>
+                        </div>
+                        <span className="text-xl font-bold tracking-tight text-fuchsia-400 font-mono">
+                            {Math.round(scopePercent)}%
+                        </span>
                     </div>
-                    <span className="text-2xl font-semibold tracking-tight text-white/82">
-                        {Math.round(scopePercent)}%
-                    </span>
-                </div>
-                <div className="mt-5">
-                    <Progress value={Math.max(scopePercent, 4)} />
-                </div>
-            </div>
-            <div className="mt-5 rounded-[24px] border border-white/12 bg-white/[0.06] p-5 shadow-[0_24px_50px_rgba(18,6,54,0.14)]">
-                <div className="flex items-center gap-3">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-[16px] bg-[linear-gradient(180deg,rgba(117,212,255,0.95),rgba(121,161,255,0.9))] shadow-[0_8px_16px_rgba(93,154,255,0.22)]">
-                        <FolderGlyph className="h-6 w-6 text-white/95" />
+                    
+                    <div className="mt-3 flex items-center justify-between text-xs text-white/60">
+                        <span>In View Size</span>
+                        <span className="font-semibold text-white/90">
+                            {formatBytes(displayVisualizationSize)} / {formatBytes(displayScanRootSize)}
+                        </span>
                     </div>
-                    <div className="min-w-0">
-                        <p className="truncate text-[20px] font-semibold tracking-tight text-white">
-                            {labelFromPath(visualizationRoot)}
-                        </p>
-                        <p className="mt-1 text-[13px] text-white/66">
-                            {formatBytes(displayVisualizationSize)} | {formatCount(scannedCount)} items
-                        </p>
+                    <div className="mt-2">
+                        <Progress value={Math.max(scopePercent, 4)} className="h-1.5" />
                     </div>
                 </div>
-                <p className="mt-3 text-[12px] leading-5 text-white/54">
-                    {completenessNote}
-                </p>
+
+                {/* Subtle Divider */}
+                <div className="h-px bg-white/5" />
+
+                {/* Section 2: Current Focus Folder */}
+                <div className="flex flex-col">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-white/40">Inspecting Directory</p>
+                    <div className="mt-2.5 flex items-center gap-3">
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[linear-gradient(180deg,rgba(186,124,255,0.2),rgba(140,175,255,0.15))] border border-white/10 shadow-inner">
+                            <FolderGlyph className="h-4.5 w-4.5 text-fuchsia-300" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                            <h3 className="truncate text-[15px] font-semibold text-white" title={visualizationRoot}>
+                                {labelFromPath(visualizationRoot)}
+                            </h3>
+                            <p className="mt-0.5 text-xs text-white/50">
+                                {formatBytes(displayVisualizationSize)} | {formatCount(scannedCount)} items
+                            </p>
+                        </div>
+                    </div>
+                    {completenessNote && (
+                        <p className="mt-2.5 text-[11px] leading-relaxed text-white/40 italic">
+                            {completenessNote}
+                        </p>
+                    )}
+                </div>
             </div>
 
-            <div className="mt-5 flex items-center justify-between">
+            {/* List Selection & Speed Header */}
+            <div className="flex items-center justify-between px-1 mt-1">
                 <Button
                     variant="ghost"
                     size="sm"
                     onClick={toggleSelectAll}
-                    className="text-[15px] font-semibold tracking-tight text-white/88 transition hover:text-white"
+                    className="text-xs font-semibold tracking-tight text-white/70 hover:text-white hover:bg-white/5 rounded-lg h-7 px-2"
                 >
                     Select: {allVisibleSelected ? 'None' : 'All'}
                 </Button>
-                <div className="text-sm text-white/50">
-                    {formatCount(filesPerSec)} files/s
-                </div>
+                {filesPerSec > 0 && (
+                    <div className="text-[11px] font-mono text-white/40">
+                        {formatCount(filesPerSec)} files/s
+                    </div>
+                )}
             </div>
 
             <SidebarList

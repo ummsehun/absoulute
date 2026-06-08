@@ -96,6 +96,12 @@ export function BubbleChart(props: BubbleChartProps) {
                         );
                     }
 
+                    const showIcon = node.r >= 26;
+                    const wrapperSize = Math.max(24, Math.min(48, node.r * 0.45));
+                    const iconSize = Math.max(12, Math.min(24, node.r * 0.22));
+                    const nameFontSize = Math.max(10, Math.min(20, node.r * 0.18));
+                    const sizeFontSize = Math.max(8.5, Math.min(13, node.r * 0.125));
+
                     return (
                         <div
                             key={node.path}
@@ -118,26 +124,37 @@ export function BubbleChart(props: BubbleChartProps) {
                                 boxShadow: hovered && !selected ? '0 10px 40px -10px rgba(0,0,0,0.5)' : undefined,
                             }}
                         >
-                            <div className="flex flex-col items-center justify-center w-[85%] h-[85%] px-2">
-                                {isLarge && (
-                                    <div className="mb-2 flex h-10 w-10 items-center justify-center rounded-full bg-black/20 text-white/90 shadow-inner">
+                            <div className="flex flex-col items-center justify-center w-[85%] h-[85%] px-1.5">
+                                {showIcon && (
+                                    <div
+                                        className="mb-1.5 flex items-center justify-center rounded-full bg-black/20 text-white/90 shadow-inner"
+                                        style={{
+                                            width: `${wrapperSize}px`,
+                                            height: `${wrapperSize}px`,
+                                        }}
+                                    >
                                         {node.kind === 'other' ? (
-                                            <StackGlyph className="h-5 w-5" />
+                                            <StackGlyph style={{ width: `${iconSize}px`, height: `${iconSize}px` }} />
                                         ) : (
-                                            <FolderGlyph className="h-5 w-5" />
+                                            <FolderGlyph style={{ width: `${iconSize}px`, height: `${iconSize}px` }} />
                                         )}
                                     </div>
                                 )}
                                 <span
-                                    className={`w-full truncate font-bold tracking-tight drop-shadow-md ${isLarge ? 'text-lg md:text-xl' : isMedium ? 'text-sm md:text-base' : 'text-xs'
-                                        }`}
+                                    className="w-full truncate font-bold tracking-tight drop-shadow-md"
+                                    style={{
+                                        fontSize: `${nameFontSize}px`,
+                                        lineHeight: '1.2',
+                                    }}
                                 >
                                     {node.name}
                                 </span>
-                                {(isLarge || isMedium) && (
+                                {node.r >= 32 && (
                                     <span
-                                        className={`mt-1 w-full truncate font-medium text-white/70 ${isLarge ? 'text-sm' : 'text-xs'
-                                            }`}
+                                        className="mt-0.5 w-full truncate font-medium text-white/70"
+                                        style={{
+                                            fontSize: `${sizeFontSize}px`,
+                                        }}
                                     >
                                         {formatBytes(node.size)}
                                     </span>

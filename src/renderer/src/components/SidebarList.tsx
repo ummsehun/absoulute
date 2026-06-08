@@ -1,6 +1,6 @@
 import React from 'react';
 import { formatBytes, truncateLabel, resolveBubbleTone } from '../utils/helpers';
-import { StackGlyph, ChevronRightIcon } from './icons';
+import { FolderGlyph, StackGlyph, ChevronRightIcon } from './icons';
 import type { ListRow } from './VisualizationView';
 import { Checkbox } from './ui/checkbox';
 import { Button } from './ui/button';
@@ -23,14 +23,14 @@ export function SidebarList({
     setActiveRootPath,
 }: SidebarListProps) {
     return (
-        <div className="mt-4 min-h-0 flex-1 overflow-hidden rounded-[28px] border border-white/10 bg-black/10 p-2">
-            <div className="flex h-full flex-col gap-2 overflow-y-auto">
+        <div className="mt-2 min-h-0 flex-1 overflow-hidden rounded-[24px] border border-white/10 bg-black/15 p-2">
+            <div className="flex h-full flex-col gap-1.5 overflow-y-auto pr-1">
                 {listRows.map((row) => {
                     const selected = selectedPaths.has(row.path);
                     const tone =
                         row.kind === 'other'
                             ? {
-                                fill: 'rgba(255,255,255,0.14)',
+                                fill: 'rgba(255,255,255,0.12)',
                                 stroke: 'rgba(255,255,255,0.16)',
                                 text: 'rgba(255,255,255,0.86)',
                             }
@@ -39,9 +39,9 @@ export function SidebarList({
                     return (
                         <div
                             key={row.path}
-                            className={`rounded-[20px] border px-3 py-3 transition ${selected || hoveredPath === row.path
-                                ? 'border-white/18 bg-white/12'
-                                : 'border-transparent bg-white/[0.04] hover:border-white/10 hover:bg-white/[0.08]'
+                            className={`group relative rounded-xl border p-2.5 transition duration-150 ${selected || hoveredPath === row.path
+                                ? 'border-white/15 bg-white/8'
+                                : 'border-transparent bg-white/[0.02] hover:border-white/8 hover:bg-white/[0.05]'
                                 }`}
                             onMouseEnter={() => onHoverChange(row.path)}
                             onMouseLeave={() => {
@@ -51,50 +51,58 @@ export function SidebarList({
                             }}
                         >
                             <div className="flex items-center gap-3">
-                                <Checkbox
-                                    checked={selected}
-                                    onChange={() => toggleRowSelection(row.path)}
-                                    className="border-white/30 data-[state=checked]:bg-fuchsia-400"
-                                />
+                                {/* Checkbox container */}
+                                <div className="flex items-center">
+                                    <Checkbox
+                                        checked={selected}
+                                        onChange={() => toggleRowSelection(row.path)}
+                                        className="border-white/30 data-[state=checked]:bg-fuchsia-400"
+                                    />
+                                </div>
 
+                                {/* Sleek small icon wrapper */}
                                 <div
-                                    className="flex h-10 w-10 items-center justify-center rounded-[12px] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]"
-                                    style={{ background: tone.fill }}
+                                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]"
+                                    style={{ background: tone.fill, border: `1px solid ${tone.stroke || 'transparent'}` }}
                                 >
                                     {row.kind === 'other' ? (
-                                        <StackGlyph className="h-4 w-4" />
+                                        <StackGlyph className="h-3.5 w-3.5" />
                                     ) : (
-                                        <span className="text-sm font-bold">
-                                            {row.name.trim().charAt(0).toUpperCase() || '?'}
-                                        </span>
+                                        <FolderGlyph className="h-3.5 w-3.5 text-white/90" />
                                     )}
                                 </div>
 
-                                <div className="min-w-0 flex-1 ml-2">
-                                    <p className="truncate text-[15px] font-semibold tracking-tight text-white">
-                                        {truncateLabel(row.name, 22)}
+                                {/* Text stack - Title and Path */}
+                                <div className="min-w-0 flex-1 ml-0.5">
+                                    <p
+                                        onClick={() => row.interactive && setActiveRootPath(row.path)}
+                                        className={`truncate text-sm font-semibold tracking-tight text-white ${row.interactive ? 'cursor-pointer hover:underline hover:text-fuchsia-300' : ''}`}
+                                    >
+                                        {row.name}
                                     </p>
-                                    <p className="mt-0.5 truncate text-[11px] text-white/42">
+                                    <p className="mt-0.5 truncate text-[10px] font-mono text-white/30" title={row.path}>
                                         {row.kind === 'other'
                                             ? 'Grouped items to keep the map readable'
                                             : row.path}
                                     </p>
                                 </div>
 
-                                <div className="flex items-center gap-2">
-                                    <span className="rounded-full border border-white/14 bg-white/6 px-2.5 py-1 text-[12px] font-semibold text-white/76">
+                                {/* Size and Actions Container */}
+                                <div className="relative flex items-center justify-end w-16 h-7 overflow-hidden">
+                                    {/* Size label - fades out on hover if interactive */}
+                                    <span className={`text-xs font-semibold text-white/70 font-mono transition-all duration-200 ${row.interactive ? 'group-hover:opacity-0 group-hover:translate-x-3' : ''}`}>
                                         {formatBytes(row.size)}
                                     </span>
-                                    {row.interactive ? (
-                                        <Button
-                                            variant="outline"
-                                            size="icon"
+
+                                    {/* Chevron navigation button - reveals on hover */}
+                                    {row.interactive && (
+                                        <button
                                             onClick={() => setActiveRootPath(row.path)}
-                                            className="h-8 w-8 rounded-full"
+                                            className="absolute right-0 flex items-center justify-center h-6 w-6 rounded-full bg-white/10 hover:bg-white/20 border border-white/10 text-white opacity-0 translate-x-3 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-200 cursor-pointer"
                                         >
-                                            <ChevronRightIcon className="h-4 w-4" />
-                                        </Button>
-                                    ) : null}
+                                            <ChevronRightIcon className="h-3 w-3" />
+                                        </button>
+                                    )}
                                 </div>
                             </div>
                         </div>
@@ -102,8 +110,8 @@ export function SidebarList({
                 })}
 
                 {listRows.length === 0 ? (
-                    <div className="rounded-[24px] border border-white/10 bg-white/[0.04] px-5 py-6 text-sm text-white/56">
-                        This folder is mostly direct files, so there are no deeper folders to drill into.
+                    <div className="rounded-2xl border border-white/8 bg-white/[0.02] px-4 py-5 text-xs text-white/50 text-center leading-relaxed">
+                        This folder has no subfolders to navigate into.
                     </div>
                 ) : null}
             </div>

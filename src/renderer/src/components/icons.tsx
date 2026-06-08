@@ -3,12 +3,14 @@ import React from 'react';
 export function FolderGlyph({
     className,
     transform,
+    style,
 }: {
     className?: string;
     transform?: string;
+    style?: React.CSSProperties;
 }) {
     return (
-        <svg viewBox="0 0 24 24" width={24} height={24} fill="none" className={className} transform={transform}>
+        <svg viewBox="0 0 24 24" width={24} height={24} fill="none" className={className} transform={transform} style={style}>
             <path
                 d="M3.5 8.1A2.1 2.1 0 0 1 5.6 6h4c.55 0 1.07.21 1.46.59l1 1.01c.39.38.91.59 1.46.59h4.92a2.1 2.1 0 0 1 2.1 2.1v6.11a2.1 2.1 0 0 1-2.1 2.1H5.6a2.1 2.1 0 0 1-2.1-2.1V8.1Z"
                 fill="currentColor"
@@ -21,12 +23,14 @@ export function FolderGlyph({
 export function StackGlyph({
     className,
     transform,
+    style,
 }: {
     className?: string;
     transform?: string;
+    style?: React.CSSProperties;
 }) {
     return (
-        <svg viewBox="0 0 24 24" width={24} height={24} fill="none" className={className} transform={transform}>
+        <svg viewBox="0 0 24 24" width={24} height={24} fill="none" className={className} transform={transform} style={style}>
             <rect x="4" y="5" width="11" height="11" rx="2.2" fill="currentColor" fillOpacity="0.84" />
             <rect x="9" y="9" width="11" height="11" rx="2.2" fill="currentColor" fillOpacity="0.58" />
         </svg>
