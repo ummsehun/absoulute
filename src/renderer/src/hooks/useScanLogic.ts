@@ -267,6 +267,7 @@ export function useScanLogic() {
                 : buildDefaultScanRequest({
                 rootPath: normalizedRoot,
                 optInProtected: allowProtectedOptIn,
+                responsivePolicySkips,
             });
 
         const result = await electronAPI.scanStart(scanRequest);
@@ -308,6 +309,7 @@ export function useScanLogic() {
     const startScan = async () => await startScanForPath(rootPath);
     const oneClickScan = async () => await startScanForPath(rootPath);
     const previewScan = async () => await startScanForPath(rootPath, "preview");
+    const exactScan = async () => await startScanForPath(rootPath, "exact");
     const scanTopRoot = async () => await startScanForPath(getTopRootPath(rootPath));
     const exactRecheck = async () =>
         await startScanForPath(scanBasePathRef.current || rootPathRef.current, "exact");
@@ -436,6 +438,7 @@ export function useScanLogic() {
         startScan,
         oneClickScan,
         previewScan,
+        exactScan,
         scanTopRoot,
         exactRecheck,
         cancelScan,

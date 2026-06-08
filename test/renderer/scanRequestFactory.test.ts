@@ -8,21 +8,23 @@ import {
 } from "../../src/renderer/src/hooks/scanRequestFactory";
 
 describe("scanRequestFactory", () => {
-  it("builds exact requests for the default scan path", () => {
+  it("builds preview-first responsive requests for the default scan path", () => {
     const request = buildDefaultScanRequest({
       rootPath: "/Users/user",
       optInProtected: false,
+      responsivePolicySkips: true,
     });
 
     expect(request).toMatchObject({
       rootPath: "/Users/user",
       optInProtected: false,
-      performanceProfile: "accuracy-first",
+      performanceProfile: "preview-first",
       scanMode: "native_rust",
-      accuracyMode: "full",
-      deepPolicyPreset: "exact",
+      accuracyMode: "preview",
+      deepPolicyPreset: "responsive",
       elevationPolicy: "manual",
       allowNodeFallback: false,
+      responsivePolicySkips: true,
     });
   });
 

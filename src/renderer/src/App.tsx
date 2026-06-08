@@ -26,7 +26,7 @@ function App() {
 
     // Actions
     oneClickScan,
-    previewScan,
+    exactScan,
     exactRecheck,
     resolveElevation,
   } = useScanLogic();
@@ -42,7 +42,7 @@ function App() {
           rootPath={rootPath}
           setRootPath={setRootPath}
           oneClickScan={oneClickScan}
-          previewScan={previewScan}
+          exactScan={exactScan}
           responsivePolicySkips={responsivePolicySkips}
           setResponsivePolicySkips={setResponsivePolicySkips}
           onResolveElevation={resolveElevation}

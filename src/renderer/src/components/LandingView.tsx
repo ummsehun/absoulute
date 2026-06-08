@@ -18,7 +18,7 @@ interface LandingViewProps {
     rootPath: string;
     setRootPath: (path: string) => void;
     oneClickScan: () => void;
-    previewScan?: () => void;
+    exactScan?: () => void;
     responsivePolicySkips: boolean;
     setResponsivePolicySkips: (enabled: boolean) => void;
     onResolveElevation?: (targetPath: string) => void | Promise<void>;
@@ -37,7 +37,7 @@ export function LandingView({
     rootPath,
     setRootPath,
     oneClickScan,
-    previewScan,
+    exactScan,
     responsivePolicySkips,
     setResponsivePolicySkips,
     onResolveElevation,
@@ -160,17 +160,17 @@ export function LandingView({
                                     disabled={!apiReady}
                                     className="relative flex items-center justify-center w-40 h-16 rounded-[28px] text-xl font-bold tracking-widest transition-all duration-300 transform group-hover:scale-105 bg-white/10 border border-white/20 backdrop-blur-xl shadow-2xl text-white overflow-hidden ring-1 ring-white/30"
                                 >
-                                    <span className="relative z-10 drop-shadow-[0_0_10px_rgba(255,255,255,0.8)]">SCAN</span>
+                                    <span className="relative z-10 drop-shadow-[0_0_10px_rgba(255,255,255,0.8)]">PREVIEW</span>
                                     <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
                                 </button>
                             </div>
-                            {previewScan ? (
+                            {exactScan ? (
                                 <button
-                                    onClick={previewScan}
+                                    onClick={exactScan}
                                     disabled={!apiReady}
                                     className="h-12 rounded-2xl border border-white/16 bg-white/8 px-4 text-xs font-bold tracking-widest text-white/76 transition hover:bg-white/14 hover:text-white disabled:opacity-50"
                                 >
-                                    PREVIEW
+                                    EXACT
                                 </button>
                             ) : null}
                         </div>
