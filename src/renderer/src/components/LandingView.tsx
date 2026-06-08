@@ -124,8 +124,8 @@ export function LandingView({
                             <div className="absolute inset-0 bg-gradient-to-r from-transparent via-cyan-400 to-transparent w-full h-full opacity-50" style={{ animation: 'shimmer 1.5s infinite linear', backgroundSize: '200% 100%' }} />
                         </div>
                         <div className="mt-4 flex gap-6 text-xs text-white/50 font-mono">
-                            <span>{progress?.progress.scannedCount.toLocaleString() || 0} Files</span>
-                            <span>{((progress?.progress.totalBytes || 0) / 1e9).toFixed(2)} GB</span>
+                            <span>{(progress?.progress.scannedCount ?? 0).toLocaleString()} Files</span>
+                            <span>{((progress?.progress.totalBytes ?? 0) / 1e9).toFixed(2)} GB</span>
                         </div>
                     </div>
 
