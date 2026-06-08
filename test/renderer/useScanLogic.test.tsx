@@ -130,6 +130,38 @@ describe("useScanLogic", () => {
     expect(window.electronAPI.getHelperStatus).toHaveBeenCalled();
     expect(container.textContent).toContain("Failed to register helper");
   });
+
+  it("shows helper registration lifecycle failures returned as successful IPC results", async () => {
+    vi.mocked(window.electronAPI.registerHelper).mockResolvedValueOnce({
+      ok: true,
+      data: {
+        available: false,
+        lifecycle: {
+          state: "not-implemented",
+          reason: "service-management-control-output-mismatch:register:service-management-probe-failed",
+          checks: {
+            "service-management": "fail",
+            "helper-install": "unknown",
+            "caller-identity": "unknown",
+            "full-disk-access": "unknown",
+            "xpc-channel": "unknown",
+          },
+        },
+        reason: "service-management-control-output-mismatch:register:service-management-probe-failed",
+        transport: "xpc",
+      },
+    });
+    container = document.createElement("div");
+    document.body.appendChild(container);
+
+    createRoot(container).render(<HelperRegistrationProbe />);
+
+    await nextFrame();
+    await nextFrame();
+
+    expect(window.electronAPI.registerHelper).toHaveBeenCalled();
+    expect(container.textContent).toContain("Helper registration did not complete");
+  });
 });
 
 function RootPathProbe() {

@@ -454,6 +454,11 @@ export function useScanLogic() {
         const result = await electronAPI.registerHelper();
         if (result.ok) {
             setHelperStatus(result.data);
+            const registrationError = getHelperRegistrationError(result.data);
+            if (registrationError) {
+                setError(registrationError);
+                return;
+            }
             setError(null);
             return;
         }
@@ -521,4 +526,21 @@ export function useScanLogic() {
 
 function getElectronAPI(): ElectronAPI | null {
     return (window as Window & { electronAPI?: ElectronAPI }).electronAPI ?? null;
+}
+
+function getHelperRegistrationError(status: HelperClientStatus): AppError | null {
+    const lifecycleState = status.lifecycle?.state;
+    if (status.available || lifecycleState === "ready" || lifecycleState === "pending-approval") {
+        return null;
+    }
+
+    const rawReason = status.lifecycle?.reason ?? status.reason ?? "helper-registration-incomplete";
+    return {
+        code: "E_IO",
+        message: "Helper registration did not complete",
+        recoverable: true,
+        details: {
+            raw: rawReason,
+        },
+    };
 }
