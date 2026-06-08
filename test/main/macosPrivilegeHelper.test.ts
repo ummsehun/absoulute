@@ -19,7 +19,11 @@ vi.mock("node:child_process", () => ({
   spawn: spawnMock,
 }));
 
-import { requestElevation } from "../../src/main/services/security/macosPrivilegeHelper";
+import {
+  checkFullDiskAccessStatus,
+  requestFullDiskAccess,
+  requestElevation,
+} from "../../src/main/services/security/macosPrivilegeHelper";
 
 describe("macosPrivilegeHelper", () => {
   afterEach(() => {
@@ -51,6 +55,51 @@ describe("macosPrivilegeHelper", () => {
         stdio: ["ignore", "ignore", "pipe"],
       }),
     );
+  });
+
+  it("opens Full Disk Access settings for unreadable system paths reported during scans", async () => {
+    accessMock.mockRejectedValue(Object.assign(new Error("denied"), { code: "EACCES" }));
+    spawnMock.mockImplementation(() => createMockChild(0));
+
+    const result = await requestElevation("/usr/sbin/authserver");
+
+    expect(result).toEqual({ granted: false });
+    expect(spawnMock).toHaveBeenCalledWith(
+      "open",
+      [expect.stringContaining("Privacy_AllFiles")],
+      expect.objectContaining({
+        stdio: ["ignore", "ignore", "pipe"],
+      }),
+    );
+  });
+
+  it("opens Full Disk Access settings when explicitly requested", async () => {
+    accessMock.mockResolvedValue(undefined);
+    spawnMock.mockImplementation(() => createMockChild(0));
+
+    const result = await requestFullDiskAccess();
+
+    expect(result.granted).toBe(true);
+    expect(spawnMock).toHaveBeenCalledWith(
+      "open",
+      [expect.stringContaining("Privacy_AllFiles")],
+      expect.anything(),
+    );
+  });
+
+  it("reports Full Disk Access as missing when any protected probe path is unreadable", async () => {
+    accessMock.mockImplementation(async (targetPath: string) => {
+      if (targetPath.includes("Library/Messages")) {
+        throw Object.assign(new Error("denied"), { code: "EACCES" });
+      }
+      return undefined;
+    });
+
+    const result = await checkFullDiskAccessStatus();
+
+    expect(result.required).toBe(true);
+    expect(result.granted).toBe(false);
+    expect(result.deniedPaths.some((path) => path.includes("Library/Messages"))).toBe(true);
   });
 });
 

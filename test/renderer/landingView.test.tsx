@@ -40,6 +40,40 @@ describe("LandingView", () => {
     expect(buttons).toHaveLength(1);
     expect(buttons[0]?.textContent).toContain("SCAN");
   });
+
+  it("shows Full Disk Access actions when startup preflight is denied", async () => {
+    const requestFullDiskAccess = vi.fn();
+    const checkFullDiskAccess = vi.fn();
+    container = document.createElement("div");
+    document.body.appendChild(container);
+
+    createRoot(container).render(
+      <LandingView
+        apiReady
+        rootPath="/"
+        setRootPath={() => undefined}
+        oneClickScan={() => undefined}
+        fullDiskAccessStatus={{
+          platform: "darwin",
+          required: true,
+          granted: false,
+          canRequest: true,
+          deniedPaths: ["/Users/user/Library/Messages"],
+          probes: [],
+        }}
+        onRequestFullDiskAccess={requestFullDiskAccess}
+        onCheckFullDiskAccess={checkFullDiskAccess}
+      />,
+    );
+
+    await nextFrame();
+
+    expect(container.textContent).toContain("Full Disk Access");
+    expect(container.textContent).toContain("/Users/user/Library/Messages");
+    const buttons = Array.from(container.querySelectorAll("button"));
+    expect(buttons.some((button) => button.textContent?.includes("권한 허용"))).toBe(true);
+    expect(buttons.some((button) => button.textContent?.includes("다시 확인"))).toBe(true);
+  });
 });
 
 function nextFrame(): Promise<void> {

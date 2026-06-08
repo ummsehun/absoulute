@@ -51,6 +51,8 @@ import {
 import {
   GetDefaultScanRootResultSchema,
   GetSystemInfoResultSchema,
+  FullDiskAccessStatusResultSchema,
+  FullDiskAccessStatusSchema,
   SystemInfoSchema,
 } from "../shared/schemas/system";
 import {
@@ -66,6 +68,8 @@ export type AppError = z.infer<typeof AppErrorSchema>;
 export type SystemInfo = z.infer<typeof SystemInfoSchema>;
 export type GetSystemInfoResult = z.infer<typeof GetSystemInfoResultSchema>;
 export type GetDefaultScanRootResult = z.infer<typeof GetDefaultScanRootResultSchema>;
+export type FullDiskAccessStatus = z.infer<typeof FullDiskAccessStatusSchema>;
+export type FullDiskAccessStatusResult = z.infer<typeof FullDiskAccessStatusResultSchema>;
 
 export type WalkEntry = z.infer<typeof WalkEntrySchema>;
 export type StatRecord = z.infer<typeof StatRecordSchema>;

@@ -10,6 +10,18 @@ let container: HTMLDivElement | null = null;
 afterEach(() => {
   container?.remove();
   container = null;
+  vi.mocked(window.electronAPI.checkFullDiskAccess).mockReset();
+  vi.mocked(window.electronAPI.checkFullDiskAccess).mockResolvedValue({
+    ok: true,
+    data: {
+      platform: "darwin",
+      required: false,
+      granted: true,
+      canRequest: true,
+      deniedPaths: [],
+      probes: [],
+    },
+  });
 });
 
 describe("useScanLogic", () => {
@@ -43,6 +55,36 @@ describe("useScanLogic", () => {
     expect(container.textContent).toContain("pending");
     electronAPI.requestElevation = originalRequestElevation;
   });
+
+  it("checks Full Disk Access on startup and exposes denied paths", async () => {
+    vi.mocked(window.electronAPI.checkFullDiskAccess).mockResolvedValueOnce({
+      ok: true,
+      data: {
+        platform: "darwin",
+        required: true,
+        granted: false,
+        canRequest: true,
+        deniedPaths: ["/Users/tester/Library/Messages"],
+        probes: [
+          {
+            path: "/Users/tester/Library/Messages",
+            readable: false,
+          },
+        ],
+      },
+    });
+    container = document.createElement("div");
+    document.body.appendChild(container);
+
+    createRoot(container).render(<FullDiskAccessProbe />);
+
+    await nextFrame();
+    await nextFrame();
+
+    expect(window.electronAPI.checkFullDiskAccess).toHaveBeenCalled();
+    expect(container.textContent).toContain("missing");
+    expect(container.textContent).toContain("/Users/tester/Library/Messages");
+  });
 });
 
 function RootPathProbe() {
@@ -60,6 +102,16 @@ function ElevationProbe() {
     <div>
       <span>{error ? error.message : "no-error"}</span>
       <span>{elevationRequired ? "pending" : "cleared"}</span>
+    </div>
+  );
+}
+
+function FullDiskAccessProbe() {
+  const { fullDiskAccessStatus } = useScanLogic();
+  return (
+    <div>
+      <span>{fullDiskAccessStatus?.granted ? "granted" : "missing"}</span>
+      <span>{fullDiskAccessStatus?.deniedPaths[0] ?? "no-path"}</span>
     </div>
   );
 }

@@ -2,6 +2,7 @@ import { startTransition, useEffect, useEffectEvent, useMemo, useRef, useState }
 import type {
     AggDelta,
     AppError,
+    FullDiskAccessStatus,
     ScanCoverageUpdate,
     ScanDiagnostics,
     ScanElevationRequired,
@@ -45,6 +46,8 @@ export function useScanLogic() {
     const [perfSample, setPerfSample] = useState<ScanPerfSample | null>(null);
     const [elevationRequired, setElevationRequired] = useState<ScanElevationRequired | null>(null);
     const [scanTerminal, setScanTerminal] = useState<ScanTerminalEvent | null>(null);
+    const [fullDiskAccessStatus, setFullDiskAccessStatus] =
+        useState<FullDiskAccessStatus | null>(null);
     const [warningSummary, setWarningSummary] = useState<{
         permission: number;
         io: number;
@@ -126,6 +129,11 @@ export function useScanLogic() {
             const stateResult = await electronAPI.getWindowState();
             if (stateResult.ok) {
                 setWindowState(stateResult.data);
+            }
+
+            const fullDiskAccessResult = await electronAPI.checkFullDiskAccess();
+            if (fullDiskAccessResult.ok) {
+                setFullDiskAccessStatus(fullDiskAccessResult.data);
             }
         })();
 
@@ -379,6 +387,36 @@ export function useScanLogic() {
         setError(null);
     };
 
+    const checkFullDiskAccess = async () => {
+        if (!electronAPI) return;
+        const result = await electronAPI.checkFullDiskAccess();
+        if (result.ok) {
+            setFullDiskAccessStatus(result.data);
+            if (result.data.granted) {
+                setAllowProtectedOptIn(true);
+                setElevationRequired(null);
+            }
+            setError(null);
+            return;
+        }
+        setError(result.error);
+    };
+
+    const requestFullDiskAccess = async () => {
+        if (!electronAPI) return;
+        const result = await electronAPI.requestFullDiskAccess();
+        if (result.ok) {
+            setFullDiskAccessStatus(result.data);
+            if (result.data.granted) {
+                setAllowProtectedOptIn(true);
+                setElevationRequired(null);
+            }
+            setError(null);
+            return;
+        }
+        setError(result.error);
+    };
+
     const visualizationRoot = useMemo(
         () => activeRootPath || scanBasePath || normalizeFsPath(rootPath),
         [activeRootPath, scanBasePath, rootPath],
@@ -406,6 +444,7 @@ export function useScanLogic() {
         diagnostics,
         perfSample,
         elevationRequired,
+        fullDiskAccessStatus,
         scanTerminal,
         aggregateSizes,
         patchStats,
@@ -425,6 +464,8 @@ export function useScanLogic() {
         pauseScan,
         resumeScan,
         resolveElevation,
+        checkFullDiskAccess,
+        requestFullDiskAccess,
         minimizeWindow,
         toggleMaximizeWindow,
         closeWindow,

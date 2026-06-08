@@ -2,6 +2,8 @@ export const IPC_CHANNELS = {
   APP_GET_SYSTEM_INFO: "app:get-system-info",
   APP_GET_DEFAULT_SCAN_ROOT: "app:get-default-scan-root",
   APP_GET_FILE_ICON: "app:get-file-icon",
+  APP_CHECK_FULL_DISK_ACCESS: "app:check-full-disk-access",
+  APP_REQUEST_FULL_DISK_ACCESS: "app:request-full-disk-access",
 
   SCAN_START: "scan:start",
   SCAN_PAUSE: "scan:pause",

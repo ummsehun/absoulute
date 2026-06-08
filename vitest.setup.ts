@@ -20,6 +20,28 @@ const electronAPIMock = {
     ok: true,
     dataUrl: "data:image/png;base64,test",
   })),
+  checkFullDiskAccess: vi.fn(async () => ({
+    ok: true,
+    data: {
+      platform: "darwin",
+      required: false,
+      granted: true,
+      canRequest: true,
+      deniedPaths: [],
+      probes: [],
+    },
+  })),
+  requestFullDiskAccess: vi.fn(async () => ({
+    ok: true,
+    data: {
+      platform: "darwin",
+      required: false,
+      granted: true,
+      canRequest: true,
+      deniedPaths: [],
+      probes: [],
+    },
+  })),
 
   scanStart: vi.fn(async () => {
     const data = { scanId: "scan-test-1", startedAt: Date.now() };

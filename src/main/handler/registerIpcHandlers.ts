@@ -15,6 +15,7 @@ import {
 } from "../../shared/schemas/scan";
 import {
   GetDefaultScanRootResultSchema,
+  FullDiskAccessStatusResultSchema,
   GetSystemInfoResultSchema,
 } from "../../shared/schemas/system";
 import {
@@ -24,6 +25,8 @@ import {
 import { WindowManager } from "../core/windowManager";
 import { ScanManager } from "../manager/scanManager";
 import {
+  checkFullDiskAccessStatus,
+  requestFullDiskAccess,
   requestElevation,
 } from "../services/security/macosPrivilegeHelper";
 import { makeAppError, unknownToAppError } from "../utils/appError";
@@ -73,6 +76,42 @@ export function registerIpcHandlers(
     };
 
     return GetDefaultScanRootResultSchema.parse(payload);
+  });
+
+  ipcMain.handle(IPC_CHANNELS.APP_CHECK_FULL_DISK_ACCESS, async () => {
+    try {
+      return FullDiskAccessStatusResultSchema.parse({
+        ok: true as const,
+        data: await checkFullDiskAccessStatus(),
+      });
+    } catch (error) {
+      return FullDiskAccessStatusResultSchema.parse({
+        ok: false as const,
+        error: unknownToAppError(
+          makeAppError("E_IO", "Failed to check Full Disk Access status", true, {
+            raw: String(error),
+          }),
+        ),
+      });
+    }
+  });
+
+  ipcMain.handle(IPC_CHANNELS.APP_REQUEST_FULL_DISK_ACCESS, async () => {
+    try {
+      return FullDiskAccessStatusResultSchema.parse({
+        ok: true as const,
+        data: await requestFullDiskAccess(),
+      });
+    } catch (error) {
+      return FullDiskAccessStatusResultSchema.parse({
+        ok: false as const,
+        error: unknownToAppError(
+          makeAppError("E_IO", "Failed to open Full Disk Access settings", true, {
+            raw: String(error),
+          }),
+        ),
+      });
+    }
   });
 
   ipcMain.handle(IPC_CHANNELS.SCAN_START, async (_event, input: unknown) => {

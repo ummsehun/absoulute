@@ -23,6 +23,12 @@ const electronAPI = {
   getFileIcon: async (filePath) =>
     ipcRenderer.invoke(IPC_CHANNELS.APP_GET_FILE_ICON, filePath),
 
+  checkFullDiskAccess: async () =>
+    ipcRenderer.invoke(IPC_CHANNELS.APP_CHECK_FULL_DISK_ACCESS),
+
+  requestFullDiskAccess: async () =>
+    ipcRenderer.invoke(IPC_CHANNELS.APP_REQUEST_FULL_DISK_ACCESS),
+
   scanStart: async (input) => {
     const parsed = coerceScanStartInput(input);
     return ipcRenderer.invoke(IPC_CHANNELS.SCAN_START, parsed);
