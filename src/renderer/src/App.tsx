@@ -1,4 +1,4 @@
-import React from 'react';
+import { useMemo } from 'react';
 import { useScanLogic } from './hooks/useScanLogic';
 import { Layout } from './components/Layout';
 import { LandingView } from './components/LandingView';
@@ -31,7 +31,10 @@ function App() {
     resolveElevation,
   } = useScanLogic();
 
-  const isCompleted = scanTerminal?.status === "done" && Object.keys(aggregateSizes).length > 0;
+  const isCompleted = useMemo(
+    () => scanTerminal?.status === "done" && Object.keys(aggregateSizes).length > 0,
+    [scanTerminal, aggregateSizes],
+  );
   const isScanning = Boolean(scanId);
 
   return (
