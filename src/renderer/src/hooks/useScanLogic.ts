@@ -32,7 +32,7 @@ import {
 
 const PREFLIGHT_SCAN_ID = "preflight";
 const RESPONSIVE_POLICY_SKIPS = true;
-const DEFAULT_SCAN_ROOT = "/Users";
+const DEFAULT_SCAN_ROOT = "";
 
 export function useScanLogic() {
     const electronAPI = getElectronAPI();

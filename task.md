@@ -6,13 +6,13 @@
 
 사용자가 관찰한 `/Users` 같은 중요한 폴더 스캔과 비정상적으로 커 보이는 GB 값은 별개의 문제가 아니라, 현재 기본 스캔 정책과 추정치 표시 방식이 함께 만든 결과일 가능성이 높다.
 
-## Facts
+## Baseline Facts
 
 - 프로젝트는 Electron, React, TypeScript, Rust native scanner 기반의 디스크 시각화 앱이다.
 - `package.json` 기준 패키지 매니저는 `pnpm@11.5.1`이다.
-- macOS 기본 scan root는 `/Users`다.
+- Phase 0 기준 macOS 기본 scan root는 `/Users`였다.
   - 근거: `src/main/handler/registerIpcHandlers.ts`
-- renderer hook의 초기 기본 root도 `/Users`다.
+- Phase 0 기준 renderer hook의 초기 기본 root도 `/Users`였다.
   - 근거: `src/renderer/src/hooks/useScanLogic.ts`
 - 기본 SCAN 요청은 `buildDefaultScanRequest`를 사용하며 `preview-first`, `preview`, `responsive` 모드다.
   - 근거: `src/renderer/src/hooks/scanRequestFactory.ts`
@@ -210,6 +210,8 @@ pnpm typecheck
 
 ### Phase 4: Root Scope Decision
 
+Status: completed
+
 목표:
 
 - macOS 기본 root를 `/Users`로 유지할지, user home으로 좁힐지 결정한다.
@@ -220,6 +222,34 @@ pnpm typecheck
 - 첫 실행에서 민감 폴더를 광범위하게 스캔하는 UX 위험.
 - helper/FDA가 준비되지 않은 상태에서 `/Users` 전체 preview를 시작하는 성능 및 신뢰도 위험.
 - 사용자가 기대하는 "내 디스크"와 실제 root scope의 차이.
+
+결정:
+
+- macOS 기본 root는 `/Users`가 아니라 현재 사용자 home directory로 좁힌다.
+- `/Users`는 사용자가 명시적으로 선택할 수 있는 broader scope option으로 유지한다.
+- renderer의 초기 fallback root는 빈 값으로 두어 IPC 기본 root가 로드되기 전 `/Users`를 암묵적으로 사용하지 않게 한다.
+- root가 아직 비어 있으면 SCAN 버튼을 비활성화한다.
+
+구현:
+
+- `resolveDefaultScanRoot`를 추가하고 macOS/non-macOS 모두 `os.homedir()`를 기본 root로 사용한다.
+- renderer test fixture의 default root를 `/Users/tester`로 갱신했다.
+- `DriveSelector`의 `/Users` option label을 `/Users (All Users)`로 바꿨다.
+- root 로딩 전 selector placeholder와 SCAN disable 상태를 추가했다.
+
+검증:
+
+```bash
+pnpm test test/main/defaultScanRoot.test.ts
+pnpm test test/main/defaultScanRoot.test.ts test/renderer/useScanLogic.test.tsx test/renderer/appExactRecheck.test.tsx test/renderer/electron-api.test.ts test/renderer/landingView.test.tsx
+pnpm typecheck
+```
+
+결과:
+
+- Default root policy tests: 1 file, 2 tests passed
+- Root policy focused renderer/main tests: 5 files, 14 tests passed
+- Typecheck passed
 
 ### Phase 5: Verification
 

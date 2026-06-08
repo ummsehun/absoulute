@@ -25,7 +25,7 @@ afterEach(() => {
 });
 
 describe("useScanLogic", () => {
-  it("defaults the scan target to /Users instead of the process directory", async () => {
+  it("defaults the scan target to the current user home instead of all /Users", async () => {
     container = document.createElement("div");
     document.body.appendChild(container);
 
@@ -33,7 +33,7 @@ describe("useScanLogic", () => {
 
     await nextFrame();
 
-    expect(container.textContent).toBe("/Users");
+    expect(container.textContent).toBe("/Users/tester");
   });
 
   it("does not show an error when Full Disk Access settings are opened but permission is not granted yet", async () => {
@@ -175,7 +175,7 @@ describe("useScanLogic", () => {
 
     expect(window.electronAPI.scanStart).toHaveBeenCalledWith(
       expect.objectContaining({
-        rootPath: "/Users",
+        rootPath: "/Users/tester",
         performanceProfile: "accuracy-first",
         accuracyMode: "full",
         deepPolicyPreset: "exact",
@@ -223,10 +223,12 @@ function HelperRegistrationProbe() {
 }
 
 function ExactRecheckProbe() {
-  const { scanExactRoot } = useScanLogic();
+  const { rootPath, scanExactRoot } = useScanLogic();
   React.useEffect(() => {
-    void scanExactRoot();
-  }, [scanExactRoot]);
+    if (rootPath === "/Users/tester") {
+      void scanExactRoot();
+    }
+  }, [rootPath, scanExactRoot]);
 
   return <div>exact-recheck</div>;
 }

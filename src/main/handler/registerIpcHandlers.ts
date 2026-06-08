@@ -74,7 +74,7 @@ export function registerIpcHandlers(
     const payload = {
       ok: true as const,
       data: {
-        path: os.platform() === "darwin" ? "/Users" : os.homedir(),
+        path: resolveDefaultScanRoot(os.platform(), os.homedir()),
       },
     };
 
@@ -310,6 +310,13 @@ export function registerIpcHandlers(
     const ok = windowManager.close();
     return WindowActionResultSchema.parse(windowActionResult(ok));
   });
+}
+
+export function resolveDefaultScanRoot(
+  _platform: NodeJS.Platform,
+  homeDirectory: string,
+): string {
+  return homeDirectory;
 }
 
 function windowActionResult(ok: boolean) {

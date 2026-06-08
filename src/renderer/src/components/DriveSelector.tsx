@@ -22,9 +22,12 @@ export function DriveSelector({ rootPath, setRootPath }: DriveSelectorProps) {
                     value={rootPath}
                     onChange={(e) => setRootPath(e.target.value)}
                 >
+                    {!rootPath ? (
+                        <option value="" className="text-black bg-white">Loading target...</option>
+                    ) : null}
                     <option value="/" className="text-black bg-white">Macintosh HD</option>
-                    <option value="/Users" className="text-black bg-white">/Users (Home)</option>
-                    {rootPath !== '/' && rootPath !== '/Users' && (
+                    <option value="/Users" className="text-black bg-white">/Users (All Users)</option>
+                    {rootPath && rootPath !== '/' && rootPath !== '/Users' && (
                         <option value={rootPath} className="text-black bg-white">{rootPath}</option>
                     )}
                 </select>
