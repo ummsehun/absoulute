@@ -483,8 +483,7 @@ export function isProductionAppBundleIdentifier(
     return false;
   }
 
-  return value !== DISK_VISUALIZER_APP_BUNDLE_IDENTIFIER
-    && !value.startsWith("com.example.")
+  return !value.startsWith("com.example.")
     && !value.includes(".example.");
 }
 

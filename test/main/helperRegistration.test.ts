@@ -68,6 +68,28 @@ describe("helperRegistration", () => {
     });
   });
 
+  it("accepts the Space Lens app bundle identifier as production identity", () => {
+    expect(
+      resolveHelperRegistrationPreflight({
+        identity: {
+          appBundleIdentifier: DISK_VISUALIZER_APP_BUNDLE_IDENTIFIER,
+          teamId: "ABCDE12345",
+          designatedRequirement:
+            'identifier "com.spacelens.app" and anchor apple generic and certificate leaf[subject.OU] = "ABCDE12345"',
+        },
+        packagingEntitlementsReady: true,
+        privilegedHelperExecutableReady: true,
+        helperXpcEnumerateBridgeReady: true,
+        privilegedHelperListenerRequirementReady: true,
+        fdaValidationMatrixReady: true,
+      }),
+    ).toEqual({
+      contract: getHelperRegistrationContract(),
+      status: "ready",
+      blockers: [],
+    });
+  });
+
   it("marks the registration preflight ready only when every helper gate has evidence", () => {
     expect(
       resolveHelperRegistrationPreflight({
