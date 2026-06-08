@@ -3,6 +3,7 @@ import { themeTokens } from '../theme/tokens';
 import { DriveSelector } from './DriveSelector';
 import { SpaceLens3D } from './SpaceLens3D';
 import type {
+    ScanCoverageUpdate,
     ScanDiagnostics,
     ScanElevationRequired,
     ScanPerfSample,
@@ -10,6 +11,7 @@ import type {
     WindowState,
 } from '../../../types/contracts';
 import { getHelperPlanLabel } from '../utils/helperPlan';
+import { getScanAccessStatus } from '../utils/scanAccessStatus';
 
 interface LandingViewProps {
     apiReady: boolean;
@@ -18,6 +20,7 @@ interface LandingViewProps {
     oneClickScan: () => void;
     onResolveElevation?: (targetPath: string) => void | Promise<void>;
     error?: { message: string } | null;
+    coverageUpdate?: ScanCoverageUpdate | null;
     elevationRequired?: ScanElevationRequired | null;
     isScanning?: boolean;
     progress?: ScanProgressBatch | null;
@@ -33,6 +36,7 @@ export function LandingView({
     oneClickScan,
     onResolveElevation,
     error,
+    coverageUpdate,
     elevationRequired,
     isScanning,
     progress,
@@ -46,6 +50,7 @@ export function LandingView({
     const softSkippedByPolicy = perfSample?.softSkippedByPolicy ?? 0;
     const skipSamplePreview = getSkipSamplePreview(perfSample);
     const helperPlanLabel = getHelperPlanLabel(diagnostics?.helperPlan);
+    const accessStatus = getScanAccessStatus(coverageUpdate?.coverage ?? perfSample?.coverage);
 
     return (
         <div className="flex-1 flex flex-col items-center justify-center w-full relative z-10 px-6 max-w-2xl mx-auto" style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}>
@@ -99,6 +104,13 @@ export function LandingView({
                         {helperPlanLabel ? (
                             <p className="max-w-[520px] truncate text-xs text-cyan-100/55 mb-3 font-mono">
                                 {helperPlanLabel}
+                            </p>
+                        ) : null}
+                        {accessStatus ? (
+                            <p className="max-w-[560px] text-center text-xs text-amber-100/85 mb-3">
+                                <strong>{accessStatus.title}</strong>
+                                <span className="mx-1">·</span>
+                                {accessStatus.detail}
                             </p>
                         ) : null}
                         <div className="w-64 h-2 bg-white/10 rounded-full overflow-hidden backdrop-blur-sm border border-white/5 relative">

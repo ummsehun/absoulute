@@ -42,6 +42,7 @@ function App() {
           oneClickScan={oneClickScan}
           onResolveElevation={resolveElevation}
           error={error}
+          coverageUpdate={coverageUpdate}
           elevationRequired={elevationRequired}
           isScanning={isScanning}
           progress={progress}

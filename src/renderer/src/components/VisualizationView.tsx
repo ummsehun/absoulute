@@ -20,6 +20,7 @@ import { useSelectionState } from '../hooks/useSelectionState';
 import { VisualizationSidebar } from './VisualizationSidebar';
 import { VisualizationHeader } from './VisualizationHeader';
 import { VisualizationFooter } from './VisualizationFooter';
+import { getScanAccessStatus } from '../utils/scanAccessStatus';
 
 export interface DrilldownBubbleNode {
     path: string;
@@ -75,6 +76,7 @@ export function VisualizationView({
     focusedTopItems,
     coverageUpdate,
     diagnostics,
+    perfSample,
     onExactRecheck,
     setActiveRootPath,
 }: VisualizationViewProps) {
@@ -134,6 +136,7 @@ export function VisualizationView({
     const blockedByPermission = coverageUpdate?.coverage.blockedByPermission ?? 0;
     const skippedByScope = coverageUpdate?.coverage.skippedByScope ?? 0;
     const nonRemovableVisible = coverageUpdate?.coverage.nonRemovableVisible ?? 0;
+    const accessStatus = getScanAccessStatus(coverageUpdate?.coverage);
 
     const completenessNote = completeness === 'partial_permission'
         ? 'Some protected folders were excluded because macOS permission was missing.'
@@ -211,6 +214,7 @@ export function VisualizationView({
                     skippedByScope={skippedByScope}
                     nonRemovableVisible={nonRemovableVisible}
                     helperPlan={diagnostics?.helperPlan}
+                    accessStatus={accessStatus}
                     clearSelection={clearSelection}
                     onExactRecheck={onExactRecheck}
                 />

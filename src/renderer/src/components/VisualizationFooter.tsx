@@ -2,6 +2,7 @@ import React from 'react';
 import type { ScanHelperPlan } from '../../../types/contracts';
 import { formatBytes, formatCount } from '../utils/helpers';
 import { getHelperPlanLabel } from '../utils/helperPlan';
+import type { ScanAccessStatus } from '../utils/scanAccessStatus';
 import { Button } from './ui/button';
 
 interface VisualizationFooterProps {
@@ -11,6 +12,7 @@ interface VisualizationFooterProps {
     skippedByScope: number;
     nonRemovableVisible: number;
     helperPlan?: ScanHelperPlan | null;
+    accessStatus?: ScanAccessStatus | null;
     clearSelection: () => void;
     onExactRecheck?: () => void | Promise<void>;
 }
@@ -22,6 +24,7 @@ export function VisualizationFooter({
     skippedByScope,
     nonRemovableVisible,
     helperPlan,
+    accessStatus,
     clearSelection,
     onExactRecheck,
 }: VisualizationFooterProps) {
@@ -44,6 +47,14 @@ export function VisualizationFooter({
                         <span className="mx-2 text-white/26">|</span>
                         <span className="inline-block max-w-[260px] truncate align-bottom">
                             {helperPlanLabel}
+                        </span>
+                    </>
+                ) : null}
+                {accessStatus ? (
+                    <>
+                        <span className="mx-2 text-white/26">|</span>
+                        <span className="inline-block max-w-[360px] truncate align-bottom text-amber-100">
+                            {accessStatus.title}: {accessStatus.detail}
                         </span>
                     </>
                 ) : null}
