@@ -30,6 +30,8 @@ import {
 
 type ScanRequestMode = "default" | "exact";
 
+const PREFLIGHT_SCAN_ID = "preflight";
+
 export function useScanLogic() {
     const electronAPI = getElectronAPI();
     const [rootPath, setRootPath] = useState<string>(".");
@@ -287,7 +289,7 @@ export function useScanLogic() {
         } else {
             if (result.error.code === "E_OPTIN_REQUIRED" || result.error.code === "E_PERMISSION") {
                 setElevationRequired({
-                    scanId: "scan-preflight",
+                    scanId: PREFLIGHT_SCAN_ID,
                     targetPath: normalizedRoot,
                     reason: "선택한 경로는 Full Disk Access 또는 파일 접근 권한이 필요합니다. 설정에서 접근 권한을 허용해 주세요.",
                     policy: "manual",
@@ -299,7 +301,6 @@ export function useScanLogic() {
         }
     };
 
-    const startScan = async () => await startScanForPath(rootPath);
     const oneClickScan = async () => await startScanForPath(rootPath);
     const exactScan = async () => await startScanForPath(rootPath, "exact");
     const scanTopRoot = async () => await startScanForPath(getTopRootPath(rootPath));
@@ -389,7 +390,10 @@ export function useScanLogic() {
         });
     };
 
-    const visualizationRoot = activeRootPath || scanBasePath || normalizeFsPath(rootPath);
+    const visualizationRoot = useMemo(
+        () => activeRootPath || scanBasePath || normalizeFsPath(rootPath),
+        [activeRootPath, scanBasePath, rootPath],
+    );
 
     const breadcrumbPaths = useMemo(() => {
         return buildBreadcrumbPaths(scanBasePath || normalizeFsPath(rootPath), visualizationRoot);
@@ -427,7 +431,6 @@ export function useScanLogic() {
 
         // Actions
         loadSystemInfo,
-        startScan,
         oneClickScan,
         exactScan,
         scanTopRoot,
