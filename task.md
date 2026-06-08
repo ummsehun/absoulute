@@ -253,6 +253,8 @@ pnpm typecheck
 
 ### Phase 5: Verification
 
+Status: completed
+
 목표:
 
 - focused unit tests, renderer tests, native scanner tests를 실행한다.
@@ -264,3 +266,22 @@ pnpm typecheck
 - default preview scan과 exact recheck가 로그에서 명확히 구분된다.
 - exact recheck가 helper unavailable일 때도 fallback reason을 명확히 표시한다.
 - estimated GB와 exact GB가 UI에서 혼동되지 않는다.
+
+검증:
+
+```bash
+pnpm test
+pnpm typecheck
+cargo test --manifest-path native/scanner/Cargo.toml
+```
+
+결과:
+
+- Vitest: 63 files, 368 tests passed
+- Typecheck passed
+- Rust scanner cargo tests: 7 tests passed
+- Rust scanner emitted existing dead-code warnings in platform/protocol modules; tests still passed
+
+남은 확인:
+
+- 실제 packaged macOS app에서 helper registration/FDA 상태에 따라 exact recheck가 helper path를 타는지는 런타임 환경 검증이 필요하다.
