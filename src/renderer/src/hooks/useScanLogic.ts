@@ -27,6 +27,7 @@ import {
 } from "../utils/helpers";
 import {
     buildDefaultScanRequest,
+    buildExactScanRequest,
 } from "./scanRequestFactory";
 
 const PREFLIGHT_SCAN_ID = "preflight";
@@ -254,7 +255,10 @@ export function useScanLogic() {
         }
     };
 
-    const startScanForPath = async (nextRootPath: string) => {
+    const startScanForPath = async (
+        nextRootPath: string,
+        requestMode: "default" | "exact" = "default",
+    ) => {
         if (!electronAPI) return;
         if (startRequestInFlightRef.current || scanIdRef.current) {
             return;
@@ -270,11 +274,17 @@ export function useScanLogic() {
             return;
         }
 
-        const scanRequest = buildDefaultScanRequest({
-            rootPath: normalizedRoot,
-            optInProtected: allowProtectedOptIn,
-            responsivePolicySkips: RESPONSIVE_POLICY_SKIPS,
-        });
+        const scanRequest =
+            requestMode === "exact"
+                ? buildExactScanRequest({
+                    rootPath: normalizedRoot,
+                    optInProtected: allowProtectedOptIn,
+                })
+                : buildDefaultScanRequest({
+                    rootPath: normalizedRoot,
+                    optInProtected: allowProtectedOptIn,
+                    responsivePolicySkips: RESPONSIVE_POLICY_SKIPS,
+                });
 
         startRequestInFlightRef.current = true;
         const result = await electronAPI.scanStart(scanRequest).finally(() => {
@@ -317,6 +327,7 @@ export function useScanLogic() {
 
     const oneClickScan = async () => await startScanForPath(rootPath);
     const scanTopRoot = async () => await startScanForPath(getTopRootPath(rootPath));
+    const scanExactRoot = async () => await startScanForPath(rootPath, "exact");
 
     const cancelScan = async () => {
         if (!scanId || !electronAPI) return;
@@ -510,6 +521,7 @@ export function useScanLogic() {
         loadSystemInfo,
         oneClickScan,
         scanTopRoot,
+        scanExactRoot,
         cancelScan,
         pauseScan,
         resumeScan,

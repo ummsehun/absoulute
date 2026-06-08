@@ -162,6 +162,26 @@ describe("useScanLogic", () => {
     expect(window.electronAPI.registerHelper).toHaveBeenCalled();
     expect(container.textContent).toContain("Helper registration did not complete");
   });
+
+  it("starts an exact recheck with full accuracy and exact deep policy", async () => {
+    vi.mocked(window.electronAPI.scanStart).mockClear();
+    container = document.createElement("div");
+    document.body.appendChild(container);
+
+    createRoot(container).render(<ExactRecheckProbe />);
+
+    await nextFrame();
+    await nextFrame();
+
+    expect(window.electronAPI.scanStart).toHaveBeenCalledWith(
+      expect.objectContaining({
+        rootPath: "/Users",
+        performanceProfile: "accuracy-first",
+        accuracyMode: "full",
+        deepPolicyPreset: "exact",
+      }),
+    );
+  });
 });
 
 function RootPathProbe() {
@@ -200,6 +220,15 @@ function HelperRegistrationProbe() {
   }, [registerHelper]);
 
   return <div>{error ? error.message : "no-error"}</div>;
+}
+
+function ExactRecheckProbe() {
+  const { scanExactRoot } = useScanLogic();
+  React.useEffect(() => {
+    void scanExactRoot();
+  }, [scanExactRoot]);
+
+  return <div>exact-recheck</div>;
 }
 
 function nextFrame(): Promise<void> {

@@ -27,6 +27,7 @@ function App() {
 
     // Actions
     oneClickScan,
+    scanExactRoot,
     resolveElevation,
     checkFullDiskAccess,
     requestFullDiskAccess,
@@ -75,6 +76,7 @@ function App() {
           coverageUpdate={coverageUpdate}
           diagnostics={diagnostics}
           perfSample={perfSample}
+          onExactRecheck={scanExactRoot}
           setActiveRootPath={setActiveRootPath}
         />
       )}
