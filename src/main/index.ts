@@ -9,9 +9,12 @@ import { registerIpcHandlers } from "./handler/registerIpcHandlers";
 import { registerAppLifecycle } from "./lifecycle/appLifecycle";
 import { ScanManager } from "./manager/scanManager";
 import { DiskScanService } from "./services/diskScanService";
+import { loadDotEnvFile } from "./core/envLoader";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+loadDotEnvFile();
 
 const preloadPath = resolvePreloadPath(__dirname);
 const rendererHtmlPath = path.join(__dirname, "../renderer/index.html");
