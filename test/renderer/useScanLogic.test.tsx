@@ -85,6 +85,51 @@ describe("useScanLogic", () => {
     expect(container.textContent).toContain("missing");
     expect(container.textContent).toContain("/Users/tester/Library/Messages");
   });
+
+  it("keeps helper registration errors visible after refreshing helper status", async () => {
+    vi.mocked(window.electronAPI.registerHelper).mockResolvedValueOnce({
+      ok: false,
+      error: {
+        code: "E_IO",
+        message: "Failed to register helper",
+        recoverable: true,
+        details: {
+          raw: "registration-install-preflight-blocked:team-id-missing",
+        },
+      },
+    });
+    vi.mocked(window.electronAPI.getHelperStatus).mockResolvedValue({
+      ok: true,
+      data: {
+        available: false,
+        lifecycle: {
+          state: "not-implemented",
+          reason: "xpc-transport-not-implemented",
+          checks: {
+            "service-management": "unknown",
+            "helper-install": "unknown",
+            "caller-identity": "unknown",
+            "full-disk-access": "unknown",
+            "xpc-channel": "fail",
+          },
+        },
+        reason: "xpc-transport-not-implemented",
+        transport: "xpc",
+      },
+    });
+    container = document.createElement("div");
+    document.body.appendChild(container);
+
+    createRoot(container).render(<HelperRegistrationProbe />);
+
+    await nextFrame();
+    await nextFrame();
+    await nextFrame();
+
+    expect(window.electronAPI.registerHelper).toHaveBeenCalled();
+    expect(window.electronAPI.getHelperStatus).toHaveBeenCalled();
+    expect(container.textContent).toContain("Failed to register helper");
+  });
 });
 
 function RootPathProbe() {
@@ -114,6 +159,15 @@ function FullDiskAccessProbe() {
       <span>{fullDiskAccessStatus?.deniedPaths[0] ?? "no-path"}</span>
     </div>
   );
+}
+
+function HelperRegistrationProbe() {
+  const { error, registerHelper } = useScanLogic();
+  React.useEffect(() => {
+    void registerHelper();
+  }, [registerHelper]);
+
+  return <div>{error ? error.message : "no-error"}</div>;
 }
 
 function nextFrame(): Promise<void> {

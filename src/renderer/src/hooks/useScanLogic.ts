@@ -1,4 +1,4 @@
-import { startTransition, useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
+import { startTransition, useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
 import type {
     AggDelta,
     AppError,
@@ -433,18 +433,23 @@ export function useScanLogic() {
         setError(result.error);
     };
 
-    const checkHelperStatus = async () => {
+    const checkHelperStatus = useCallback(async (
+        options: { clearErrorOnSuccess?: boolean } = {},
+    ) => {
         if (!electronAPI) return;
+        const clearErrorOnSuccess = options.clearErrorOnSuccess ?? true;
         const result = await electronAPI.getHelperStatus();
         if (result.ok) {
             setHelperStatus(result.data);
-            setError(null);
+            if (clearErrorOnSuccess) {
+                setError(null);
+            }
             return;
         }
         setError(result.error);
-    };
+    }, [electronAPI]);
 
-    const registerHelper = async () => {
+    const registerHelper = useCallback(async () => {
         if (!electronAPI) return;
         const result = await electronAPI.registerHelper();
         if (result.ok) {
@@ -453,8 +458,8 @@ export function useScanLogic() {
             return;
         }
         setError(result.error);
-        void checkHelperStatus();
-    };
+        void checkHelperStatus({ clearErrorOnSuccess: false });
+    }, [checkHelperStatus, electronAPI]);
 
     const visualizationRoot = useMemo(
         () => activeRootPath || scanBasePath || normalizeFsPath(rootPath),
