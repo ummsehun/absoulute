@@ -23,6 +23,7 @@ import type {
 export interface ElectronAPI {
   getSystemInfo: () => Promise<GetSystemInfoResult>;
   getDefaultScanRoot: () => Promise<GetDefaultScanRootResult>;
+  getFileIcon: (filePath: string) => Promise<{ ok: boolean; dataUrl: string | null }>;
 
   scanStart: (input: ScanStartRequest) => Promise<ScanStartResult>;
   scanPause: (scanId: string) => Promise<ScanPauseResult>;

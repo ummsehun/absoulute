@@ -20,6 +20,9 @@ const electronAPI = {
   getDefaultScanRoot: async () =>
     ipcRenderer.invoke(IPC_CHANNELS.APP_GET_DEFAULT_SCAN_ROOT),
 
+  getFileIcon: async (filePath) =>
+    ipcRenderer.invoke(IPC_CHANNELS.APP_GET_FILE_ICON, filePath),
+
   scanStart: async (input) => {
     const parsed = coerceScanStartInput(input);
     return ipcRenderer.invoke(IPC_CHANNELS.SCAN_START, parsed);

@@ -1,4 +1,4 @@
-import { ipcMain } from "electron";
+import { app, ipcMain } from "electron";
 import os from "node:os";
 import { IPC_CHANNELS } from "../../shared/constants/ipcChannels";
 import {
@@ -45,11 +45,24 @@ export function registerIpcHandlers(
     return GetSystemInfoResultSchema.parse(payload);
   });
 
+  ipcMain.handle(IPC_CHANNELS.APP_GET_FILE_ICON, async (_event, input: unknown) => {
+    try {
+      const filePath = String(input ?? "");
+      if (!filePath) {
+        return { ok: false as const, dataUrl: null };
+      }
+      const icon = await app.getFileIcon(filePath, { size: "normal" });
+      return { ok: true as const, dataUrl: icon.toDataURL() };
+    } catch {
+      return { ok: false as const, dataUrl: null };
+    }
+  });
+
   ipcMain.handle(IPC_CHANNELS.APP_GET_DEFAULT_SCAN_ROOT, async () => {
     const payload = {
       ok: true as const,
       data: {
-        path: os.homedir(),
+        path: os.platform() === "darwin" ? "/Users" : os.homedir(),
       },
     };
 
