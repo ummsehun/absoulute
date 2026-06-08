@@ -481,6 +481,21 @@ describe("helperClient", () => {
     }
   });
 
+  it("falls back to the development helper enumerate CLI when no Electron resources path is available", () => {
+    const helperPath = path.join(
+      process.cwd(),
+      "resources",
+      "bin",
+      "helper-enumerate-macos",
+    );
+
+    if (!fs.existsSync(helperPath)) {
+      return;
+    }
+
+    expect(resolveMacOsHelperEnumerateBinary({}, null)).toBe(helperPath);
+  });
+
   it("blocks helper enumeration when registration preflight is not ready", async () => {
     let enumerateCalled = false;
     const transport = new MacOsXpcHelperTransport(

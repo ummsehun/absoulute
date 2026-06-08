@@ -139,7 +139,7 @@ export function resolveMacOsHelperEnumerateBinary(
   }
 
   if (!resourcesPath) {
-    return null;
+    return resolveDevelopmentHelperEnumerateBinary(process.cwd());
   }
 
   const bundledXpcBridgeCandidate = path.resolve(
@@ -159,6 +159,26 @@ export function resolveMacOsHelperEnumerateBinary(
   return fs.existsSync(bundledPrototypeCandidate)
     ? bundledPrototypeCandidate
     : null;
+}
+
+function resolveDevelopmentHelperEnumerateBinary(projectRoot: string): string | null {
+  const prototypeCandidate = path.resolve(
+    projectRoot,
+    "resources",
+    "bin",
+    MACOS_HELPER_ENUMERATE_BINARY_NAME,
+  );
+  if (fs.existsSync(prototypeCandidate)) {
+    return prototypeCandidate;
+  }
+
+  const xpcBridgeCandidate = path.resolve(
+    projectRoot,
+    "resources",
+    "bin",
+    MACOS_HELPER_XPC_ENUMERATE_BINARY_NAME,
+  );
+  return fs.existsSync(xpcBridgeCandidate) ? xpcBridgeCandidate : null;
 }
 
 function runCommandEnumerator(

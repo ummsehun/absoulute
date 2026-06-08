@@ -49,6 +49,13 @@ export function resolveHelperScanPlan(
   }
 
   if (
+    input.helperPrototypeEnumerate === true
+    && input.helperStatus.transport === "xpc"
+  ) {
+    return { engine: "helper" };
+  }
+
+  if (
     input.options.accuracyMode !== "full"
     || input.options.deepPolicyPreset !== "exact"
   ) {

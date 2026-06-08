@@ -39,7 +39,7 @@ describe("helperScanPlanner", () => {
     });
   });
 
-  it("keeps preview scans on the native scanner", () => {
+  it("keeps preview scans on the native scanner unless prototype enumeration is enabled", () => {
     expect(
       resolveHelperScanPlan({
         platform: "darwin",
@@ -54,6 +54,23 @@ describe("helperScanPlanner", () => {
       engine: "native",
       reason: "non-exact-scan",
     });
+
+    expect(
+      resolveHelperScanPlan({
+        platform: "darwin",
+        stage: "deep",
+        options: {
+          accuracyMode: "preview",
+          deepPolicyPreset: "responsive",
+        },
+        helperStatus: {
+          available: false,
+          reason: "helper-prototype",
+          transport: "xpc",
+        },
+        helperPrototypeEnumerate: true,
+      }),
+    ).toEqual({ engine: "helper" });
   });
 
   it("keeps non-macOS scans on the native scanner", () => {
@@ -153,7 +170,7 @@ describe("helperScanPlanner", () => {
     });
   });
 
-  it("allows prototype helper only for exact deep macOS scans on xpc transport", () => {
+  it("allows prototype helper for deep macOS scans on xpc transport", () => {
     expect(
       resolveHelperScanPlan({
         platform: "darwin",
@@ -184,5 +201,34 @@ describe("helperScanPlanner", () => {
       engine: "native",
       reason: "quick-stage",
     });
+
+    expect(
+      resolveHelperScanPlan({
+        platform: "darwin",
+        stage: "deep",
+        options: exactOptions,
+        helperStatus: {
+          available: false,
+          reason: "registration-preflight-blocked:team-id-missing",
+          transport: "xpc",
+          registrationPreflight: {
+            status: "blocked",
+            blockers: ["team-id-missing"],
+            contract: {
+              appBundleIdentifier: "com.example.diskvisualizer",
+              helperExecutableBundleRelativePath:
+                "Contents/Library/LaunchServices/com.example.diskvisualizer.privileged-helper",
+              helperLabel: "com.example.diskvisualizer.privileged-helper",
+              launchDaemonBundleRelativePath:
+                "Contents/Library/LaunchDaemons/com.example.diskvisualizer.privileged-helper.plist",
+              launchDaemonPlistName:
+                "com.example.diskvisualizer.privileged-helper.plist",
+              serviceManagementModel: "smappservice-daemon",
+            },
+          },
+        },
+        helperPrototypeEnumerate: true,
+      }),
+    ).toEqual({ engine: "helper" });
   });
 });
