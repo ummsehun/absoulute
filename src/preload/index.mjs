@@ -29,6 +29,12 @@ const electronAPI = {
   requestFullDiskAccess: async () =>
     ipcRenderer.invoke(IPC_CHANNELS.APP_REQUEST_FULL_DISK_ACCESS),
 
+  getHelperStatus: async () =>
+    ipcRenderer.invoke(IPC_CHANNELS.HELPER_GET_STATUS),
+
+  registerHelper: async () =>
+    ipcRenderer.invoke(IPC_CHANNELS.HELPER_REGISTER),
+
   scanStart: async (input) => {
     const parsed = coerceScanStartInput(input);
     return ipcRenderer.invoke(IPC_CHANNELS.SCAN_START, parsed);

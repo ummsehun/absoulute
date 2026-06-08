@@ -42,6 +42,45 @@ const electronAPIMock = {
       probes: [],
     },
   })),
+  getHelperStatus: vi.fn(async () => ({
+    ok: true,
+    data: {
+      available: false,
+      lifecycle: {
+        state: "disabled",
+        reason: "helper-phase-gate-unresolved",
+        checks: {
+          "service-management": "unknown",
+          "helper-install": "unknown",
+          "caller-identity": "unknown",
+          "full-disk-access": "unknown",
+          "xpc-channel": "unknown",
+        },
+      },
+      reason: "helper-phase-gate-unresolved",
+      transport: "disabled",
+    },
+  })),
+  registerHelper: vi.fn(async () => ({
+    ok: true,
+    data: {
+      available: false,
+      lifecycle: {
+        state: "not-installed",
+        reason: "not-found",
+        checks: {
+          "service-management": "fail",
+          "helper-install": "unknown",
+          "caller-identity": "unknown",
+          "full-disk-access": "unknown",
+          "xpc-channel": "fail",
+        },
+      },
+      readinessBlockers: ["service-management-not-registered"],
+      reason: "not-found",
+      transport: "xpc",
+    },
+  })),
 
   scanStart: vi.fn(async () => {
     const data = { scanId: "scan-test-1", startedAt: Date.now() };

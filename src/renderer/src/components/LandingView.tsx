@@ -7,6 +7,7 @@ import type {
     ScanDiagnostics,
     ScanElevationRequired,
     FullDiskAccessStatus,
+    HelperClientStatus,
     ScanPerfSample,
     ScanProgressBatch,
     WindowState,
@@ -22,8 +23,11 @@ interface LandingViewProps {
     onResolveElevation?: (targetPath: string) => void | Promise<void>;
     onRequestFullDiskAccess?: () => void | Promise<void>;
     onCheckFullDiskAccess?: () => void | Promise<void>;
+    onCheckHelperStatus?: () => void | Promise<void>;
+    onRegisterHelper?: () => void | Promise<void>;
     error?: { message: string } | null;
     fullDiskAccessStatus?: FullDiskAccessStatus | null;
+    helperStatus?: HelperClientStatus | null;
     coverageUpdate?: ScanCoverageUpdate | null;
     elevationRequired?: ScanElevationRequired | null;
     isScanning?: boolean;
@@ -41,8 +45,11 @@ export function LandingView({
     onResolveElevation,
     onRequestFullDiskAccess,
     onCheckFullDiskAccess,
+    onCheckHelperStatus,
+    onRegisterHelper,
     error,
     fullDiskAccessStatus,
+    helperStatus,
     coverageUpdate,
     elevationRequired,
     isScanning,
@@ -64,6 +71,11 @@ export function LandingView({
         && !fullDiskAccessStatus.granted
         && fullDiskAccessStatus.required;
     const firstDeniedPath = fullDiskAccessStatus?.deniedPaths[0] ?? null;
+    const shouldShowHelperSetup =
+        !isScanning
+        && helperStatus?.transport === 'xpc'
+        && helperStatus.lifecycle?.state !== 'ready';
+    const helperStatusDetail = formatHelperStatusDetail(helperStatus);
 
     return (
         <div className="flex-1 flex flex-col items-center justify-center w-full relative z-10 px-6 max-w-2xl mx-auto" style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}>
@@ -192,6 +204,46 @@ export function LandingView({
                             </div>
                         ) : null}
 
+                        {shouldShowHelperSetup ? (
+                            <div className="mb-5 w-full max-w-md rounded-2xl border border-cyan-300/20 bg-cyan-400/10 px-4 py-3 text-center shadow-[0_18px_50px_rgba(34,211,238,0.12)] backdrop-blur-xl">
+                                <strong className="block text-sm font-semibold text-cyan-100">
+                                    Helper 등록 필요
+                                </strong>
+                                <p className="mt-1 text-xs leading-relaxed text-cyan-100/75">
+                                    {helperStatusDetail}
+                                </p>
+                                <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            void onRegisterHelper?.();
+                                        }}
+                                        className="rounded-lg border border-cyan-100/30 bg-cyan-100 px-3 py-1.5 text-xs font-semibold text-black transition-colors hover:bg-white"
+                                    >
+                                        Helper 등록
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            void onRequestFullDiskAccess?.();
+                                        }}
+                                        className="rounded-lg border border-cyan-100/25 bg-black/25 px-3 py-1.5 text-xs font-semibold text-cyan-100 transition-colors hover:bg-black/40"
+                                    >
+                                        FDA 설정
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            void onCheckHelperStatus?.();
+                                        }}
+                                        className="rounded-lg border border-cyan-100/25 bg-black/25 px-3 py-1.5 text-xs font-semibold text-cyan-100 transition-colors hover:bg-black/40"
+                                    >
+                                        상태 확인
+                                    </button>
+                                </div>
+                            </div>
+                        ) : null}
+
                         {/* Liquid Scan Button */}
                         <div className="relative z-10 mt-2 flex items-center gap-3">
                             <div className="relative group">
@@ -275,6 +327,24 @@ function getPhaseDetail(progress?: ScanProgressBatch | null): {
         title: "Scanning Spaces...",
         subtitle: `Dir: ${getCurrentDirectoryLabel(progress?.progress.currentPath)}`,
     };
+}
+
+function formatHelperStatusDetail(helperStatus?: HelperClientStatus | null): string {
+    if (!helperStatus) {
+        return 'helper 상태를 확인할 수 없습니다.';
+    }
+
+    const registrationBlockers = helperStatus.registrationPreflight?.blockers ?? [];
+    if (registrationBlockers.length > 0) {
+        return `등록 전 확인 필요: ${registrationBlockers.join(', ')}`;
+    }
+
+    const readinessBlockers = helperStatus.readinessBlockers ?? [];
+    if (readinessBlockers.length > 0) {
+        return `준비 상태 확인 필요: ${readinessBlockers.join(', ')}`;
+    }
+
+    return helperStatus.lifecycle?.reason ?? helperStatus.reason ?? 'helper 등록 상태를 확인해 주세요.';
 }
 
 function getSkipSamplePreview(perfSample?: ScanPerfSample | null): string | null {

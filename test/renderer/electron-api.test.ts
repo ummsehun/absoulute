@@ -7,6 +7,8 @@ describe("renderer electronAPI mock", () => {
     expect(defaultRoot.ok).toBe(true);
     const fullDiskAccess = await window.electronAPI.checkFullDiskAccess();
     expect(fullDiskAccess.ok).toBe(true);
+    const helperStatus = await window.electronAPI.getHelperStatus();
+    expect(helperStatus.ok).toBe(true);
 
     const result = await window.electronAPI.scanStart({
       rootPath: ".",

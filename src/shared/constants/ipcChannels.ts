@@ -5,6 +5,9 @@ export const IPC_CHANNELS = {
   APP_CHECK_FULL_DISK_ACCESS: "app:check-full-disk-access",
   APP_REQUEST_FULL_DISK_ACCESS: "app:request-full-disk-access",
 
+  HELPER_GET_STATUS: "helper:get-status",
+  HELPER_REGISTER: "helper:register",
+
   SCAN_START: "scan:start",
   SCAN_PAUSE: "scan:pause",
   SCAN_RESUME: "scan:resume",

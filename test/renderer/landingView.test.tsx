@@ -74,6 +74,55 @@ describe("LandingView", () => {
     expect(buttons.some((button) => button.textContent?.includes("권한 허용"))).toBe(true);
     expect(buttons.some((button) => button.textContent?.includes("다시 확인"))).toBe(true);
   });
+
+  it("shows helper registration actions when ServiceManagement is not installed", async () => {
+    const registerHelper = vi.fn();
+    const checkHelperStatus = vi.fn();
+    const requestFullDiskAccess = vi.fn();
+    container = document.createElement("div");
+    document.body.appendChild(container);
+
+    createRoot(container).render(
+      <LandingView
+        apiReady
+        rootPath="/"
+        setRootPath={() => undefined}
+        oneClickScan={() => undefined}
+        helperStatus={{
+          available: false,
+          lifecycle: {
+            state: "not-installed",
+            reason: "not-found",
+            checks: {
+              "service-management": "fail",
+              "helper-install": "unknown",
+              "caller-identity": "unknown",
+              "full-disk-access": "unknown",
+              "xpc-channel": "fail",
+            },
+          },
+          readinessBlockers: ["service-management-not-registered"],
+          reason: "not-found",
+          transport: "xpc",
+        }}
+        onRegisterHelper={registerHelper}
+        onCheckHelperStatus={checkHelperStatus}
+        onRequestFullDiskAccess={requestFullDiskAccess}
+      />,
+    );
+
+    await nextFrame();
+
+    expect(container.textContent).toContain("Helper 등록 필요");
+    expect(container.textContent).toContain("service-management-not-registered");
+    const buttons = Array.from(container.querySelectorAll("button"));
+    buttons.find((button) => button.textContent === "Helper 등록")?.click();
+    buttons.find((button) => button.textContent === "FDA 설정")?.click();
+    buttons.find((button) => button.textContent === "상태 확인")?.click();
+    expect(registerHelper).toHaveBeenCalled();
+    expect(requestFullDiskAccess).toHaveBeenCalled();
+    expect(checkHelperStatus).toHaveBeenCalled();
+  });
 });
 
 function nextFrame(): Promise<void> {

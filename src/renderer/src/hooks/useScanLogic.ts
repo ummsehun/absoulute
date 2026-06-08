@@ -3,6 +3,7 @@ import type {
     AggDelta,
     AppError,
     FullDiskAccessStatus,
+    HelperClientStatus,
     ScanCoverageUpdate,
     ScanDiagnostics,
     ScanElevationRequired,
@@ -48,6 +49,7 @@ export function useScanLogic() {
     const [scanTerminal, setScanTerminal] = useState<ScanTerminalEvent | null>(null);
     const [fullDiskAccessStatus, setFullDiskAccessStatus] =
         useState<FullDiskAccessStatus | null>(null);
+    const [helperStatus, setHelperStatus] = useState<HelperClientStatus | null>(null);
     const [warningSummary, setWarningSummary] = useState<{
         permission: number;
         io: number;
@@ -137,6 +139,11 @@ export function useScanLogic() {
             const fullDiskAccessResult = await electronAPI.checkFullDiskAccess();
             if (fullDiskAccessResult.ok) {
                 setFullDiskAccessStatus(fullDiskAccessResult.data);
+            }
+
+            const helperStatusResult = await electronAPI.getHelperStatus();
+            if (helperStatusResult.ok) {
+                setHelperStatus(helperStatusResult.data);
             }
         })();
 
@@ -426,6 +433,29 @@ export function useScanLogic() {
         setError(result.error);
     };
 
+    const checkHelperStatus = async () => {
+        if (!electronAPI) return;
+        const result = await electronAPI.getHelperStatus();
+        if (result.ok) {
+            setHelperStatus(result.data);
+            setError(null);
+            return;
+        }
+        setError(result.error);
+    };
+
+    const registerHelper = async () => {
+        if (!electronAPI) return;
+        const result = await electronAPI.registerHelper();
+        if (result.ok) {
+            setHelperStatus(result.data);
+            setError(null);
+            return;
+        }
+        setError(result.error);
+        void checkHelperStatus();
+    };
+
     const visualizationRoot = useMemo(
         () => activeRootPath || scanBasePath || normalizeFsPath(rootPath),
         [activeRootPath, scanBasePath, rootPath],
@@ -454,6 +484,7 @@ export function useScanLogic() {
         perfSample,
         elevationRequired,
         fullDiskAccessStatus,
+        helperStatus,
         scanTerminal,
         aggregateSizes,
         patchStats,
@@ -475,6 +506,8 @@ export function useScanLogic() {
         resolveElevation,
         checkFullDiskAccess,
         requestFullDiskAccess,
+        checkHelperStatus,
+        registerHelper,
         minimizeWindow,
         toggleMaximizeWindow,
         closeWindow,

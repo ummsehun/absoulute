@@ -2,6 +2,7 @@ import type {
   AppError,
   GetDefaultScanRootResult,
   FullDiskAccessStatusResult,
+  HelperClientStatusResult,
   GetSystemInfoResult,
   GetWindowStateResult,
   ScanProgressBatch,
@@ -27,6 +28,8 @@ export interface ElectronAPI {
   getFileIcon: (filePath: string) => Promise<{ ok: boolean; dataUrl: string | null }>;
   checkFullDiskAccess: () => Promise<FullDiskAccessStatusResult>;
   requestFullDiskAccess: () => Promise<FullDiskAccessStatusResult>;
+  getHelperStatus: () => Promise<HelperClientStatusResult>;
+  registerHelper: () => Promise<HelperClientStatusResult>;
 
   scanStart: (input: ScanStartRequest) => Promise<ScanStartResult>;
   scanPause: (scanId: string) => Promise<ScanPauseResult>;

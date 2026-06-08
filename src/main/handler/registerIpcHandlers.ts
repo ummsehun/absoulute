@@ -16,6 +16,7 @@ import {
 import {
   GetDefaultScanRootResultSchema,
   FullDiskAccessStatusResultSchema,
+  HelperClientStatusResultSchema,
   GetSystemInfoResultSchema,
 } from "../../shared/schemas/system";
 import {
@@ -30,6 +31,7 @@ import {
   requestElevation,
 } from "../services/security/macosPrivilegeHelper";
 import { makeAppError, unknownToAppError } from "../utils/appError";
+import { createDefaultHelperClient } from "../services/helper/helperClient";
 
 export function registerIpcHandlers(
   scanManager: ScanManager,
@@ -107,6 +109,42 @@ export function registerIpcHandlers(
         ok: false as const,
         error: unknownToAppError(
           makeAppError("E_IO", "Failed to open Full Disk Access settings", true, {
+            raw: String(error),
+          }),
+        ),
+      });
+    }
+  });
+
+  ipcMain.handle(IPC_CHANNELS.HELPER_GET_STATUS, async () => {
+    try {
+      return HelperClientStatusResultSchema.parse({
+        ok: true as const,
+        data: await createDefaultHelperClient().healthCheck(),
+      });
+    } catch (error) {
+      return HelperClientStatusResultSchema.parse({
+        ok: false as const,
+        error: unknownToAppError(
+          makeAppError("E_IO", "Failed to check helper status", true, {
+            raw: String(error),
+          }),
+        ),
+      });
+    }
+  });
+
+  ipcMain.handle(IPC_CHANNELS.HELPER_REGISTER, async () => {
+    try {
+      return HelperClientStatusResultSchema.parse({
+        ok: true as const,
+        data: await createDefaultHelperClient().register(),
+      });
+    } catch (error) {
+      return HelperClientStatusResultSchema.parse({
+        ok: false as const,
+        error: unknownToAppError(
+          makeAppError("E_IO", "Failed to register helper", true, {
             raw: String(error),
           }),
         ),

@@ -17,6 +17,7 @@ function App() {
     perfSample,
     elevationRequired,
     fullDiskAccessStatus,
+    helperStatus,
     aggregateSizes,
     setActiveRootPath,
     apiReady,
@@ -29,6 +30,8 @@ function App() {
     resolveElevation,
     checkFullDiskAccess,
     requestFullDiskAccess,
+    checkHelperStatus,
+    registerHelper,
   } = useScanLogic();
 
   const isCompleted = useMemo(
@@ -48,8 +51,11 @@ function App() {
           onResolveElevation={resolveElevation}
           onRequestFullDiskAccess={requestFullDiskAccess}
           onCheckFullDiskAccess={checkFullDiskAccess}
+          onCheckHelperStatus={checkHelperStatus}
+          onRegisterHelper={registerHelper}
           error={error}
           fullDiskAccessStatus={fullDiskAccessStatus}
+          helperStatus={helperStatus}
           coverageUpdate={coverageUpdate}
           elevationRequired={elevationRequired}
           isScanning={isScanning}
