@@ -17,6 +17,7 @@ describe("ScanEventBus", () => {
     const eventBus = new ScanEventBus();
     const coverageEvents: Array<{
       completeness: string;
+      estimated?: boolean;
       blockedByPermission: number;
       skippedByScope: number;
       nonRemovableVisible: number;
@@ -26,6 +27,7 @@ describe("ScanEventBus", () => {
     eventBus.onCoverage((event) => {
       coverageEvents.push({
         completeness: event.coverage.completeness,
+        estimated: event.coverage.estimated,
         blockedByPermission: event.coverage.blockedByPermission,
         skippedByScope: event.coverage.skippedByScope,
         nonRemovableVisible: event.coverage.nonRemovableVisible,
@@ -84,12 +86,75 @@ describe("ScanEventBus", () => {
     expect(coverageEvents).toEqual([
       {
         completeness: "partial_mixed",
+        estimated: false,
         blockedByPermission: 2,
         skippedByScope: 3,
         nonRemovableVisible: 2,
       },
     ]);
     expect(terminalEvents).toEqual(["partial_mixed"]);
+  });
+
+  it("marks coverage and terminal coverage as estimated when scan results include estimates", () => {
+    const eventBus = new ScanEventBus();
+    const coverageEvents: boolean[] = [];
+    const terminalCoverageEstimated: boolean[] = [];
+
+    eventBus.onCoverage((event) => {
+      coverageEvents.push(event.coverage.estimated === true);
+    });
+    eventBus.onTerminal((event) => {
+      terminalCoverageEstimated.push(event.coverage.estimated === true);
+    });
+
+    const job: ScanEventJob = {
+      aggregator: {
+        consumePatch: () => null,
+      },
+      blockedByPermissionCount: 0,
+      blockedByPolicyCount: 0,
+      skippedByScopeCount: 0,
+      currentPath: "/Users",
+      deferredByBudgetCount: 0,
+      diagnosticsLastEmitAt: 0,
+      elevationRequired: false,
+      emittedErrorCount: 0,
+      engine: "native",
+      estimatedDirectories: new Set(["/Users/user/.nvm"]),
+      estimatedResult: true,
+      inflightCount: 0,
+      ioErrorCount: 0,
+      lastCoverageEmitAt: 0,
+      lastEmitAt: 0,
+      options: {
+        elevationPolicy: "manual",
+        emitPolicy: {
+          progressIntervalMs: 120,
+        },
+      },
+      pendingDeltaEventCount: 0,
+      pendingDeltaMap: new Map(),
+      pendingPermissionRescanRoots: new Set(),
+      completedPermissionRescanRoots: [],
+      permissionErrorCount: 0,
+      quickReadyEmitted: true,
+      rootPath: "/Users",
+      scanId: "scan-estimated-1",
+      scannedCount: 42,
+      scanStage: "deep",
+      softSkippedByPolicyCount: 1,
+      skipSamples: {},
+      stageStartedAt: 0,
+      startedAt: 0,
+      totalBytes: 1024,
+      visibleNonRemovableRoots: new Set(),
+    };
+
+    eventBus.emitCoverageUpdate(job, true);
+    eventBus.emitTerminalEvent(job, "done");
+
+    expect(coverageEvents).toEqual([true]);
+    expect(terminalCoverageEstimated).toEqual([true]);
   });
 
   it("includes skip cause samples in perf samples", () => {

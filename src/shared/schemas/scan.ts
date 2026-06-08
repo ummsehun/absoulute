@@ -78,6 +78,7 @@ export const ScanCoverageSchema = z.object({
   nonRemovableVisible: z.number().int().nonnegative(),
   elevationRequired: z.boolean(),
   completeness: ScanCompletenessSchema,
+  estimated: z.boolean().optional(),
 });
 
 export const ScanInflightStatsSchema = z.object({

@@ -20,5 +20,13 @@ export function getScanAccessStatus(coverage?: ScanCoverage | null): ScanAccessS
     };
   }
 
+  if (coverage.estimated === true) {
+    return {
+      tone: "warning",
+      title: "Preview estimate",
+      detail: "빠른 스캔 추정치가 포함되어 있습니다. 정확한 용량 확인은 Exact Recheck를 실행하세요.",
+    };
+  }
+
   return null;
 }

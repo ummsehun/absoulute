@@ -403,6 +403,7 @@ export class ScanEventBus {
       | "blockedByPolicyCount"
       | "skippedByScopeCount"
       | "elevationRequired"
+      | "estimatedResult"
       | "scannedCount"
       | "visibleNonRemovableRoots"
     >,
@@ -415,6 +416,7 @@ export class ScanEventBus {
       nonRemovableVisible: job.visibleNonRemovableRoots.size,
       elevationRequired: job.elevationRequired,
       completeness: this.resolveCompleteness(job),
+      estimated: job.estimatedResult,
     };
   }
 

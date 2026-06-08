@@ -174,6 +174,8 @@ pnpm typecheck
 
 ### Phase 3: Estimate vs Exact Size Semantics
 
+Status: completed
+
 목표:
 
 - estimated aggregate와 exact aggregate를 UI/상태에서 구분한다.
@@ -184,6 +186,27 @@ pnpm typecheck
 
 - estimated result가 true인 동안 UI가 preview/estimate 상태를 표시한다.
 - exact result가 false로 완료되면 해당 scope의 estimate 표시가 제거된다.
+
+구현:
+
+- `ScanCoverage`에 `estimated` flag를 추가했다.
+- `ScanEventBus`가 coverage update와 terminal coverage에 `job.estimatedResult`를 포함하도록 했다.
+- renderer access status가 permission gap이 없더라도 `coverage.estimated === true`이면 preview estimate 상태를 표시하도록 했다.
+- 권한 누락 상태가 있으면 Full Disk Access 경고를 우선 표시하고, 그 외에는 estimate 경고를 표시한다.
+
+검증:
+
+```bash
+pnpm test test/renderer/scanAccessStatus.test.ts test/main/scanEventBus.test.ts
+pnpm test test/renderer/scanAccessStatus.test.ts test/renderer/visualizationFooter.test.tsx test/renderer/appExactRecheck.test.tsx test/main/scanEventBus.test.ts test/main/diskScanService.test.ts test/main/nativeStageHandlers.test.ts test/main/scanPolicyService.test.ts test/main/scanAggregator.test.ts
+pnpm typecheck
+```
+
+결과:
+
+- Estimate/access RED-GREEN tests: 2 files, 8 tests passed
+- Focused estimate/exact regression tests: 8 files, 18 tests passed
+- Typecheck passed
 
 ### Phase 4: Root Scope Decision
 

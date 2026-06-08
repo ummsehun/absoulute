@@ -36,4 +36,23 @@ describe("getScanAccessStatus", () => {
 
     expect(getScanAccessStatus(coverage)).toBeNull();
   });
+
+  it("reports preview estimates when coverage is estimated without permission gaps", () => {
+    const coverage: ScanCoverage = {
+      scanned: 100,
+      blockedByPolicy: 0,
+      blockedByPermission: 0,
+      skippedByScope: 0,
+      nonRemovableVisible: 0,
+      elevationRequired: false,
+      completeness: "exact",
+      estimated: true,
+    };
+
+    expect(getScanAccessStatus(coverage)).toEqual({
+      tone: "warning",
+      title: "Preview estimate",
+      detail: "빠른 스캔 추정치가 포함되어 있습니다. 정확한 용량 확인은 Exact Recheck를 실행하세요.",
+    });
+  });
 });
