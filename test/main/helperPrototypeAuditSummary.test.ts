@@ -13,6 +13,7 @@ describe("helperPrototypeAuditSummary", () => {
         helperPlans: [
           {
             engine: "helper",
+            stage: "deep",
             productionReadiness: "prototype-only",
             prototypeEnumerate: true,
             registrationBlockers: [],
@@ -140,6 +141,7 @@ describe("helperPrototypeAuditSummary", () => {
         helperPlans: [
           {
             engine: "native",
+            stage: "deep",
             fallbackReason: "helper-unavailable",
             productionReadiness: "unavailable",
             registrationBlockers: ["team-id-missing"],
@@ -148,6 +150,7 @@ describe("helperPrototypeAuditSummary", () => {
           },
           {
             engine: "native",
+            stage: "deep",
             fallbackReason: "registration-preflight-blocked",
             productionReadiness: "blocked",
             readinessBlockers: [
@@ -195,6 +198,7 @@ describe("helperPrototypeAuditSummary", () => {
         helperPlans: [
           {
             engine: "native",
+            stage: "deep",
             fallbackReason: "registration-preflight-blocked",
             productionReadiness: "blocked",
             readinessBlockers: [

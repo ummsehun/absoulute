@@ -27,6 +27,7 @@ describe("renderer helper plan formatting", () => {
     expect(
       getHelperPlanLabel({
         engine: "native",
+        stage: "deep",
         fallbackReason: "helper-unavailable",
         productionReadiness: "unavailable",
         registrationBlockers: [
@@ -47,7 +48,7 @@ describe("renderer helper plan formatting", () => {
         },
       }),
     ).toBe(
-      "helper unavailable registration:team-id-missing,+1 fallback helper-unavailable xpc not-implemented",
+      "helper deep unavailable registration:team-id-missing,+1 fallback helper-unavailable xpc not-implemented",
     );
   });
 

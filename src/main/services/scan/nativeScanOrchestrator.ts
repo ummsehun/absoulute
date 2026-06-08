@@ -74,6 +74,7 @@ export interface NativeStageHandlers {
 
 export interface NativeHelperPlanMessage {
   engine: HelperScanPlan["engine"];
+  stage: NativeScanPhaseMode;
   fallbackReason?: HelperScanPlan["reason"];
   lifecycle?: HelperLifecycleStatus;
   productionReadiness:
@@ -206,6 +207,7 @@ export class NativeScanOrchestrator {
     });
     const helperPlanMessage: NativeHelperPlanMessage = {
       engine: helperPlan.engine,
+      stage: input.mode,
       productionReadiness: resolveHelperProductionReadiness({
         helperPlan,
         helperStatus,

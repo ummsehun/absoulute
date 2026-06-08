@@ -7,12 +7,13 @@ export function getHelperPlanLabel(helperPlan?: ScanHelperPlan | null): string |
 
     const lifecycleState = helperPlan.lifecycle?.state ?? "unknown";
     const readiness = helperPlan.productionReadiness;
+    const stage = helperPlan.stage ? `${helperPlan.stage} ` : "";
     if (helperPlan.engine === "helper") {
-        return `helper ${readiness} ${helperPlan.transport} ${lifecycleState}`;
+        return `helper ${stage}${readiness} ${helperPlan.transport} ${lifecycleState}`;
     }
 
     return [
-        `helper ${readiness}`,
+        `helper ${stage}${readiness}`,
         ...formatHelperBlockers(helperPlan),
         `fallback ${helperPlan.fallbackReason ?? "native"} ${helperPlan.transport} ${lifecycleState}`,
     ].join(" ");

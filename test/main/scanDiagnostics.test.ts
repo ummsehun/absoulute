@@ -85,6 +85,7 @@ describe("buildScanDiagnostics", () => {
         ioErrors: 0,
         helperPlan: {
           engine: "native",
+          stage: "deep",
           fallbackReason: "helper-unavailable",
           productionReadiness: "unavailable",
           registrationBlockers: [
@@ -113,6 +114,7 @@ describe("buildScanDiagnostics", () => {
 
     expect(diagnostics.helperPlan).toEqual({
       engine: "native",
+      stage: "deep",
       fallbackReason: "helper-unavailable",
       productionReadiness: "unavailable",
       registrationBlockers: [

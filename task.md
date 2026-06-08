@@ -137,6 +137,8 @@ pnpm typecheck
 
 ### Phase 2: Helper Candidate Diagnostics
 
+Status: completed
+
 목표:
 
 - exact deep scan에서 helper 선택 여부, fallback reason, helper lifecycle을 UI 또는 diagnostics에서 확인 가능하게 한다.
@@ -146,6 +148,29 @@ pnpm typecheck
 
 - exact deep scan은 helper health probe를 수행한다.
 - helper unavailable, registration preflight blocked, non-exact-scan이 서로 다른 diagnostics로 남는다.
+
+구현:
+
+- `ScanHelperPlan` diagnostics schema에 scan `stage`를 추가했다.
+- `NativeScanOrchestrator`가 helper plan message에 `quick` 또는 `deep` stage를 포함하도록 했다.
+- renderer helper plan label이 stage를 표시하도록 했다.
+- 이로써 exact scan 중 quick-stage fallback과 deep helper/fallback 판단을 UI 텍스트에서 구분할 수 있다.
+
+검증:
+
+```bash
+pnpm test test/renderer/helperPlan.test.ts test/main/scanDiagnostics.test.ts
+pnpm test test/main/nativeScanOrchestrator.test.ts test/main/nativeStageHandlers.test.ts test/main/scanEventBus.test.ts test/renderer/helperPlan.test.ts test/main/scanDiagnostics.test.ts
+pnpm test test/main/helperPrototypeAuditSummary.test.ts test/renderer/helperPlan.test.ts test/main/scanDiagnostics.test.ts test/main/nativeScanOrchestrator.test.ts
+pnpm typecheck
+```
+
+결과:
+
+- Helper plan/diagnostics RED-GREEN tests: 2 files, 8 tests passed
+- Native diagnostics focused tests: 5 files, 33 tests passed
+- Helper prototype/type focused tests: 4 files, 30 tests passed
+- Typecheck passed
 
 ### Phase 3: Estimate vs Exact Size Semantics
 

@@ -135,6 +135,7 @@ export const ScanHelperReadinessBlockerSchema = z.enum([
 
 export const ScanHelperPlanSchema = z.object({
   engine: z.enum(["helper", "native"]),
+  stage: ScanStageSchema.optional(),
   fallbackReason: z.string().min(1).optional(),
   lifecycle: ScanHelperLifecycleSchema.optional(),
   productionReadiness: z.enum([
