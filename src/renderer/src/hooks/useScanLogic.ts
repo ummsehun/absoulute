@@ -266,15 +266,15 @@ export function useScanLogic() {
         const result = await electronAPI.scanStart(scanRequest);
 
         if (result.ok) {
+            aggregateRef.current = {};
+            pendingDeltasRef.current = [];
+            lastVisualCommitRef.current = Date.now();
             setScanId(result.data.scanId);
             setScanStartedAt(result.data.startedAt);
             setRootPath(normalizedRoot);
             setScanBasePath(normalizedRoot);
             setActiveRootPath(normalizedRoot);
             setProgress(null);
-            aggregateRef.current = {};
-            pendingDeltasRef.current = [];
-            lastVisualCommitRef.current = Date.now();
             setAggregateSizes({});
             setPatchStats({ added: 0, updated: 0, pruned: 0 });
             setWarningSummary({ permission: 0, io: 0, lastPath: null });
