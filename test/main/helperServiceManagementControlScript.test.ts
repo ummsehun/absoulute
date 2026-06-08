@@ -303,10 +303,31 @@ function runControl(args: string[], cwd = process.cwd()) {
     ["run", controlScriptPath, ...args],
     {
       cwd,
-      env: process.env,
+      env: withoutHelperEnv(),
       encoding: "utf8",
     },
   );
+}
+
+function withoutHelperEnv(): NodeJS.ProcessEnv {
+  const env = { ...process.env };
+  for (const key of Object.keys(env)) {
+    if (key.startsWith("SCAN_HELPER_")) {
+      env[key] = "";
+    }
+  }
+  env.SCAN_HELPER_APP_BUNDLE_ID = "";
+  env.SCAN_HELPER_DESIGNATED_REQUIREMENT = "";
+  env.SCAN_HELPER_FDA_VALIDATION_MATRIX_READY = "";
+  env.SCAN_HELPER_PACKAGING_ENTITLEMENTS_READY = "";
+  env.SCAN_HELPER_PEER_VALIDATION_READY = "";
+  env.SCAN_HELPER_PRIVILEGED_EXECUTABLE_READY = "";
+  env.SCAN_HELPER_PROTOTYPE_ENUMERATE = "";
+  env.SCAN_HELPER_SM_PROBE_BIN = "";
+  env.SCAN_HELPER_TEAM_ID = "";
+  env.SCAN_HELPER_TRANSPORT = "";
+  env.SCAN_HELPER_XPC_ENUMERATE_BRIDGE_READY = "";
+  return env;
 }
 
 function writeProbe(

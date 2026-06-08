@@ -1,6 +1,6 @@
 {
-  "appBundleIdentifier": "com.example.diskvisualizer",
-  "ready": false,
-  "requirement": "identifier \"com.example.diskvisualizer\" and anchor apple generic and certificate leaf[subject.OU] = \"TEAMID_NOT_CONFIGURED\"",
-  "teamId": "TEAMID_NOT_CONFIGURED"
+  "appBundleIdentifier": "com.spacelens.app",
+  "ready": true,
+  "requirement": "identifier \"com.spacelens.app\" and anchor apple generic and certificate leaf[subject.OU] = \"RXB3U7P2MN\"",
+  "teamId": "RXB3U7P2MN"
 }

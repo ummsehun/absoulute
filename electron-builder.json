@@ -1,5 +1,5 @@
 {
-  "appId": "com.example.diskvisualizer",
+  "appId": "com.spacelens.app",
   "productName": "DiskVisualizer",
   "directories": {
     "output": "release"
