@@ -30,6 +30,7 @@ describe("scanRequestFactory", () => {
     const request = buildPreviewScanRequest({
       rootPath: "/Users/user",
       optInProtected: false,
+      responsivePolicySkips: false,
     });
 
     expect(request).toMatchObject({
@@ -41,6 +42,7 @@ describe("scanRequestFactory", () => {
       deepPolicyPreset: "responsive",
       elevationPolicy: "manual",
       allowNodeFallback: false,
+      responsivePolicySkips: false,
     });
   });
 

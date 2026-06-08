@@ -179,6 +179,7 @@ export const ScanStartRequestSchema = z.object({
   emitPolicy: ScanEmitPolicySchema.optional(),
   concurrencyPolicy: ScanConcurrencyPolicySchema.optional(),
   allowNodeFallback: z.boolean().optional(),
+  responsivePolicySkips: z.boolean().optional(),
 });
 
 export const ScanStartResponseSchema = z.object({

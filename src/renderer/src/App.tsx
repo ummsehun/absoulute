@@ -22,9 +22,11 @@ function App() {
     visualizationRoot,
     focusedTopItems,
     windowState,
+    responsivePolicySkips, setResponsivePolicySkips,
 
     // Actions
     oneClickScan,
+    previewScan,
     exactRecheck,
     resolveElevation,
   } = useScanLogic();
@@ -40,6 +42,9 @@ function App() {
           rootPath={rootPath}
           setRootPath={setRootPath}
           oneClickScan={oneClickScan}
+          previewScan={previewScan}
+          responsivePolicySkips={responsivePolicySkips}
+          setResponsivePolicySkips={setResponsivePolicySkips}
           onResolveElevation={resolveElevation}
           error={error}
           coverageUpdate={coverageUpdate}

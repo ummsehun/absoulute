@@ -116,12 +116,22 @@ export function resolveScanOptions(
   const concurrencyPolicy = resolveConcurrencyPolicy(input.concurrencyPolicy);
   const allowNodeFallback =
     Boolean(input.allowNodeFallback) || process.env.SCAN_ALLOW_NODE_FALLBACK === "1";
+  const responsivePolicySkips = input.responsivePolicySkips ?? true;
   const deepSkipPackageManagers =
-    !isRoot && deepPolicyPreset === "responsive" && DEEP_SKIP_PACKAGE_MANAGERS_DEFAULT;
+    !isRoot
+    && deepPolicyPreset === "responsive"
+    && responsivePolicySkips
+    && DEEP_SKIP_PACKAGE_MANAGERS_DEFAULT;
   const deepSkipCachePrefixes =
-    !isRoot && deepPolicyPreset === "responsive" && DEEP_SKIP_CACHE_PREFIXES_DEFAULT;
+    !isRoot
+    && deepPolicyPreset === "responsive"
+    && responsivePolicySkips
+    && DEEP_SKIP_CACHE_PREFIXES_DEFAULT;
   const deepSkipBundleDirs =
-    !isRoot && deepPolicyPreset === "responsive" && DEEP_SKIP_BUNDLE_DIRS_DEFAULT;
+    !isRoot
+    && deepPolicyPreset === "responsive"
+    && responsivePolicySkips
+    && DEEP_SKIP_BUNDLE_DIRS_DEFAULT;
   const deepSoftSkipPrefixes = resolveDeepSoftSkipPrefixes(
     os.platform(),
     os.homedir(),

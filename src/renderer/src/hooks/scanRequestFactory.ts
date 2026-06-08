@@ -3,6 +3,7 @@ import type { ScanStartRequest } from "../../../types/contracts";
 
 interface BuildScanRequestInput {
   optInProtected: boolean;
+  responsivePolicySkips?: boolean;
   rootPath: string;
 }
 
@@ -43,5 +44,6 @@ function buildScanRequest(
       adaptive: true,
     },
     allowNodeFallback: false,
+    responsivePolicySkips: input.responsivePolicySkips,
   };
 }

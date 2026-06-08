@@ -18,6 +18,9 @@ interface LandingViewProps {
     rootPath: string;
     setRootPath: (path: string) => void;
     oneClickScan: () => void;
+    previewScan?: () => void;
+    responsivePolicySkips: boolean;
+    setResponsivePolicySkips: (enabled: boolean) => void;
     onResolveElevation?: (targetPath: string) => void | Promise<void>;
     error?: { message: string } | null;
     coverageUpdate?: ScanCoverageUpdate | null;
@@ -34,6 +37,9 @@ export function LandingView({
     rootPath,
     setRootPath,
     oneClickScan,
+    previewScan,
+    responsivePolicySkips,
+    setResponsivePolicySkips,
     onResolveElevation,
     error,
     coverageUpdate,
@@ -133,19 +139,40 @@ export function LandingView({
                             </div>
                         </div>
 
-                        {/* Liquid Scan Button */}
-                        <div className="relative group mt-2 z-10">
-                            <div
-                                className="absolute -inset-2 rounded-[40px] opacity-40 group-hover:opacity-100 transition duration-500 blur-lg liquid-shape bg-gradient-to-r from-cyan-400 via-purple-500 to-indigo-500"
+                        <label className="mb-3 flex items-center gap-2 rounded-2xl border border-white/12 bg-black/24 px-4 py-2 text-xs font-medium text-white/72">
+                            <input
+                                type="checkbox"
+                                checked={responsivePolicySkips}
+                                onChange={(event) => setResponsivePolicySkips(event.target.checked)}
+                                className="h-4 w-4 accent-cyan-300"
                             />
-                            <button
-                                onClick={oneClickScan}
-                                disabled={!apiReady}
-                                className="relative flex items-center justify-center w-40 h-16 rounded-[28px] text-xl font-bold tracking-widest transition-all duration-300 transform group-hover:scale-105 bg-white/10 border border-white/20 backdrop-blur-xl shadow-2xl text-white overflow-hidden ring-1 ring-white/30"
-                            >
-                                <span className="relative z-10 drop-shadow-[0_0_10px_rgba(255,255,255,0.8)]">SCAN</span>
-                                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
-                            </button>
+                            Preview responsive skips
+                        </label>
+
+                        {/* Liquid Scan Button */}
+                        <div className="relative z-10 mt-2 flex items-center gap-3">
+                            <div className="relative group">
+                                <div
+                                    className="absolute -inset-2 rounded-[40px] opacity-40 group-hover:opacity-100 transition duration-500 blur-lg liquid-shape bg-gradient-to-r from-cyan-400 via-purple-500 to-indigo-500"
+                                />
+                                <button
+                                    onClick={oneClickScan}
+                                    disabled={!apiReady}
+                                    className="relative flex items-center justify-center w-40 h-16 rounded-[28px] text-xl font-bold tracking-widest transition-all duration-300 transform group-hover:scale-105 bg-white/10 border border-white/20 backdrop-blur-xl shadow-2xl text-white overflow-hidden ring-1 ring-white/30"
+                                >
+                                    <span className="relative z-10 drop-shadow-[0_0_10px_rgba(255,255,255,0.8)]">SCAN</span>
+                                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
+                                </button>
+                            </div>
+                            {previewScan ? (
+                                <button
+                                    onClick={previewScan}
+                                    disabled={!apiReady}
+                                    className="h-12 rounded-2xl border border-white/16 bg-white/8 px-4 text-xs font-bold tracking-widest text-white/76 transition hover:bg-white/14 hover:text-white disabled:opacity-50"
+                                >
+                                    PREVIEW
+                                </button>
+                            ) : null}
                         </div>
                     </div>
                 </div>

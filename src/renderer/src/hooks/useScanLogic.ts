@@ -26,7 +26,10 @@ import {
 import {
     buildDefaultScanRequest,
     buildExactScanRequest,
+    buildPreviewScanRequest,
 } from "./scanRequestFactory";
+
+type ScanRequestMode = "default" | "exact" | "preview";
 
 export function useScanLogic() {
     const electronAPI = getElectronAPI();
@@ -42,6 +45,7 @@ export function useScanLogic() {
     const [perfSample, setPerfSample] = useState<ScanPerfSample | null>(null);
     const [elevationRequired, setElevationRequired] = useState<ScanElevationRequired | null>(null);
     const [scanTerminal, setScanTerminal] = useState<ScanTerminalEvent | null>(null);
+    const [responsivePolicySkips, setResponsivePolicySkips] = useState<boolean>(true);
     const [warningSummary, setWarningSummary] = useState<{
         permission: number;
         io: number;
@@ -233,7 +237,10 @@ export function useScanLogic() {
         }
     };
 
-    const startScanForPath = async (nextRootPath: string, exact = false) => {
+    const startScanForPath = async (
+        nextRootPath: string,
+        mode: ScanRequestMode = "default",
+    ) => {
         if (!electronAPI) return;
 
         const normalizedRoot = normalizeFsPath(nextRootPath);
@@ -246,12 +253,18 @@ export function useScanLogic() {
             return;
         }
 
-        const scanRequest = exact === true
+        const scanRequest = mode === "exact"
             ? buildExactScanRequest({
                 rootPath: normalizedRoot,
                 optInProtected: allowProtectedOptIn,
             })
-            : buildDefaultScanRequest({
+            : mode === "preview"
+                ? buildPreviewScanRequest({
+                    rootPath: normalizedRoot,
+                    optInProtected: allowProtectedOptIn,
+                    responsivePolicySkips,
+                })
+                : buildDefaultScanRequest({
                 rootPath: normalizedRoot,
                 optInProtected: allowProtectedOptIn,
             });
@@ -294,9 +307,10 @@ export function useScanLogic() {
 
     const startScan = async () => await startScanForPath(rootPath);
     const oneClickScan = async () => await startScanForPath(rootPath);
+    const previewScan = async () => await startScanForPath(rootPath, "preview");
     const scanTopRoot = async () => await startScanForPath(getTopRootPath(rootPath));
     const exactRecheck = async () =>
-        await startScanForPath(scanBasePathRef.current || rootPathRef.current, true);
+        await startScanForPath(scanBasePathRef.current || rootPathRef.current, "exact");
 
     const cancelScan = async () => {
         if (!scanId || !electronAPI) return;
@@ -406,6 +420,7 @@ export function useScanLogic() {
         perfSample,
         elevationRequired,
         scanTerminal,
+        responsivePolicySkips, setResponsivePolicySkips,
         aggregateSizes,
         patchStats,
         scanBasePath,
@@ -420,6 +435,7 @@ export function useScanLogic() {
         loadSystemInfo,
         startScan,
         oneClickScan,
+        previewScan,
         scanTopRoot,
         exactRecheck,
         cancelScan,

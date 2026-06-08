@@ -93,4 +93,25 @@ describe("scanRuntimeOptions", () => {
     expect(options.deepSoftSkipPrefixes).toEqual([]);
     expect(options.deepSkipDirSuffixes).toEqual([]);
   });
+
+  it("allows responsive scans to disable policy soft-skips manually", () => {
+    const options = resolveScanOptions(
+      {
+        rootPath,
+        optInProtected: false,
+        deepPolicyPreset: "responsive",
+        responsivePolicySkips: false,
+      },
+      rootPath,
+    );
+
+    expect(options.deepPolicyPreset).toBe("responsive");
+    expect(options.accuracyMode).toBe("preview");
+    expect(options.deepBudgetMs).toBeGreaterThan(0);
+    expect(options.deepSkipPackageManagers).toBe(false);
+    expect(options.deepSkipCachePrefixes).toBe(false);
+    expect(options.deepSkipBundleDirs).toBe(false);
+    expect(options.deepSoftSkipPrefixes).toEqual([]);
+    expect(options.deepSkipDirSuffixes).toEqual([]);
+  });
 });
