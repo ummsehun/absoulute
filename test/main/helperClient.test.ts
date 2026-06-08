@@ -283,7 +283,7 @@ describe("helperClient", () => {
           "fda-validation-matrix-missing",
         ],
         contract: {
-          appBundleIdentifier: "com.example.diskvisualizer",
+          appBundleIdentifier: "com.spacelens.app",
           helperExecutableBundleRelativePath:
             "Contents/Library/LaunchServices/com.example.diskvisualizer.privileged-helper",
           helperLabel: "com.example.diskvisualizer.privileged-helper",
@@ -325,7 +325,7 @@ describe("helperClient", () => {
           "fda-validation-matrix-missing",
         ],
         contract: {
-          appBundleIdentifier: "com.example.diskvisualizer",
+          appBundleIdentifier: "com.spacelens.app",
           helperExecutableBundleRelativePath:
             "Contents/Library/LaunchServices/com.example.diskvisualizer.privileged-helper",
           helperLabel: "com.example.diskvisualizer.privileged-helper",
@@ -1395,7 +1395,7 @@ describe("helperClient", () => {
           "fda-validation-matrix-missing",
         ],
         contract: {
-          appBundleIdentifier: "com.example.diskvisualizer",
+          appBundleIdentifier: "com.spacelens.app",
           helperExecutableBundleRelativePath:
             "Contents/Library/LaunchServices/com.example.diskvisualizer.privileged-helper",
           helperLabel: "com.example.diskvisualizer.privileged-helper",

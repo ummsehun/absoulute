@@ -57,10 +57,10 @@ export const HELPER_FDA_VALIDATION_MATRIX_READY_ENV =
   "SCAN_HELPER_FDA_VALIDATION_MATRIX_READY";
 
 export const DISK_VISUALIZER_APP_BUNDLE_IDENTIFIER =
-  "com.example.diskvisualizer";
+  "com.spacelens.app";
 
 export const DISK_SCAN_HELPER_LABEL =
-  `${DISK_VISUALIZER_APP_BUNDLE_IDENTIFIER}.privileged-helper`;
+  "com.example.diskvisualizer.privileged-helper";
 
 export const DISK_SCAN_HELPER_LAUNCH_DAEMON_PLIST_NAME =
   `${DISK_SCAN_HELPER_LABEL}.plist`;

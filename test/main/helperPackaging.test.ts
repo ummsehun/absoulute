@@ -10,6 +10,7 @@ import {
 
 const projectRoot = process.cwd();
 const electronBuilderConfigPath = path.join(projectRoot, "electron-builder.json");
+const packageJsonPath = path.join(projectRoot, "package.json");
 const launchDaemonSourcePath = path.join(
   projectRoot,
   "resources",
@@ -51,6 +52,17 @@ describe("helper packaging", () => {
       to: "Library/LaunchDaemons",
       filter: [contract.launchDaemonPlistName],
     });
+  });
+
+  it("keeps the Electron app id aligned with the helper registration contract", () => {
+    const contract = getHelperRegistrationContract();
+    const config = JSON.parse(
+      fs.readFileSync(electronBuilderConfigPath, "utf8"),
+    ) as {
+      appId?: string;
+    };
+
+    expect(config.appId).toBe(contract.appBundleIdentifier);
   });
 
   it("copies the privileged helper executable into the macOS app bundle content directory", () => {
@@ -196,5 +208,16 @@ describe("helper packaging", () => {
       to: "bin",
       filter: expect.arrayContaining(["helper-xpc-enumerate-macos"]),
     });
+  });
+
+  it("verifies macOS code signatures after building the packaged app", () => {
+    const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, "utf8")) as {
+      scripts?: Record<string, string>;
+    };
+
+    expect(packageJson.scripts?.["verify:mac-signing"]).toBe(
+      "bun run scripts/verify-mac-codesign.ts",
+    );
+    expect(packageJson.scripts?.["build:mac"]).toContain("pnpm verify:mac-signing");
   });
 });

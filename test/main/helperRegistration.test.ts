@@ -117,7 +117,7 @@ describe("helperRegistration", () => {
 
   it("builds the helper code signing requirement from the app identifier and Team ID", () => {
     expect(buildHelperCodeSigningRequirement("ABCDE12345")).toBe(
-      'identifier "com.example.diskvisualizer" and anchor apple generic and certificate leaf[subject.OU] = "ABCDE12345"',
+      'identifier "com.spacelens.app" and anchor apple generic and certificate leaf[subject.OU] = "ABCDE12345"',
     );
     expect(
       buildHelperCodeSigningRequirement("ABCDE12345", "com.acme.diskvisualizer"),
@@ -477,7 +477,7 @@ describe("helperRegistration", () => {
           ready: true,
           teamId: "ABCDE12345",
           requirement:
-            'identifier "com.example.diskvisualizer" and anchor apple generic and certificate leaf[subject.OU] = "ABCDE12345"',
+            'identifier "com.spacelens.app" and anchor apple generic and certificate leaf[subject.OU] = "ABCDE12345"',
         }),
       );
 
