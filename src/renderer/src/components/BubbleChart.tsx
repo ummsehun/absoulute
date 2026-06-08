@@ -199,7 +199,7 @@ export function BubbleChart(props: BubbleChartProps) {
                         >
                             <h4 className="truncate text-[13px] font-semibold text-white/95">{hoveredNode.name}</h4>
                             <div className="flex items-center justify-between text-[11px] font-medium text-white/50">
-                                <span>{hoveredNode.kind === 'other' ? 'Grouped Items' : 'Folder'}</span>
+                                <span>{hoveredNode.kind === 'other' ? 'Grouped in view' : 'Folder'}</span>
                                 <span className="font-mono text-fuchsia-300">{formatBytes(hoveredNode.size)}</span>
                             </div>
                         </div>

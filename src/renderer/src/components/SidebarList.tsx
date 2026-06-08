@@ -70,7 +70,7 @@ export function SidebarList({
                                     </p>
                                     <p className="mt-0.5 truncate text-[10px] font-mono text-white/30" title={row.path}>
                                         {row.kind === 'other'
-                                            ? 'Grouped items to keep the map readable'
+                                            ? row.description ?? 'Additional entries grouped in this view'
                                             : row.path}
                                     </p>
                                 </div>

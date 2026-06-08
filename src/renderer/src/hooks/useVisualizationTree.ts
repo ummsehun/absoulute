@@ -65,7 +65,11 @@ export function useVisualizationTree({
         if (showRemainderBubble) {
             rows.push({
                 path: `${deferredVisualizationRoot || rootPath}#other`,
-                name: visibleChildren.length === 0 ? 'Loose Files' : 'Other Items',
+                name: visibleChildren.length === 0 ? 'Loose Files' : 'Remaining Items',
+                description:
+                    visibleChildren.length === 0
+                        ? 'Files directly inside this folder'
+                        : 'Additional entries grouped to keep this view readable',
                 size: remainderSize,
                 kind: 'other',
                 interactive: false,

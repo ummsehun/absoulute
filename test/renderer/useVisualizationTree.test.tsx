@@ -20,7 +20,7 @@ afterEach(() => {
 });
 
 describe("useVisualizationTree", () => {
-  it("keeps more root children visible before grouping the remainder as Other Items", async () => {
+  it("keeps more root children visible before grouping the remainder as Remaining Items", async () => {
     const aggregateSizes: Record<string, number> = { "/": 2_500 };
     const focusedTopItems: Array<[string, number]> = [];
     for (let index = 0; index < MAX_VISIBLE_BUBBLES; index += 1) {
@@ -47,7 +47,10 @@ describe("useVisualizationTree", () => {
     await nextFrame();
 
     expect(rows.filter((row) => row.kind === "directory")).toHaveLength(MAX_VISIBLE_BUBBLES);
-    expect(rows.some((row) => row.name === "Other Items")).toBe(true);
+    expect(rows.some((row) => row.name === "Remaining Items")).toBe(true);
+    expect(rows.find((row) => row.kind === "other")?.description).toBe(
+      "Additional entries grouped to keep this view readable",
+    );
   });
 });
 

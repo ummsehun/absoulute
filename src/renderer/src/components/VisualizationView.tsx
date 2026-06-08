@@ -49,6 +49,7 @@ export interface CircleVizNode {
 export interface ListRow {
     path: string;
     name: string;
+    description?: string;
     size: number;
     kind: 'directory' | 'other';
     interactive: boolean;
