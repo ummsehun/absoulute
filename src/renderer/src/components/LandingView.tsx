@@ -18,9 +18,6 @@ interface LandingViewProps {
     rootPath: string;
     setRootPath: (path: string) => void;
     oneClickScan: () => void;
-    exactScan?: () => void;
-    responsivePolicySkips: boolean;
-    setResponsivePolicySkips: (enabled: boolean) => void;
     onResolveElevation?: (targetPath: string) => void | Promise<void>;
     error?: { message: string } | null;
     coverageUpdate?: ScanCoverageUpdate | null;
@@ -37,9 +34,6 @@ export function LandingView({
     rootPath,
     setRootPath,
     oneClickScan,
-    exactScan,
-    responsivePolicySkips,
-    setResponsivePolicySkips,
     onResolveElevation,
     error,
     coverageUpdate,
@@ -71,8 +65,7 @@ export function LandingView({
                         className="absolute inset-0 bg-gradient-to-tr from-purple-600 to-indigo-500 opacity-50 liquid-shape blur-2xl transition-all duration-700 ease-[cubic-bezier(0.34,1.56,0.64,1)] group-hover:scale-110"
                     />
                     <div
-                        className="absolute inset-0 bg-gradient-to-br from-cyan-400 to-blue-600 opacity-40 liquid-spin blur-xl mix-blend-screen transition-all duration-700 ease-[cubic-bezier(0.34,1.56,0.64,1)] group-hover:scale-125 group-hover:rotate-12"
-                        style={{ animationDuration: isScanning ? '4s' : '10s' }}
+                        className={`absolute inset-0 bg-gradient-to-br from-cyan-400 to-blue-600 opacity-40 liquid-spin blur-xl mix-blend-screen transition-all duration-700 ease-[cubic-bezier(0.34,1.56,0.64,1)] group-hover:scale-125 group-hover:rotate-12${isScanning ? ' liquid-spin-scanning' : ''}`}
                     />
 
                     <div className="relative z-20 h-80 w-80">
@@ -108,12 +101,12 @@ export function LandingView({
                             </p>
                         ) : null}
                         {helperPlanLabel ? (
-                            <p className="max-w-[520px] truncate text-xs text-cyan-100/55 mb-3 font-mono">
+                            <p className="max-w-[520px] truncate text-xs text-cyan-100/50 mb-3 font-mono">
                                 {helperPlanLabel}
                             </p>
                         ) : null}
                         {accessStatus ? (
-                            <p className="max-w-[560px] text-center text-xs text-amber-100/85 mb-3">
+                            <p className="max-w-[560px] text-center text-xs text-amber-100/80 mb-3">
                                 <strong>{accessStatus.title}</strong>
                                 <span className="mx-1">·</span>
                                 {accessStatus.detail}
@@ -121,7 +114,7 @@ export function LandingView({
                         ) : null}
                         <div className="w-64 h-2 bg-white/10 rounded-full overflow-hidden backdrop-blur-sm border border-white/5 relative">
                             {/* Indeterminate loading bar */}
-                            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-cyan-400 to-transparent w-full h-full opacity-50" style={{ animation: 'shimmer 1.5s infinite linear', backgroundSize: '200% 100%' }} />
+                            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-cyan-400 to-transparent w-full h-full opacity-50 animate-shimmer" />
                         </div>
                         <div className="mt-4 flex gap-6 text-xs text-white/50 font-mono">
                             <span>{(progress?.progress.scannedCount ?? 0).toLocaleString()} Files</span>
@@ -139,16 +132,6 @@ export function LandingView({
                             </div>
                         </div>
 
-                        <label className="mb-3 flex items-center gap-2 rounded-2xl border border-white/12 bg-black/24 px-4 py-2 text-xs font-medium text-white/72">
-                            <input
-                                type="checkbox"
-                                checked={responsivePolicySkips}
-                                onChange={(event) => setResponsivePolicySkips(event.target.checked)}
-                                className="h-4 w-4 accent-cyan-300"
-                            />
-                            Preview responsive skips
-                        </label>
-
                         {/* Liquid Scan Button */}
                         <div className="relative z-10 mt-2 flex items-center gap-3">
                             <div className="relative group">
@@ -164,15 +147,6 @@ export function LandingView({
                                     <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
                                 </button>
                             </div>
-                            {exactScan ? (
-                                <button
-                                    onClick={exactScan}
-                                    disabled={!apiReady}
-                                    className="h-12 rounded-2xl border border-white/16 bg-white/8 px-4 text-xs font-bold tracking-widest text-white/76 transition hover:bg-white/14 hover:text-white disabled:opacity-50"
-                                >
-                                    EXACT
-                                </button>
-                            ) : null}
                         </div>
                     </div>
                 </div>
