@@ -161,10 +161,13 @@ export function createDefaultHelperTransport(
 ): HelperTransport {
   const registrationPreflightInput =
     resolveHelperRegistrationPreflightInputFromEnv(env, projectRoot);
+  const registrationPreflight = resolveHelperRegistrationPreflight(
+    registrationPreflightInput,
+  );
   const explicitXpcTransport = env[HELPER_TRANSPORT_ENV] === "xpc";
   const readinessGatedXpcTransport = platform === "darwin"
-    && resolveHelperRegistrationPreflight(registrationPreflightInput).status
-      === "ready";
+    && resolveHelperInstallPreflightBlockers(registrationPreflight.blockers)
+      .length === 0;
 
   if (!explicitXpcTransport && !readinessGatedXpcTransport) {
     return new DisabledHelperTransport(HELPER_DISABLED_REASON);
@@ -194,6 +197,15 @@ export function createDefaultHelperTransport(
         resourcesPath,
       ) ?? undefined,
     },
+  );
+}
+
+function resolveHelperInstallPreflightBlockers(
+  blockers: string[],
+): string[] {
+  return blockers.filter((blocker) =>
+    blocker !== "fda-validation-matrix-missing"
+    && blocker !== "helper-xpc-enumerate-bridge-missing"
   );
 }
 

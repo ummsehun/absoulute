@@ -250,6 +250,41 @@ describe("helperClient", () => {
     }
   });
 
+  it("selects xpc transport for helper registration when install gates are ready but FDA validation is pending", async () => {
+    const projectRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "diskviz-helper-install-ready-"),
+    );
+    const requirement = buildReadyHelperProjectEvidence(projectRoot);
+
+    try {
+      const transport = createDefaultHelperTransport(
+        {
+          [HELPER_APP_BUNDLE_ID_ENV]: TEST_APP_BUNDLE_IDENTIFIER,
+          [HELPER_TEAM_ID_ENV]: TEST_TEAM_ID,
+          [HELPER_DESIGNATED_REQUIREMENT_ENV]: requirement,
+          [HELPER_PACKAGING_ENTITLEMENTS_READY_ENV]: "true",
+          [HELPER_PRIVILEGED_EXECUTABLE_READY_ENV]: "true",
+        },
+        "darwin",
+        null,
+        projectRoot,
+      );
+
+      await expect(transport.getStatus()).resolves.toMatchObject({
+        transport: "xpc",
+        registrationPreflight: {
+          status: "blocked",
+          blockers: expect.arrayContaining([
+            "helper-xpc-enumerate-bridge-missing",
+            "fda-validation-matrix-missing",
+          ]),
+        },
+      });
+    } finally {
+      fs.rmSync(projectRoot, { recursive: true, force: true });
+    }
+  });
+
   it("selects the macOS xpc transport stub only on darwin opt-in", async () => {
     const transport = createDefaultHelperTransport(
       { [HELPER_TRANSPORT_ENV]: "xpc" },
