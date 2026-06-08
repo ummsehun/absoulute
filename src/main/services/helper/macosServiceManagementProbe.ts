@@ -214,7 +214,17 @@ export function resolveMacOsServiceManagementProbeBinary(
     "bin",
     MACOS_SERVICE_MANAGEMENT_PROBE_BINARY_NAME,
   );
-  return hasExecutableFileEvidence(bundledCandidate) ? bundledCandidate : null;
+  if (hasExecutableFileEvidence(bundledCandidate)) {
+    return bundledCandidate;
+  }
+
+  const devCandidate = path.resolve(
+    process.cwd(),
+    "resources",
+    "bin",
+    MACOS_SERVICE_MANAGEMENT_PROBE_BINARY_NAME,
+  );
+  return hasExecutableFileEvidence(devCandidate) ? devCandidate : null;
 }
 
 export async function buildHelperServiceManagementAudit(

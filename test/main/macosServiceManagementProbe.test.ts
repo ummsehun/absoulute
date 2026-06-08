@@ -383,8 +383,10 @@ describe("macosServiceManagementProbe", () => {
           "darwin",
           resourcesRoot,
         ).constructor.name,
-      ).toBe("NotImplementedMacOsServiceManagementProbe");
-      expect(resolveMacOsServiceManagementProbeBinary({}, resourcesRoot)).toBeNull();
+      ).toBe("CommandMacOsServiceManagementProbe");
+      expect(resolveMacOsServiceManagementProbeBinary({}, resourcesRoot)).toBe(
+        resolveDevelopmentServiceManagementProbePath(),
+      );
 
       fs.chmodSync(probePath, 0o755);
 
@@ -404,12 +406,7 @@ describe("macosServiceManagementProbe", () => {
   });
 
   it("falls back to the development resources probe when no Electron resources path is available", () => {
-    const probePath = path.join(
-      process.cwd(),
-      "resources",
-      "bin",
-      "service-management-probe-macos",
-    );
+    const probePath = resolveDevelopmentServiceManagementProbePath();
 
     if (!fs.existsSync(probePath)) {
       return;
@@ -418,6 +415,27 @@ describe("macosServiceManagementProbe", () => {
     fs.chmodSync(probePath, 0o755);
 
     expect(resolveMacOsServiceManagementProbeBinary({}, null)).toBe(probePath);
+  });
+
+  it("falls back to the development resources probe when Electron resources lack a probe binary", () => {
+    const probePath = resolveDevelopmentServiceManagementProbePath();
+
+    if (!fs.existsSync(probePath)) {
+      return;
+    }
+
+    const resourcesRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "diskviz-sm-probe-empty-resources-"),
+    );
+
+    try {
+      fs.chmodSync(probePath, 0o755);
+      expect(resolveMacOsServiceManagementProbeBinary({}, resourcesRoot)).toBe(
+        probePath,
+      );
+    } finally {
+      fs.rmSync(resourcesRoot, { force: true, recursive: true });
+    }
   });
 
   it("does not fall back to the packaged probe when an explicit probe path is invalid", () => {
@@ -470,4 +488,13 @@ class NotImplementedTestProbe {
       state: "not-implemented",
     };
   }
+}
+
+function resolveDevelopmentServiceManagementProbePath(): string {
+  return path.join(
+    process.cwd(),
+    "resources",
+    "bin",
+    "service-management-probe-macos",
+  );
 }
