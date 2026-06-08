@@ -78,6 +78,8 @@ export function useScanLogic() {
     const scanBasePathRef = useRef<string>("");
     const activeRootPathRef = useRef<string>("");
     const rootPathRef = useRef<string>(".");
+    const scanIdRef = useRef<string>("");
+    const startRequestInFlightRef = useRef(false);
 
     const commitPendingDeltas = useEffectEvent(() => {
         if (pendingDeltasRef.current.length === 0) {
@@ -103,7 +105,8 @@ export function useScanLogic() {
         scanBasePathRef.current = scanBasePath;
         activeRootPathRef.current = activeRootPath;
         rootPathRef.current = rootPath;
-    }, [scanBasePath, activeRootPath, rootPath]);
+        scanIdRef.current = scanId;
+    }, [scanBasePath, activeRootPath, rootPath, scanId]);
 
     useEffect(() => {
         if (!electronAPI) {
@@ -246,6 +249,9 @@ export function useScanLogic() {
 
     const startScanForPath = async (nextRootPath: string) => {
         if (!electronAPI) return;
+        if (startRequestInFlightRef.current || scanIdRef.current) {
+            return;
+        }
 
         const normalizedRoot = normalizeFsPath(nextRootPath);
         if (!normalizedRoot) {
@@ -263,7 +269,10 @@ export function useScanLogic() {
             responsivePolicySkips: RESPONSIVE_POLICY_SKIPS,
         });
 
-        const result = await electronAPI.scanStart(scanRequest);
+        startRequestInFlightRef.current = true;
+        const result = await electronAPI.scanStart(scanRequest).finally(() => {
+            startRequestInFlightRef.current = false;
+        });
 
         if (result.ok) {
             aggregateRef.current = {};
@@ -427,7 +436,7 @@ export function useScanLogic() {
     }, [rootPath, scanBasePath, visualizationRoot]);
 
     const focusedTopItems = useMemo(() => {
-        return getTopItemsForPath(aggregateSizes, visualizationRoot, 12);
+        return getTopItemsForPath(aggregateSizes, visualizationRoot, 32);
     }, [aggregateSizes, visualizationRoot]);
 
     return {

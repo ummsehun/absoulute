@@ -403,6 +403,23 @@ describe("macosServiceManagementProbe", () => {
     }
   });
 
+  it("falls back to the development resources probe when no Electron resources path is available", () => {
+    const probePath = path.join(
+      process.cwd(),
+      "resources",
+      "bin",
+      "service-management-probe-macos",
+    );
+
+    if (!fs.existsSync(probePath)) {
+      return;
+    }
+
+    fs.chmodSync(probePath, 0o755);
+
+    expect(resolveMacOsServiceManagementProbeBinary({}, null)).toBe(probePath);
+  });
+
   it("does not fall back to the packaged probe when an explicit probe path is invalid", () => {
     const resourcesRoot = fs.mkdtempSync(
       path.join(os.tmpdir(), "diskviz-sm-probe-invalid-env-"),

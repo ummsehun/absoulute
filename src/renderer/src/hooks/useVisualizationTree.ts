@@ -3,7 +3,7 @@ import { hierarchy, pack } from 'd3-hierarchy';
 import { getDisplaySizeForPath, labelFromPath, resolveBubbleTone } from '../utils/helpers';
 import type { CircleVizNode, DrilldownBubbleNode, ListRow } from '../components/VisualizationView';
 
-const MAX_VISIBLE_BUBBLES = 8;
+export const MAX_VISIBLE_BUBBLES = 24;
 const VIEWBOX_WIDTH = 980;
 const VIEWBOX_HEIGHT = 760;
 

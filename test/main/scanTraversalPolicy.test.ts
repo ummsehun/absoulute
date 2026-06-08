@@ -143,6 +143,15 @@ describe("scanTraversalPolicy", () => {
     expect(permissionRoots).toContain(path.join(homeDirectory, "Documents"));
   });
 
+  it("blocks macOS Data volume firmlink duplicates only for filesystem root scans", () => {
+    const rootBlocked = buildNativeBlockedPrefixes("darwin", homeDirectory, "/");
+    const userBlocked = buildNativeBlockedPrefixes("darwin", homeDirectory, "/Users");
+
+    expect(rootBlocked).toContain("/System/Volumes/Data/Users");
+    expect(rootBlocked).toContain("/System/Volumes/Data/Applications");
+    expect(userBlocked).not.toContain("/System/Volumes/Data/Users");
+  });
+
   it("sends no responsive skip inputs for exact native deep stages", () => {
     const options = resolveScanOptions(
       {

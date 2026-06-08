@@ -434,6 +434,7 @@ export class NativeScanOrchestrator {
         blockedPrefixes: buildNativeBlockedPrefixes(
           os.platform(),
           os.homedir(),
+          context.rootPath,
         ),
         permissionPrefixes: buildNativePermissionDeniedPrefixes(
           os.platform(),

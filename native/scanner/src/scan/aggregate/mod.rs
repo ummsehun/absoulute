@@ -17,7 +17,6 @@ pub(crate) const MIN_FILE_METADATA_CHUNK_SIZE: usize = 256;
 pub(crate) const MIN_AGG_BATCH_ITEMS: usize = 64;
 pub(crate) const MIN_AGG_BATCH_MS: u64 = 20;
 pub(crate) const MIN_PROGRESS_INTERVAL_MS: u64 = 80;
-pub(crate) const DEEP_DIRECTORY_BUDGET_MS: u64 = 500;
 pub(crate) const MAX_POLICY_SKIP_SAMPLES: usize = 25;
 
 pub struct ControlState {

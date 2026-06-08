@@ -19,9 +19,7 @@ use super::path_utils::path_to_string;
 use super::planner::plan_traversal;
 use super::planner::TraversalPlan;
 use super::policy::{is_blocked_path, is_soft_skipped_dir, map_error_code, PolicyBlockKind};
-use super::{
-    ControlState, ScanExecutionOptions, ScanRuntime, ScanSummary, DEEP_DIRECTORY_BUDGET_MS,
-};
+use super::{ControlState, ScanExecutionOptions, ScanRuntime, ScanSummary};
 
 enum ScanLoopControl {
     Continue,
@@ -111,10 +109,6 @@ pub fn run_bfs_scan<W: Write>(
         };
 
         let mut file_candidates: Vec<PathBuf> = Vec::new();
-        let dir_started_at = Instant::now();
-        let dir_budget_ms =
-            resolve_directory_budget_ms(plan.deep_responsive_preset, options.time_budget_ms);
-
         for entry_res in read_dir {
             if options.time_budget_ms > 0
                 && runtime.started_at.elapsed() >= Duration::from_millis(options.time_budget_ms)
@@ -127,20 +121,6 @@ pub fn run_bfs_scan<W: Write>(
                 break;
             }
             wait_if_paused(runtime.controls);
-
-            if dir_budget_ms > 0 && dir_started_at.elapsed() >= Duration::from_millis(dir_budget_ms)
-            {
-                estimated_by_policy = true;
-                estimated = true;
-                on_policy_block(
-                    runtime,
-                    &mut accum,
-                    &dir_path,
-                    "Directory deferred by time budget",
-                    PolicyBlockKind::DeferredByBudget,
-                )?;
-                break;
-            }
 
             let entry = match entry_res {
                 Ok(entry) => entry,
@@ -358,37 +338,5 @@ fn map_batch_control(control: BatchControl) -> Result<ScanLoopControl> {
 fn wait_if_paused(controls: &ControlState) {
     while controls.paused.load(Ordering::Relaxed) && !controls.cancelled.load(Ordering::Relaxed) {
         thread::sleep(Duration::from_millis(40));
-    }
-}
-
-fn resolve_directory_budget_ms(deep_responsive_preset: bool, time_budget_ms: u64) -> u64 {
-    if deep_responsive_preset && time_budget_ms > 0 {
-        DEEP_DIRECTORY_BUDGET_MS
-    } else {
-        0
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::resolve_directory_budget_ms;
-    use crate::scan::aggregate::DEEP_DIRECTORY_BUDGET_MS;
-
-    #[test]
-    fn disables_per_directory_budget_for_unbounded_deep_scans() {
-        assert_eq!(resolve_directory_budget_ms(true, 0), 0);
-    }
-
-    #[test]
-    fn keeps_per_directory_budget_for_bounded_responsive_scans() {
-        assert_eq!(
-            resolve_directory_budget_ms(true, 500),
-            DEEP_DIRECTORY_BUDGET_MS
-        );
-    }
-
-    #[test]
-    fn disables_per_directory_budget_for_exact_scans() {
-        assert_eq!(resolve_directory_budget_ms(false, 500), 0);
     }
 }

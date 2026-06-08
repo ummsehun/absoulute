@@ -259,7 +259,7 @@ describe("helperClient", () => {
     await expect(transport.getStatus()).resolves.toEqual({
       available: false,
       lifecycle: {
-          state: "not-implemented",
+        state: "not-installed",
         reason: MACOS_XPC_HELPER_NOT_IMPLEMENTED_REASON,
         checks: {
           "service-management": "fail",
@@ -301,7 +301,7 @@ describe("helperClient", () => {
     await expect(transport.healthCheck()).resolves.toEqual({
       available: false,
       lifecycle: {
-        state: "not-implemented",
+        state: "not-installed",
         reason: MACOS_XPC_HELPER_NOT_IMPLEMENTED_REASON,
         checks: {
           "service-management": "fail",

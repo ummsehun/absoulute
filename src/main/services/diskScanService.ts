@@ -135,6 +135,10 @@ export class DiskScanService {
     return this.eventBus.onElevationRequired(listener);
   }
 
+  hasScan(scanId: string): boolean {
+    return this.jobs.has(scanId);
+  }
+
   async startScan(input: ScanStartRequest): Promise<ScanStartResponse> {
     const rootDecision = await evaluateRootPath(input.rootPath, input.optInProtected);
     if (!rootDecision.scanAllowed && rootDecision.error) {

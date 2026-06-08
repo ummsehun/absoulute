@@ -58,6 +58,22 @@ describe("ScanManager", () => {
     expect(third.ok).toBe(true);
   });
 
+  it("clears stale active state when the scan service no longer has the job", async () => {
+    const service = new StubDiskScanService();
+    const manager = new ScanManager(service.asDiskScanService());
+
+    const first = await manager.start(makeStartInput("/tmp"));
+    expect(first.ok).toBe(true);
+    if (!first.ok) {
+      return;
+    }
+
+    service.dropActiveScan(first.data.scanId);
+
+    const second = await manager.start(makeStartInput("/tmp"));
+    expect(second.ok).toBe(true);
+  });
+
   it("enforces pause/resume transition order", async () => {
     const service = new StubDiskScanService();
     const manager = new ScanManager(service.asDiskScanService());
@@ -160,6 +176,14 @@ class StubDiskScanService {
       this.activeScans.delete(scanId);
     }
     return exists;
+  }
+
+  hasScan(scanId: string): boolean {
+    return this.activeScans.has(scanId);
+  }
+
+  dropActiveScan(scanId: string): void {
+    this.activeScans.delete(scanId);
   }
 }
 

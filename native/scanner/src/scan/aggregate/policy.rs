@@ -9,7 +9,6 @@ pub(crate) enum PolicyBlockKind {
     Hard,
     PermissionRequired,
     SoftSkip,
-    DeferredByBudget,
     ScopeExcluded,
 }
 

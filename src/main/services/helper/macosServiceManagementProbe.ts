@@ -200,7 +200,13 @@ export function resolveMacOsServiceManagementProbeBinary(
   }
 
   if (!resourcesPath) {
-    return null;
+    const devCandidate = path.resolve(
+      process.cwd(),
+      "resources",
+      "bin",
+      MACOS_SERVICE_MANAGEMENT_PROBE_BINARY_NAME,
+    );
+    return hasExecutableFileEvidence(devCandidate) ? devCandidate : null;
   }
 
   const bundledCandidate = path.resolve(

@@ -64,6 +64,8 @@ export class ScanManager {
   }
 
   async start(input: ScanStartRequest): Promise<ScanStartResult> {
+    this.reconcileStaleActiveStates();
+
     if (this.hasActiveScan()) {
       return {
         ok: false,
@@ -266,6 +268,18 @@ export class ScanManager {
     }
 
     return false;
+  }
+
+  private reconcileStaleActiveStates(): void {
+    for (const [scanId, state] of this.scanStates) {
+      if (!ACTIVE_SCAN_STATES.has(state)) {
+        continue;
+      }
+
+      if (!this.diskScanService.hasScan(scanId)) {
+        this.scanStates.set(scanId, "FAILED");
+      }
+    }
   }
 
   private handleProgress(batch: ScanProgressBatch): void {

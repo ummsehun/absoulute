@@ -15,6 +15,17 @@ describe("ScanAggregator estimate convergence", () => {
     expect(aggregator.getDirectorySize("/")).toBe(60 * 1024 ** 3);
   });
 
+  it("folds macOS Data volume aliases into visible root paths", () => {
+    const aggregator = new ScanAggregator("/", 200, "darwin");
+
+    aggregator.addFile("/System/Volumes/Data/Users/user/movie.mov", 42);
+
+    expect(aggregator.getDirectorySize("/Users")).toBe(42);
+    expect(aggregator.getDirectorySize("/Users/user")).toBe(42);
+    expect(aggregator.getDirectorySize("/System/Volumes/Data/Users/user")).toBe(42);
+    expect(aggregator.getDirectorySize("/")).toBe(42);
+  });
+
   it("removes directory estimates before exact file sizes are applied", () => {
     const rootPath = "/Users/tester";
     const targetDir = "/Users/tester/Library/Caches";

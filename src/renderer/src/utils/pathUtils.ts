@@ -61,7 +61,19 @@ export function normalizeFsPath(rawPath: string): string {
         return `${noTrailing.slice(0, 1).toLowerCase()}${noTrailing.slice(1)}`;
     }
 
-    return noTrailing || "/";
+    return canonicalizeMacOSDataVolumePath(noTrailing || "/");
+}
+
+function canonicalizeMacOSDataVolumePath(normalizedPath: string): string {
+    const dataPrefix = "/System/Volumes/Data";
+    if (normalizedPath === dataPrefix) {
+        return "/";
+    }
+    if (!normalizedPath.startsWith(`${dataPrefix}/`)) {
+        return normalizedPath;
+    }
+
+    return normalizedPath.slice(dataPrefix.length) || "/";
 }
 
 export function parentPathOf(inputPath: string): string | null {

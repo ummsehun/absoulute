@@ -269,9 +269,19 @@ export function resolveNativeSoftSkipPathRules(
 export function buildNativeBlockedPrefixes(
   platform: NodeJS.Platform,
   homeDirectory: string,
+  rootPath = "",
 ): string[] {
   const policy = getProtectedPaths(platform, homeDirectory);
   const blocked = [...policy.scanBlocked];
+  if (platform === "darwin" && path.resolve(rootPath) === "/") {
+    blocked.push(
+      "/System/Volumes/Data/Applications",
+      "/System/Volumes/Data/Library",
+      "/System/Volumes/Data/Users",
+      "/System/Volumes/Data/opt",
+      "/System/Volumes/Data/private",
+    );
+  }
   const unique = new Set<string>();
   for (const raw of blocked) {
     const resolved = path.resolve(raw);

@@ -18,6 +18,13 @@ describe("renderer path utils", () => {
     expect(normalizeFsPath("D:")).toBe("d:/");
   });
 
+  it("normalizes macOS Data volume aliases to visible filesystem paths", () => {
+    expect(normalizeFsPath("/System/Volumes/Data/Users/user")).toBe("/Users/user");
+    expect(normalizeFsPath("/System/Volumes/Data/Applications/App.app")).toBe(
+      "/Applications/App.app",
+    );
+  });
+
   it("derives parent, root, labels, and child relationships", () => {
     expect(parentPathOf("/Users/tester/project")).toBe("/Users/tester");
     expect(parentPathOf("/Users")).toBe("/");

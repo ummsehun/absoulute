@@ -179,13 +179,6 @@ pub(crate) fn on_policy_block<W: Write>(
             runtime.soft_skipped_by_policy += 1;
             record_policy_skip_sample(runtime, blocked_path);
         }
-        PolicyBlockKind::DeferredByBudget => {
-            runtime.blocked_by_policy += 1;
-            runtime.soft_skipped_by_policy += 1;
-            runtime.deferred_by_budget += 1;
-            record_policy_skip_sample(runtime, blocked_path);
-            record_budget_deferred_sample(runtime, blocked_path);
-        }
         PolicyBlockKind::ScopeExcluded => {
             runtime.skipped_by_scope += 1;
             record_scope_skip_sample(runtime, blocked_path);
@@ -209,10 +202,6 @@ fn record_permission_sample<W: Write>(runtime: &mut ScanRuntime<'_, W>, path: &P
 
 fn record_scope_skip_sample<W: Write>(runtime: &mut ScanRuntime<'_, W>, path: &Path) {
     record_sample(&mut runtime.scope_skip_samples, path);
-}
-
-fn record_budget_deferred_sample<W: Write>(runtime: &mut ScanRuntime<'_, W>, path: &Path) {
-    record_sample(&mut runtime.budget_deferred_samples, path);
 }
 
 fn record_sample(samples: &mut Vec<String>, path: &Path) {
@@ -379,15 +368,6 @@ mod tests {
         assert!(output.contains(r#""scopeSkipSamples":["/Volumes/External"]"#));
     }
 
-    #[test]
-    fn diagnostics_include_budget_deferred_samples() {
-        let output = diagnostics_after_policy_block(
-            PolicyBlockKind::DeferredByBudget,
-            "/Users/user/Library/Caches",
-        );
-
-        assert!(output.contains(r#""budgetDeferredSamples":["/Users/user/Library/Caches"]"#));
-    }
 }
 
 pub(crate) fn infer_confidence(

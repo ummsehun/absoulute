@@ -36,6 +36,8 @@ export class ScanAggregator {
   }
 
   ensureDirectory(dirPath: string, parentPath: string | null): void {
+    dirPath = this.canonicalizePath(dirPath);
+    parentPath = parentPath ? this.canonicalizePath(parentPath) : null;
     if (!this.isWithinRoot(dirPath)) {
       return;
     }
@@ -53,6 +55,7 @@ export class ScanAggregator {
   }
 
   addFile(filePath: string, fileSize: number): AggDelta[] {
+    filePath = this.canonicalizePath(filePath);
     const deltas: AggDelta[] = [];
     const ancestors = this.getAncestorDirectories(filePath);
 
@@ -84,6 +87,7 @@ export class ScanAggregator {
   }
 
   addDirectoryEstimate(dirPath: string, estimatedSize: number): AggDelta[] {
+    dirPath = this.canonicalizePath(dirPath);
     if (!this.isWithinRoot(dirPath) || estimatedSize <= 0) {
       return [];
     }
@@ -100,6 +104,7 @@ export class ScanAggregator {
   }
 
   clearEstimatedAncestors(targetPath: string): { deltas: AggDelta[]; cleared: string[] } {
+    targetPath = this.canonicalizePath(targetPath);
     const deltas: AggDelta[] = [];
     const cleared: string[] = [];
 
@@ -128,7 +133,7 @@ export class ScanAggregator {
   }
 
   hasEstimatedDirectory(dirPath: string): boolean {
-    return this.estimatedDirectorySizes.has(dirPath);
+    return this.estimatedDirectorySizes.has(this.canonicalizePath(dirPath));
   }
 
   private applyDirectorySizeDelta(dirPath: string, sizeDelta: number): AggDelta[] {
@@ -195,7 +200,7 @@ export class ScanAggregator {
   }
 
   getDirectorySize(dirPath: string): number {
-    return this.directoryStats.get(dirPath)?.size ?? 0;
+    return this.directoryStats.get(this.canonicalizePath(dirPath))?.size ?? 0;
   }
 
   getLargestDirectories(limit: number): DirectorySnapshot[] {
@@ -294,7 +299,7 @@ export class ScanAggregator {
   }
 
   private isWithinRoot(targetPath: string): boolean {
-    const normalizedTarget = normalizePath(targetPath, this.platform);
+    const normalizedTarget = normalizePath(this.canonicalizePath(targetPath), this.platform);
     if (this.normalizedRoot === "/") {
       return normalizedTarget === "/" || normalizedTarget.startsWith("/");
     }
@@ -306,8 +311,36 @@ export class ScanAggregator {
   }
 
   private isSamePath(left: string, right: string): boolean {
-    return normalizePath(left, this.platform) === normalizePath(right, this.platform);
+    return (
+      normalizePath(this.canonicalizePath(left), this.platform) ===
+      normalizePath(this.canonicalizePath(right), this.platform)
+    );
   }
+
+  private canonicalizePath(targetPath: string): string {
+    return canonicalizeMacOSDataVolumePath(targetPath, this.rootPath, this.platform);
+  }
+}
+
+export function canonicalizeMacOSDataVolumePath(
+  targetPath: string,
+  rootPath: string,
+  platform: NodeJS.Platform,
+): string {
+  if (platform !== "darwin" || normalizePath(rootPath, platform) !== "/") {
+    return targetPath;
+  }
+
+  const normalized = normalizePath(targetPath, platform);
+  const dataPrefix = "/System/Volumes/Data";
+  if (normalized === dataPrefix) {
+    return "/";
+  }
+  if (!normalized.startsWith(`${dataPrefix}/`)) {
+    return targetPath;
+  }
+
+  return normalized.slice(dataPrefix.length) || "/";
 }
 
 function normalizePath(rawPath: string, platform: NodeJS.Platform): string {
