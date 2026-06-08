@@ -156,9 +156,11 @@ export function resolveMacOsHelperEnumerateBinary(
     "bin",
     MACOS_HELPER_ENUMERATE_BINARY_NAME,
   );
-  return fs.existsSync(bundledPrototypeCandidate)
-    ? bundledPrototypeCandidate
-    : null;
+  if (fs.existsSync(bundledPrototypeCandidate)) {
+    return bundledPrototypeCandidate;
+  }
+
+  return resolveDevelopmentHelperEnumerateBinary(process.cwd());
 }
 
 function resolveDevelopmentHelperEnumerateBinary(projectRoot: string): string | null {

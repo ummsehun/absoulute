@@ -32,6 +32,7 @@ import {
 } from "../services/security/macosPrivilegeHelper";
 import { makeAppError, unknownToAppError } from "../utils/appError";
 import { createDefaultHelperClient } from "../services/helper/helperClient";
+import { appendNativeScannerLog } from "../services/diagnostics/nativeScannerLogger";
 
 export function registerIpcHandlers(
   scanManager: ScanManager,
@@ -117,12 +118,34 @@ export function registerIpcHandlers(
   });
 
   ipcMain.handle(IPC_CHANNELS.HELPER_GET_STATUS, async () => {
+    appendNativeScannerLog({
+      event: "helper_status_requested",
+      details: { source: "ipc" },
+    });
+
     try {
+      const data = await createDefaultHelperClient().healthCheck();
+      appendNativeScannerLog({
+        event: "helper_status_result",
+        details: {
+          available: data.available,
+          lifecycleState: data.lifecycle?.state,
+          reason: data.reason,
+          transport: data.transport,
+        },
+      });
+
       return HelperClientStatusResultSchema.parse({
         ok: true as const,
-        data: await createDefaultHelperClient().healthCheck(),
+        data,
       });
     } catch (error) {
+      appendNativeScannerLog({
+        event: "helper_status_failed",
+        level: "error",
+        details: { reason: String(error) },
+      });
+
       return HelperClientStatusResultSchema.parse({
         ok: false as const,
         error: unknownToAppError(
@@ -135,12 +158,34 @@ export function registerIpcHandlers(
   });
 
   ipcMain.handle(IPC_CHANNELS.HELPER_REGISTER, async () => {
+    appendNativeScannerLog({
+      event: "helper_register_requested",
+      details: { source: "ipc" },
+    });
+
     try {
+      const data = await createDefaultHelperClient().register();
+      appendNativeScannerLog({
+        event: "helper_register_result",
+        details: {
+          available: data.available,
+          lifecycleState: data.lifecycle?.state,
+          reason: data.reason,
+          transport: data.transport,
+        },
+      });
+
       return HelperClientStatusResultSchema.parse({
         ok: true as const,
-        data: await createDefaultHelperClient().register(),
+        data,
       });
     } catch (error) {
+      appendNativeScannerLog({
+        event: "helper_register_failed",
+        level: "error",
+        details: { reason: String(error) },
+      });
+
       return HelperClientStatusResultSchema.parse({
         ok: false as const,
         error: unknownToAppError(

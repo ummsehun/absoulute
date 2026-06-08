@@ -84,7 +84,7 @@ export function LandingView({
                 style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
             >
                 {/* Real 3D Canvas Container */}
-                <div className={`relative w-80 h-80 mb-8 flex items-center justify-center overflow-visible group transition-transform duration-1000 ${isScanning ? 'scale-110' : ''}`}>
+                <div className={`relative w-56 h-56 md:w-64 md:h-64 mb-4 flex items-center justify-center overflow-visible group transition-transform duration-1000 ${isScanning ? 'scale-105' : ''}`}>
                     {/* Animated Liquid Background Blobs behind 3D Canvas */}
                     <div
                         className="absolute inset-0 bg-gradient-to-tr from-purple-600 to-indigo-500 opacity-50 liquid-shape blur-2xl transition-all duration-700 ease-[cubic-bezier(0.34,1.56,0.64,1)] group-hover:scale-110"
@@ -93,20 +93,20 @@ export function LandingView({
                         className={`absolute inset-0 bg-gradient-to-br from-cyan-400 to-blue-600 opacity-40 liquid-spin blur-xl mix-blend-screen transition-all duration-700 ease-[cubic-bezier(0.34,1.56,0.64,1)] group-hover:scale-125 group-hover:rotate-12${isScanning ? ' liquid-spin-scanning' : ''}`}
                     />
 
-                    <div className="relative z-20 h-80 w-80">
+                    <div className="relative z-20 h-56 w-56 md:h-64 md:w-64">
                         <SpaceLens3D isScanning={isScanning} windowState={windowState} />
                     </div>
                 </div>
 
-                <h1 className="text-5xl font-bold tracking-tighter mb-4 text-transparent bg-clip-text bg-gradient-to-br from-white via-blue-100 to-white/60 z-10">Space Lens</h1>
+                <h1 className="text-4xl md:text-5xl font-bold tracking-tighter mb-2 text-transparent bg-clip-text bg-gradient-to-br from-white via-blue-100 to-white/60 z-10">Space Lens</h1>
                 <p
-                    className="text-center text-lg leading-relaxed max-w-[85%] mb-12 z-10 font-light transition-opacity duration-300"
+                    className="text-center text-sm md:text-base leading-relaxed max-w-[85%] mb-6 z-10 font-light transition-opacity duration-300"
                     style={{ color: themeTokens.colors.textSecondary, opacity: isScanning ? 0 : 1 }}
                 >
                     디스크 공간을 가장 많이 차지하는 항목을 시각적으로 확인하고, 손쉽게 저장 공간을 정리할 수 있습니다.
                 </p>
 
-                <div className="h-40 relative flex items-center justify-center w-full">
+                <div className="min-h-[240px] relative flex items-center justify-center w-full">
                     {/* Scanning UI */}
                     <div
                         className={`absolute inset-0 flex flex-col items-center justify-center transition-all duration-700 ${isScanning ? 'opacity-100 translate-y-0 visible' : 'opacity-0 translate-y-4 invisible'}`}
@@ -161,19 +161,19 @@ export function LandingView({
                     {/* Default UI */}
                     <div className={`absolute inset-0 flex flex-col items-center justify-center transition-all duration-700 ${!isScanning ? 'opacity-100 translate-y-0 visible' : 'opacity-0 -translate-y-4 invisible pointer-events-none'}`}>
                         {/* Glassmorphic Drive Selector Container */}
-                        <div className="relative mb-6 w-full max-w-sm">
-                            <div className="absolute -inset-0.5 bg-gradient-to-r from-purple-500/40 to-blue-500/40 rounded-3xl blur opacity-70"></div>
-                            <div className="relative flex items-center justify-center bg-black/50 backdrop-blur-2xl rounded-3xl border border-white/20 p-2 shadow-[0_30px_60px_-15px_rgba(0,0,0,0.6)] transition-transform duration-300 hover:scale-[1.02]">
+                        <div className="relative mb-3 w-full max-w-xs">
+                            <div className="absolute -inset-0.5 bg-gradient-to-r from-purple-500/40 to-blue-500/40 rounded-2xl blur opacity-70"></div>
+                            <div className="relative flex items-center justify-center bg-black/50 backdrop-blur-2xl rounded-2xl border border-white/20 p-1.5 shadow-[0_22px_44px_-18px_rgba(0,0,0,0.65)] transition-transform duration-300 hover:scale-[1.01]">
                                 <DriveSelector rootPath={rootPath} setRootPath={setRootPath} />
                             </div>
                         </div>
 
                         {shouldShowFullDiskAccessPrompt ? (
-                            <div className="mb-5 w-full max-w-md rounded-2xl border border-amber-300/25 bg-amber-400/10 px-4 py-3 text-center shadow-[0_18px_50px_rgba(245,158,11,0.16)] backdrop-blur-xl">
-                                <strong className="block text-sm font-semibold text-amber-100">
+                            <div className="mb-3 w-full max-w-sm rounded-xl border border-amber-300/25 bg-amber-400/10 px-3 py-2 text-center shadow-[0_14px_36px_rgba(245,158,11,0.14)] backdrop-blur-xl">
+                                <strong className="block text-xs font-semibold text-amber-100">
                                     Full Disk Access 필요
                                 </strong>
-                                <p className="mt-1 text-xs leading-relaxed text-amber-100/75">
+                                <p className="mt-1 text-[11px] leading-snug text-amber-100/75">
                                     전체 볼륨 스캔 결과가 작게 나올 수 있습니다.
                                 </p>
                                 {firstDeniedPath ? (
@@ -181,13 +181,13 @@ export function LandingView({
                                         {firstDeniedPath}
                                     </p>
                                 ) : null}
-                                <div className="mt-3 flex items-center justify-center gap-2">
+                                <div className="mt-2 flex items-center justify-center gap-2">
                                     <button
                                         type="button"
                                         onClick={() => {
                                             void onRequestFullDiskAccess?.();
                                         }}
-                                        className="rounded-lg border border-amber-100/30 bg-amber-100 px-3 py-1.5 text-xs font-semibold text-black transition-colors hover:bg-white"
+                                        className="rounded-md border border-amber-100/30 bg-amber-100 px-2.5 py-1 text-[11px] font-semibold text-black transition-colors hover:bg-white"
                                     >
                                         권한 허용
                                     </button>
@@ -196,7 +196,7 @@ export function LandingView({
                                         onClick={() => {
                                             void onCheckFullDiskAccess?.();
                                         }}
-                                        className="rounded-lg border border-amber-100/25 bg-black/25 px-3 py-1.5 text-xs font-semibold text-amber-100 transition-colors hover:bg-black/40"
+                                        className="rounded-md border border-amber-100/25 bg-black/25 px-2.5 py-1 text-[11px] font-semibold text-amber-100 transition-colors hover:bg-black/40"
                                     >
                                         다시 확인
                                     </button>
@@ -205,47 +205,47 @@ export function LandingView({
                         ) : null}
 
                         {shouldShowHelperSetup ? (
-                            <div className="mb-5 w-full max-w-md rounded-2xl border border-cyan-300/20 bg-cyan-400/10 px-4 py-3 text-center shadow-[0_18px_50px_rgba(34,211,238,0.12)] backdrop-blur-xl">
-                                <strong className="block text-sm font-semibold text-cyan-100">
+                            <div className="mb-3 w-full max-w-sm rounded-xl border border-cyan-300/20 bg-cyan-400/10 px-3 py-2 text-center shadow-[0_14px_36px_rgba(34,211,238,0.1)] backdrop-blur-xl">
+                                <strong className="block text-xs font-semibold text-cyan-100">
                                     Helper 등록 필요
                                 </strong>
-                                <p className="mt-1 text-xs leading-relaxed text-cyan-100/75">
+                                <p className="mt-1 truncate text-[11px] leading-snug text-cyan-100/75">
                                     {helperStatusDetail}
                                 </p>
-                                <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
+                                <div className="mt-2 flex flex-wrap items-center justify-center gap-2">
                                     <button
                                         type="button"
                                         onClick={() => {
                                             void onRegisterHelper?.();
                                         }}
-                                        className="rounded-lg border border-cyan-100/30 bg-cyan-100 px-3 py-1.5 text-xs font-semibold text-black transition-colors hover:bg-white"
+                                        className="rounded-md border border-cyan-100/30 bg-cyan-100 px-2.5 py-1 text-[11px] font-semibold text-black transition-colors hover:bg-white"
                                     >
-                                        Helper 등록
+                                        등록
                                     </button>
                                     <button
                                         type="button"
                                         onClick={() => {
                                             void onRequestFullDiskAccess?.();
                                         }}
-                                        className="rounded-lg border border-cyan-100/25 bg-black/25 px-3 py-1.5 text-xs font-semibold text-cyan-100 transition-colors hover:bg-black/40"
+                                        className="rounded-md border border-cyan-100/25 bg-black/25 px-2.5 py-1 text-[11px] font-semibold text-cyan-100 transition-colors hover:bg-black/40"
                                     >
-                                        FDA 설정
+                                        FDA
                                     </button>
                                     <button
                                         type="button"
                                         onClick={() => {
                                             void onCheckHelperStatus?.();
                                         }}
-                                        className="rounded-lg border border-cyan-100/25 bg-black/25 px-3 py-1.5 text-xs font-semibold text-cyan-100 transition-colors hover:bg-black/40"
+                                        className="rounded-md border border-cyan-100/25 bg-black/25 px-2.5 py-1 text-[11px] font-semibold text-cyan-100 transition-colors hover:bg-black/40"
                                     >
-                                        상태 확인
+                                        확인
                                     </button>
                                 </div>
                             </div>
                         ) : null}
 
                         {/* Liquid Scan Button */}
-                        <div className="relative z-10 mt-2 flex items-center gap-3">
+                        <div className="relative z-10 mt-1 flex items-center gap-3">
                             <div className="relative group">
                                 <div
                                     className="absolute -inset-2 rounded-[40px] opacity-40 group-hover:opacity-100 transition duration-500 blur-lg liquid-shape bg-gradient-to-r from-cyan-400 via-purple-500 to-indigo-500"
@@ -336,15 +336,27 @@ function formatHelperStatusDetail(helperStatus?: HelperClientStatus | null): str
 
     const registrationBlockers = helperStatus.registrationPreflight?.blockers ?? [];
     if (registrationBlockers.length > 0) {
-        return `등록 전 확인 필요: ${registrationBlockers.join(', ')}`;
+        return formatBlockerSummary('등록 준비 항목', registrationBlockers);
     }
 
     const readinessBlockers = helperStatus.readinessBlockers ?? [];
     if (readinessBlockers.length > 0) {
-        return `준비 상태 확인 필요: ${readinessBlockers.join(', ')}`;
+        return formatBlockerSummary('준비 상태 항목', readinessBlockers);
     }
 
     return helperStatus.lifecycle?.reason ?? helperStatus.reason ?? 'helper 등록 상태를 확인해 주세요.';
+}
+
+function formatBlockerSummary(label: string, blockers: string[]): string {
+    const first = blockers[0];
+    if (!first) {
+        return `${label} 확인 필요`;
+    }
+
+    const rest = blockers.length - 1;
+    return rest > 0
+        ? `${label} ${blockers.length}개 · ${first} 외 ${rest}개`
+        : `${label} 1개 · ${first}`;
 }
 
 function getSkipSamplePreview(perfSample?: ScanPerfSample | null): string | null {

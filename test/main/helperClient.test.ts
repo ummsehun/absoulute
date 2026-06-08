@@ -496,6 +496,31 @@ describe("helperClient", () => {
     expect(resolveMacOsHelperEnumerateBinary({}, null)).toBe(helperPath);
   });
 
+  it("falls back to the development helper enumerate CLI when Electron resources lack helper binaries", () => {
+    const helperPath = path.join(
+      process.cwd(),
+      "resources",
+      "bin",
+      "helper-enumerate-macos",
+    );
+
+    if (!fs.existsSync(helperPath)) {
+      return;
+    }
+
+    const resourcesRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "diskviz-helper-empty-resources-"),
+    );
+
+    try {
+      expect(resolveMacOsHelperEnumerateBinary({}, resourcesRoot)).toBe(
+        helperPath,
+      );
+    } finally {
+      fs.rmSync(resourcesRoot, { force: true, recursive: true });
+    }
+  });
+
   it("blocks helper enumeration when registration preflight is not ready", async () => {
     let enumerateCalled = false;
     const transport = new MacOsXpcHelperTransport(

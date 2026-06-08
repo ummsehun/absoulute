@@ -116,9 +116,9 @@ describe("LandingView", () => {
     expect(container.textContent).toContain("Helper 등록 필요");
     expect(container.textContent).toContain("service-management-not-registered");
     const buttons = Array.from(container.querySelectorAll("button"));
-    buttons.find((button) => button.textContent === "Helper 등록")?.click();
-    buttons.find((button) => button.textContent === "FDA 설정")?.click();
-    buttons.find((button) => button.textContent === "상태 확인")?.click();
+    buttons.find((button) => button.textContent === "등록")?.click();
+    buttons.find((button) => button.textContent === "FDA")?.click();
+    buttons.find((button) => button.textContent === "확인")?.click();
     expect(registerHelper).toHaveBeenCalled();
     expect(requestFullDiskAccess).toHaveBeenCalled();
     expect(checkHelperStatus).toHaveBeenCalled();
