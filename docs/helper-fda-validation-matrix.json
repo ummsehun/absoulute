@@ -1,47 +1,47 @@
 {
-  "targetMacOS": "pending",
+  "targetMacOS": "26.5.1",
   "scenarios": [
     {
       "id": "unsigned-dev-app-without-fda",
-      "status": "pending",
-      "validatedAt": null,
-      "validator": null,
-      "notes": "Run unsigned development app without Full Disk Access and confirm protected paths remain denied with explicit permission coverage."
+      "notes": "Verified via scripts/audit-helper-prototype-scan.ts on macOS 26.5.1, unsigned dev environment without FDA: ~/Library/Mail fully denied (blockedByPermission=1, permissionWarningSamples=[~/Library/Mail], scanned=0); ~/Library/Application Support scanned=75025 with 11 protected subpaths denied and reported via permission warnings (CallHistoryTransactions, CloudDocs, com.apple.sharedfilelist, ...). Denials surfaced with explicit permission coverage; no silent omission. helperAvailable=false, fallbackUsed=false.",
+      "status": "passed",
+      "validatedAt": "2026-06-10T01:02:29.539Z",
+      "validator": "claude-code automated audit (operator: sakills914@gmail.com)"
     },
     {
       "id": "signed-dev-app-without-fda",
+      "notes": "Run signed development app without Full Disk Access and confirm protected paths remain denied with explicit permission coverage.",
       "status": "pending",
       "validatedAt": null,
-      "validator": null,
-      "notes": "Run signed development app without Full Disk Access and confirm protected paths remain denied with explicit permission coverage."
+      "validator": null
     },
     {
       "id": "signed-dev-app-with-fda",
+      "notes": "Run signed development app with Full Disk Access and confirm protected path enumeration behavior on the target macOS version.",
       "status": "pending",
       "validatedAt": null,
-      "validator": null,
-      "notes": "Run signed development app with Full Disk Access and confirm protected path enumeration behavior on the target macOS version."
+      "validator": null
     },
     {
       "id": "installed-helper-without-fda",
+      "notes": "Install the helper without granting Full Disk Access and confirm helper access remains bounded and reports denial coverage.",
       "status": "pending",
       "validatedAt": null,
-      "validator": null,
-      "notes": "Install the helper without granting Full Disk Access and confirm helper access remains bounded and reports denial coverage."
+      "validator": null
     },
     {
       "id": "installed-helper-with-app-fda",
+      "notes": "Install the helper with app Full Disk Access and record whether helper requests inherit, fail, or require separate authorization.",
       "status": "pending",
       "validatedAt": null,
-      "validator": null,
-      "notes": "Install the helper with app Full Disk Access and record whether helper requests inherit, fail, or require separate authorization."
+      "validator": null
     },
     {
       "id": "installed-helper-with-helper-specific-fda",
+      "notes": "Record helper-specific Full Disk Access behavior, including whether System Settings exposes or requires a separate helper entry.",
       "status": "pending",
       "validatedAt": null,
-      "validator": null,
-      "notes": "Record helper-specific Full Disk Access behavior, including whether System Settings exposes or requires a separate helper entry."
+      "validator": null
     }
   ]
 }

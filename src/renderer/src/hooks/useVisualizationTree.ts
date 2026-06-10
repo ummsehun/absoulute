@@ -49,9 +49,7 @@ export function useVisualizationTree({
     }, [visibleChildren]);
 
     const remainderSize = Math.max(displayVisualizationSize - displayedChildrenTotal, 0);
-    const showRemainderBubble =
-        remainderSize > 0 &&
-        (visibleChildren.length === 0 || remainderSize / Math.max(displayVisualizationSize, 1) >= 0.04);
+    const showRemainderBubble = remainderSize > 0;
 
     const listRows = useMemo<ListRow[]>(() => {
         const rows: ListRow[] = visibleChildren.map(([nodePath, size]) => ({
