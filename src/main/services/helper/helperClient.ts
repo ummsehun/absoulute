@@ -15,7 +15,8 @@ import {
 } from "./helperTransport";
 import {
   resolveHelperRegistrationPreflight,
-  resolveHelperRegistrationPreflightInputFromEnv,
+  resolveHelperRegistrationPreflightInputAuto,
+  resolvePackagedAppBundlePath,
   type HelperRegistrationPreflight,
 } from "./helperRegistration";
 import { createMacOsHelperEnumeratorFromEnv } from "./macosHelperEnumerateCommand";
@@ -160,11 +161,16 @@ export function createDefaultHelperTransport(
   projectRoot = process.cwd(),
 ): HelperTransport {
   const registrationPreflightInput =
-    resolveHelperRegistrationPreflightInputFromEnv(env, projectRoot);
+    resolveHelperRegistrationPreflightInputAuto(env, projectRoot, resourcesPath);
   const registrationPreflight = resolveHelperRegistrationPreflight(
     registrationPreflightInput,
   );
-  const explicitXpcTransport = env[HELPER_TRANSPORT_ENV] === "xpc";
+  // Packaged builds have no .env to opt in with, so a verified bundle
+  // identity enables the xpc transport on its own.
+  const packagedApp = platform === "darwin"
+    && resolvePackagedAppBundlePath(resourcesPath) !== null;
+  const explicitXpcTransport = env[HELPER_TRANSPORT_ENV] === "xpc"
+    || packagedApp;
   const readinessGatedXpcTransport = platform === "darwin"
     && resolveHelperInstallPreflightBlockers(registrationPreflight.blockers)
       .length === 0;

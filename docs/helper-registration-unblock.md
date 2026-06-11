@@ -57,6 +57,11 @@ System Settings > General > Login Items & Extensions (`pending-approval` state).
   `helperRegistration.ts` constants, requirement metadata JSON, and rebuilds of all
   `resources/bin` / `resources/helper` binaries. Changing the label later orphans
   existing registrations, so do it before first public install.
-- `.env` evidence flags do not exist in a packaged app (`loadDotEnvFile` reads
-  `process.cwd()`). Decide how packaged builds supply registration evidence —
-  bake into build config or derive from real filesystem checks at runtime.
+- ~~`.env` evidence flags do not exist in a packaged app.~~ Resolved 2026-06-10:
+  packaged builds now resolve preflight evidence from the real bundle via
+  `resolveHelperRegistrationPreflightInputAuto` — identity comes from build-time
+  constants, helper executable / launchd plist / xpc bridge / listener
+  requirement / FDA matrix are verified against actual files inside the
+  `.app`. The xpc transport also auto-enables when the verified bundle
+  identity (`com.spacelens.app`) is detected, so no `SCAN_HELPER_TRANSPORT`
+  env is needed in packaged builds. Dev keeps the `.env` evidence-flag flow.

@@ -24,8 +24,7 @@ const targets = [
     path: join(
       appPath,
       "Contents",
-      "Library",
-      "LaunchServices",
+      "MacOS",
       DISK_SCAN_HELPER_LABEL,
     ),
     requireTeamId: true,

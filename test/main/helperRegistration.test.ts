@@ -44,7 +44,7 @@ describe("helperRegistration", () => {
       "Contents/Library/LaunchDaemons/com.example.diskvisualizer.privileged-helper.plist",
     );
     expect(DISK_SCAN_HELPER_EXECUTABLE_BUNDLE_RELATIVE_PATH).toBe(
-      "Contents/Library/LaunchServices/com.example.diskvisualizer.privileged-helper",
+      "Contents/MacOS/com.example.diskvisualizer.privileged-helper",
     );
     expect(DISK_SCAN_HELPER_FDA_MATRIX_SOURCE_RELATIVE_PATH).toBe(
       "docs/helper-fda-validation-matrix.json",
@@ -217,7 +217,7 @@ describe("helperRegistration", () => {
             extraFiles: [
               {
                 from: path.dirname(DISK_SCAN_HELPER_EXECUTABLE_SOURCE_RELATIVE_PATH),
-                to: "Library/LaunchServices",
+                to: "MacOS",
                 filter: ["com.example.diskvisualizer.privileged-helper"],
               },
               {
@@ -337,7 +337,7 @@ describe("helperRegistration", () => {
             extraFiles: [
               {
                 from: path.dirname(DISK_SCAN_HELPER_EXECUTABLE_SOURCE_RELATIVE_PATH),
-                to: "Library/LaunchServices",
+                to: "MacOS",
                 filter: ["com.example.diskvisualizer.privileged-helper"],
               },
             ],
@@ -367,7 +367,7 @@ describe("helperRegistration", () => {
             extraFiles: [
               {
                 from: path.dirname(DISK_SCAN_HELPER_EXECUTABLE_SOURCE_RELATIVE_PATH),
-                to: "Library/LaunchServices",
+                to: "MacOS",
                 filter: ["com.example.diskvisualizer.privileged-helper"],
               },
               {

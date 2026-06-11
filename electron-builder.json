@@ -23,6 +23,13 @@
         "diskviz-scanner",
         "diskviz-scanner.exe"
       ]
+    },
+    {
+      "from": "docs",
+      "to": ".",
+      "filter": [
+        "helper-fda-validation-matrix.json"
+      ]
     }
   ],
   "mac": {
@@ -40,9 +47,10 @@
       },
       {
         "from": "resources/helper/LaunchServices",
-        "to": "Library/LaunchServices",
+        "to": "MacOS",
         "filter": [
-          "com.example.diskvisualizer.privileged-helper"
+          "com.example.diskvisualizer.privileged-helper",
+          "com.example.diskvisualizer.privileged-helper.requirement.json"
         ]
       }
     ]

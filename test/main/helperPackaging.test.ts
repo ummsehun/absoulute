@@ -81,8 +81,11 @@ describe("helper packaging", () => {
 
     expect(config.mac?.extraFiles).toContainEqual({
       from: path.dirname(DISK_SCAN_HELPER_EXECUTABLE_SOURCE_RELATIVE_PATH),
-      to: "Library/LaunchServices",
-      filter: [contract.helperLabel],
+      to: "MacOS",
+      filter: [
+        contract.helperLabel,
+        `${contract.helperLabel}.requirement.json`,
+      ],
     });
   });
 

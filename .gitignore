@@ -14,3 +14,10 @@ target
 bun.lock
 native/scanner/target
 .env
+
+# oh-my-agent runtime (local artifacts — do not commit)
+.antigravitycli/
+.agents/results/
+.agents/state/
+.agents/backup/
+.migration-backup/

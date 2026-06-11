@@ -408,7 +408,7 @@ function writeInstallReadyProject(
         extraFiles: [
           {
             from: path.dirname(DISK_SCAN_HELPER_EXECUTABLE_SOURCE_RELATIVE_PATH),
-            to: "Library/LaunchServices",
+            to: "MacOS",
             filter: ["com.example.diskvisualizer.privileged-helper"],
           },
           {

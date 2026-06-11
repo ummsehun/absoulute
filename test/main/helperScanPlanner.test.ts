@@ -121,7 +121,7 @@ describe("helperScanPlanner", () => {
             contract: {
               appBundleIdentifier: "com.example.diskvisualizer",
               helperExecutableBundleRelativePath:
-                "Contents/Library/LaunchServices/com.example.diskvisualizer.privileged-helper",
+                "Contents/MacOS/com.example.diskvisualizer.privileged-helper",
               helperLabel: "com.example.diskvisualizer.privileged-helper",
               launchDaemonBundleRelativePath:
                 "Contents/Library/LaunchDaemons/com.example.diskvisualizer.privileged-helper.plist",
@@ -153,7 +153,7 @@ describe("helperScanPlanner", () => {
             contract: {
               appBundleIdentifier: "com.example.diskvisualizer",
               helperExecutableBundleRelativePath:
-                "Contents/Library/LaunchServices/com.example.diskvisualizer.privileged-helper",
+                "Contents/MacOS/com.example.diskvisualizer.privileged-helper",
               helperLabel: "com.example.diskvisualizer.privileged-helper",
               launchDaemonBundleRelativePath:
                 "Contents/Library/LaunchDaemons/com.example.diskvisualizer.privileged-helper.plist",
@@ -217,7 +217,7 @@ describe("helperScanPlanner", () => {
             contract: {
               appBundleIdentifier: "com.example.diskvisualizer",
               helperExecutableBundleRelativePath:
-                "Contents/Library/LaunchServices/com.example.diskvisualizer.privileged-helper",
+                "Contents/MacOS/com.example.diskvisualizer.privileged-helper",
               helperLabel: "com.example.diskvisualizer.privileged-helper",
               launchDaemonBundleRelativePath:
                 "Contents/Library/LaunchDaemons/com.example.diskvisualizer.privileged-helper.plist",

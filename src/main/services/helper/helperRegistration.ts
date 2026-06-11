@@ -59,6 +59,10 @@ export const HELPER_FDA_VALIDATION_MATRIX_READY_ENV =
 export const DISK_VISUALIZER_APP_BUNDLE_IDENTIFIER =
   "com.spacelens.app";
 
+// Team ID is part of the helper's designated requirement and ships inside the
+// signed bundle anyway, so it is safe to bake in as a build-time constant.
+export const DISK_VISUALIZER_APPLE_TEAM_ID = "RXB3U7P2MN";
+
 export const DISK_SCAN_HELPER_LABEL =
   "com.example.diskvisualizer.privileged-helper";
 
@@ -68,8 +72,11 @@ export const DISK_SCAN_HELPER_LAUNCH_DAEMON_PLIST_NAME =
 export const DISK_SCAN_HELPER_LAUNCH_DAEMON_BUNDLE_RELATIVE_PATH =
   `Contents/Library/LaunchDaemons/${DISK_SCAN_HELPER_LAUNCH_DAEMON_PLIST_NAME}`;
 
+// SMAppService validates BundleProgram targets against the app bundle's main
+// executable directory; helpers under the legacy SMJobBless location
+// (Contents/Library/LaunchServices) fail with errSecCSBadBundleFormat (-67028).
 export const DISK_SCAN_HELPER_EXECUTABLE_BUNDLE_RELATIVE_PATH =
-  `Contents/Library/LaunchServices/${DISK_SCAN_HELPER_LABEL}`;
+  `Contents/MacOS/${DISK_SCAN_HELPER_LABEL}`;
 
 export const DISK_SCAN_HELPER_EXECUTABLE_SOURCE_RELATIVE_PATH =
   `resources/helper/LaunchServices/${DISK_SCAN_HELPER_LABEL}`;
@@ -78,8 +85,12 @@ export const DISK_SCAN_HELPER_XPC_ENUMERATE_BRIDGE_SOURCE_RELATIVE_PATH =
 
 export const DISK_SCAN_HELPER_REQUIREMENT_METADATA_SOURCE_RELATIVE_PATH =
   `${DISK_SCAN_HELPER_EXECUTABLE_SOURCE_RELATIVE_PATH}.requirement.json`;
+export const DISK_SCAN_HELPER_REQUIREMENT_METADATA_BUNDLE_RELATIVE_PATH =
+  `${DISK_SCAN_HELPER_EXECUTABLE_BUNDLE_RELATIVE_PATH}.requirement.json`;
 export const DISK_SCAN_HELPER_FDA_MATRIX_SOURCE_RELATIVE_PATH =
   "docs/helper-fda-validation-matrix.json";
+export const DISK_SCAN_HELPER_FDA_MATRIX_RESOURCES_RELATIVE_PATH =
+  "helper-fda-validation-matrix.json";
 export const DISK_SCAN_HELPER_REQUIRED_FDA_SCENARIOS = [
   "unsigned-dev-app-without-fda",
   "signed-dev-app-without-fda",
@@ -208,6 +219,106 @@ export function resolveHelperRegistrationPreflightInputFromEnv(
   };
 }
 
+export interface PackagedHelperPreflightContext {
+  appBundlePath: string;
+  resourcesPath: string;
+}
+
+export function resolvePackagedAppBundlePath(
+  resourcesPath: string | null | undefined,
+  expectedBundleIdentifier = DISK_VISUALIZER_APP_BUNDLE_IDENTIFIER,
+): string | null {
+  if (!resourcesPath) {
+    return null;
+  }
+
+  const appBundlePath = path.resolve(resourcesPath, "..", "..");
+  if (!appBundlePath.endsWith(".app")) {
+    return null;
+  }
+
+  try {
+    const infoPlist = fs.readFileSync(
+      path.join(appBundlePath, "Contents", "Info.plist"),
+      "utf8",
+    );
+    const match = infoPlist.match(
+      /<key>CFBundleIdentifier<\/key>\s*<string>([^<]+)<\/string>/,
+    );
+    return match?.[1] === expectedBundleIdentifier ? appBundlePath : null;
+  } catch {
+    return null;
+  }
+}
+
+export function resolveHelperRegistrationPreflightInputForPackagedApp(
+  context: PackagedHelperPreflightContext,
+): HelperRegistrationPreflightInput {
+  const teamId = DISK_VISUALIZER_APPLE_TEAM_ID;
+  const appBundleIdentifier = DISK_VISUALIZER_APP_BUNDLE_IDENTIFIER;
+
+  return {
+    identity: {
+      appBundleIdentifier,
+      teamId,
+      designatedRequirement: buildHelperCodeSigningRequirement(
+        teamId,
+        appBundleIdentifier,
+      ),
+    },
+    // Entitlements are baked into the bundle at build time and enforced by
+    // code signing (verified by verify:mac-signing during build:mac); the
+    // bundle-identity check in resolvePackagedAppBundlePath is the runtime
+    // evidence that this is our signed artifact layout.
+    packagingEntitlementsReady: true,
+    privilegedHelperExecutableReady:
+      isExecutableMachO(path.join(
+        context.appBundlePath,
+        DISK_SCAN_HELPER_EXECUTABLE_BUNDLE_RELATIVE_PATH,
+      ))
+      && fs.existsSync(path.join(
+        context.appBundlePath,
+        DISK_SCAN_HELPER_LAUNCH_DAEMON_BUNDLE_RELATIVE_PATH,
+      )),
+    helperXpcEnumerateBridgeReady: isExecutableMachO(path.join(
+      context.resourcesPath,
+      "bin",
+      path.basename(DISK_SCAN_HELPER_XPC_ENUMERATE_BRIDGE_SOURCE_RELATIVE_PATH),
+    )),
+    privilegedHelperListenerRequirementReady:
+      validateListenerRequirementFile(
+        path.join(
+          context.appBundlePath,
+          DISK_SCAN_HELPER_REQUIREMENT_METADATA_BUNDLE_RELATIVE_PATH,
+        ),
+        teamId,
+        appBundleIdentifier,
+      ),
+    fdaValidationMatrixReady: validateFdaMatrixFile(path.join(
+      context.resourcesPath,
+      DISK_SCAN_HELPER_FDA_MATRIX_RESOURCES_RELATIVE_PATH,
+    )),
+  };
+}
+
+export function resolveHelperRegistrationPreflightInputAuto(
+  env: NodeJS.ProcessEnv = process.env,
+  projectRoot = process.cwd(),
+  resourcesPath: string | null = typeof process.resourcesPath === "string"
+    ? process.resourcesPath
+    : null,
+): HelperRegistrationPreflightInput {
+  const appBundlePath = resolvePackagedAppBundlePath(resourcesPath);
+  if (appBundlePath && resourcesPath) {
+    return resolveHelperRegistrationPreflightInputForPackagedApp({
+      appBundlePath,
+      resourcesPath,
+    });
+  }
+
+  return resolveHelperRegistrationPreflightInputFromEnv(env, projectRoot);
+}
+
 export function resolvePackagingEntitlementsEvidence(
   projectRoot = process.cwd(),
 ): boolean {
@@ -244,15 +355,8 @@ export function resolvePrivilegedHelperExecutableEvidence(
     DISK_SCAN_HELPER_EXECUTABLE_SOURCE_RELATIVE_PATH,
   );
 
-  try {
-    const stat = fs.statSync(executablePath);
-    return stat.isFile()
-      && (stat.mode & 0o111) !== 0
-      && hasMachOHeader(executablePath)
-      && resolvePrivilegedHelperBundlePackagingEvidence(projectRoot);
-  } catch {
-    return false;
-  }
+  return isExecutableMachO(executablePath)
+    && resolvePrivilegedHelperBundlePackagingEvidence(projectRoot);
 }
 
 export function resolveHelperXpcEnumerateBridgeEvidence(
@@ -263,15 +367,8 @@ export function resolveHelperXpcEnumerateBridgeEvidence(
     DISK_SCAN_HELPER_XPC_ENUMERATE_BRIDGE_SOURCE_RELATIVE_PATH,
   );
 
-  try {
-    const stat = fs.statSync(bridgePath);
-    return stat.isFile()
-      && (stat.mode & 0o111) !== 0
-      && hasMachOHeader(bridgePath)
-      && resolveHelperXpcEnumerateBridgePackagingEvidence(projectRoot);
-  } catch {
-    return false;
-  }
+  return isExecutableMachO(bridgePath)
+    && resolveHelperXpcEnumerateBridgePackagingEvidence(projectRoot);
 }
 
 export function resolvePrivilegedHelperListenerRequirementEvidence(
@@ -287,14 +384,23 @@ export function resolvePrivilegedHelperListenerRequirementEvidence(
     return false;
   }
 
+  return validateListenerRequirementFile(
+    path.join(
+      projectRoot,
+      DISK_SCAN_HELPER_REQUIREMENT_METADATA_SOURCE_RELATIVE_PATH,
+    ),
+    teamId,
+    appBundleIdentifier,
+  );
+}
+
+function validateListenerRequirementFile(
+  metadataPath: string,
+  teamId: string,
+  appBundleIdentifier: string,
+): boolean {
   try {
-    const metadata = JSON.parse(fs.readFileSync(
-      path.join(
-        projectRoot,
-        DISK_SCAN_HELPER_REQUIREMENT_METADATA_SOURCE_RELATIVE_PATH,
-      ),
-      "utf8",
-    )) as {
+    const metadata = JSON.parse(fs.readFileSync(metadataPath, "utf8")) as {
       ready?: boolean;
       requirement?: string;
       teamId?: string;
@@ -314,11 +420,14 @@ export function resolvePrivilegedHelperListenerRequirementEvidence(
 export function resolveFdaValidationMatrixEvidence(
   projectRoot = process.cwd(),
 ): boolean {
+  return validateFdaMatrixFile(
+    path.join(projectRoot, DISK_SCAN_HELPER_FDA_MATRIX_SOURCE_RELATIVE_PATH),
+  );
+}
+
+function validateFdaMatrixFile(matrixPath: string): boolean {
   try {
-    const matrix = JSON.parse(fs.readFileSync(
-      path.join(projectRoot, DISK_SCAN_HELPER_FDA_MATRIX_SOURCE_RELATIVE_PATH),
-      "utf8",
-    )) as {
+    const matrix = JSON.parse(fs.readFileSync(matrixPath, "utf8")) as {
       scenarios?: Array<{
         id?: string;
         notes?: string;
@@ -368,7 +477,7 @@ function resolvePrivilegedHelperBundlePackagingEvidence(
     const extraFiles = config.mac?.extraFiles ?? [];
     const packagesExecutable = extraFiles.some((entry) =>
       entry.from === path.dirname(DISK_SCAN_HELPER_EXECUTABLE_SOURCE_RELATIVE_PATH)
-      && entry.to === "Library/LaunchServices"
+      && entry.to === "MacOS"
       && entry.filter?.includes(DISK_SCAN_HELPER_LABEL)
     );
     const packagesLaunchDaemonPlist = extraFiles.some((entry) =>
@@ -406,6 +515,17 @@ function resolveHelperXpcEnumerateBridgePackagingEvidence(
       && entry.to === "bin"
       && entry.filter?.includes(bridgeName)
     );
+  } catch {
+    return false;
+  }
+}
+
+function isExecutableMachO(executablePath: string): boolean {
+  try {
+    const stat = fs.statSync(executablePath);
+    return stat.isFile()
+      && (stat.mode & 0o111) !== 0
+      && hasMachOHeader(executablePath);
   } catch {
     return false;
   }

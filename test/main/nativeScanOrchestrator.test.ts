@@ -600,7 +600,7 @@ describe("nativeScanOrchestrator", () => {
         contract: {
           appBundleIdentifier: "com.example.diskvisualizer",
           helperExecutableBundleRelativePath:
-            "Contents/Library/LaunchServices/com.example.diskvisualizer.privileged-helper",
+            "Contents/MacOS/com.example.diskvisualizer.privileged-helper",
           helperLabel: "com.example.diskvisualizer.privileged-helper",
           launchDaemonBundleRelativePath:
             "Contents/Library/LaunchDaemons/com.example.diskvisualizer.privileged-helper.plist",
@@ -1103,7 +1103,7 @@ describe("nativeScanOrchestrator", () => {
           appBundleIdentifier: "com.example.diskvisualizer",
           helperLabel: "com.example.diskvisualizer.privileged-helper",
           helperExecutableBundleRelativePath:
-            "Contents/Library/LaunchServices/com.example.diskvisualizer.privileged-helper",
+            "Contents/MacOS/com.example.diskvisualizer.privileged-helper",
           launchDaemonPlistName:
             "com.example.diskvisualizer.privileged-helper.plist",
           launchDaemonBundleRelativePath:
@@ -1240,7 +1240,7 @@ describe("nativeScanOrchestrator", () => {
           contract: {
             helperLabel: "com.example.diskvisualizer.privileged-helper",
             helperExecutableBundleRelativePath:
-              "Contents/Library/LaunchServices/com.example.diskvisualizer.privileged-helper",
+              "Contents/MacOS/com.example.diskvisualizer.privileged-helper",
             launchDaemonPlistName:
               "com.example.diskvisualizer.privileged-helper.plist",
             serviceManagementModel: "smappservice-daemon",

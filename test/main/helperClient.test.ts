@@ -320,7 +320,7 @@ describe("helperClient", () => {
         contract: {
           appBundleIdentifier: "com.spacelens.app",
           helperExecutableBundleRelativePath:
-            "Contents/Library/LaunchServices/com.example.diskvisualizer.privileged-helper",
+            "Contents/MacOS/com.example.diskvisualizer.privileged-helper",
           helperLabel: "com.example.diskvisualizer.privileged-helper",
           launchDaemonBundleRelativePath:
             "Contents/Library/LaunchDaemons/com.example.diskvisualizer.privileged-helper.plist",
@@ -362,7 +362,7 @@ describe("helperClient", () => {
         contract: {
           appBundleIdentifier: "com.spacelens.app",
           helperExecutableBundleRelativePath:
-            "Contents/Library/LaunchServices/com.example.diskvisualizer.privileged-helper",
+            "Contents/MacOS/com.example.diskvisualizer.privileged-helper",
           helperLabel: "com.example.diskvisualizer.privileged-helper",
           launchDaemonBundleRelativePath:
             "Contents/Library/LaunchDaemons/com.example.diskvisualizer.privileged-helper.plist",
@@ -1432,7 +1432,7 @@ describe("helperClient", () => {
         contract: {
           appBundleIdentifier: "com.spacelens.app",
           helperExecutableBundleRelativePath:
-            "Contents/Library/LaunchServices/com.example.diskvisualizer.privileged-helper",
+            "Contents/MacOS/com.example.diskvisualizer.privileged-helper",
           helperLabel: "com.example.diskvisualizer.privileged-helper",
           launchDaemonBundleRelativePath:
             "Contents/Library/LaunchDaemons/com.example.diskvisualizer.privileged-helper.plist",
@@ -1848,7 +1848,7 @@ function buildReadyHelperProjectEvidence(projectRoot: string): string {
       extraFiles: [
         {
           from: path.dirname(DISK_SCAN_HELPER_EXECUTABLE_SOURCE_RELATIVE_PATH),
-          to: "Library/LaunchServices",
+          to: "MacOS",
           filter: [DISK_SCAN_HELPER_LABEL],
         },
         {
